@@ -1,0 +1,36 @@
+name: Build Mystery Vault for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Set up Node.js for the build only
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies and apply compatibility fix
+        run: npm install
+      - name: Check JavaScript syntax
+        shell: pwsh
+        run: |
+          node --check .\server.js
+          node --check .\public\js\app.js
+          node --check .\electron-main.mjs
+      - name: Build installer and portable EXE
+        run: npm run dist
+      - name: Upload Windows app files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mystery-Vault-Windows
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
