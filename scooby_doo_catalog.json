@@ -1,0 +1,195 @@
+{
+  "catalog_name": "Scooby-Doo Shows — Legal Watch Catalog",
+  "catalog_version": 1,
+  "region": "India",
+  "generated_date": "2026-10-22",
+  "purpose": "A separate catalog of Scooby-Doo TV series and legal watch-guide links. It intentionally does not contain torrent magnets or piracy links.",
+  "items": [
+    {
+      "id": "scooby-doo-where-are-you",
+      "title": "Scooby-Doo, Where Are You!",
+      "first_release_year": 1969,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/scooby-doo-where-are-you",
+      "reported_legal_services": [
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "the-new-scooby-doo-movies",
+      "title": "The New Scooby-Doo Movies",
+      "first_release_year": 1972,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/search?q=The%20New%20Scooby-Doo%20Movies",
+      "reported_legal_services": [],
+      "availability_note": "Check current India availability",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "the-scooby-doo-show",
+      "title": "The Scooby-Doo Show",
+      "first_release_year": 1976,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/search?q=The%20Scooby-Doo%20Show",
+      "reported_legal_services": [],
+      "availability_note": "Check current India availability",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "scooby-doo-and-scrappy-doo",
+      "title": "Scooby-Doo and Scrappy-Doo",
+      "first_release_year": 1979,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/scooby-doo-and-scrappy-doo",
+      "reported_legal_services": [
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "the-new-scooby-doo-mysteries",
+      "title": "The New Scooby-Doo Mysteries",
+      "first_release_year": 1983,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/search?q=The%20New%20Scooby-Doo%20Mysteries",
+      "reported_legal_services": [],
+      "availability_note": "Check current India availability",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "the-13-ghosts-of-scooby-doo",
+      "title": "The 13 Ghosts of Scooby-Doo",
+      "first_release_year": 1985,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/search?q=The%2013%20Ghosts%20of%20Scooby-Doo",
+      "reported_legal_services": [],
+      "availability_note": "Check current India availability",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "a-pup-named-scooby-doo",
+      "title": "A Pup Named Scooby-Doo",
+      "first_release_year": 1988,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/a-pup-named-scooby-doo",
+      "reported_legal_services": [
+        "JioHotstar",
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "whats-new-scooby-doo",
+      "title": "What’s New, Scooby-Doo?",
+      "first_release_year": 2002,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/whats-new-scooby-doo",
+      "reported_legal_services": [
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "shaggy-scooby-get-a-clue",
+      "title": "Shaggy & Scooby-Doo Get a Clue!",
+      "first_release_year": 2006,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/shaggy-and-scooby-doo-get-a-clue",
+      "reported_legal_services": [
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "scooby-doo-mystery-incorporated",
+      "title": "Scooby-Doo! Mystery Incorporated",
+      "first_release_year": 2010,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/scooby-doo-mystery-incorporated",
+      "reported_legal_services": [
+        "Netflix",
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "be-cool-scooby-doo",
+      "title": "Be Cool, Scooby-Doo!",
+      "first_release_year": 2015,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/search?q=Be%20Cool%20Scooby-Doo",
+      "reported_legal_services": [
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Reported by India availability tracker; verify before subscribing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "scooby-doo-and-guess-who",
+      "title": "Scooby-Doo and Guess Who?",
+      "first_release_year": 2019,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/tv-show/scooby-doo-and-guess-who",
+      "reported_legal_services": [
+        "CN Rewind Amazon Channel"
+      ],
+      "availability_note": "Confirmed by India listing",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "velma",
+      "title": "Velma",
+      "first_release_year": 2023,
+      "kind": "series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://www.justwatch.com/in/search?q=Velma%202023",
+      "reported_legal_services": [],
+      "availability_note": "Check current India availability",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    },
+    {
+      "id": "yokoso-scooby-doo",
+      "title": "YOKOSO SCOOBY-DOO!",
+      "first_release_year": 2026,
+      "kind": "upcoming_series",
+      "region": "IN",
+      "legal_watch_guide_url": "https://corporate.tubitv.com/press/tubi-greenlights-yokoso-scooby-doo-anime-adventure-series-set-in-japan-with-warner-bros-animation/",
+      "reported_legal_services": [],
+      "availability_note": "Announced May 2026; release date/availability not confirmed in source",
+      "torrent_uri": null,
+      "torrent_speed": "not_applicable"
+    }
+  ]
+}

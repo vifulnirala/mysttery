@@ -1,0 +1,21 @@
+{
+  "name": "mystery-vault",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mystery Vault movie search and torrent streaming web app",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "node scripts/fix-webtorrent-infohash.cjs",
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/js/app.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.9",
+    "express": "^4.21.2",
+    "webtorrent": "2.8.5"
+  }
+}
