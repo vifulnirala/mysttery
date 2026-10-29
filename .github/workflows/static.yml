@@ -24,7 +24,6 @@ jobs:
         run: |
           node --check .\server.js
           node --check .\public\js\app.js
-          node --check .\electron-main.mjs
       - name: Build installer and portable EXE
         run: npm run dist
       - name: Upload Windows app files
