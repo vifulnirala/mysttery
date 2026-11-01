@@ -15,9 +15,13 @@
     let currentPlaybackMode = 'torrent';
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
+    const resultSourceFilter = document.getElementById('result-source-filter');
+    const qualityFilter = document.getElementById('quality-filter');
+    const qualityFilterWrap = document.getElementById('quality-filter-wrap');
     let searchResults = [];
     let tmdbResults = [];
     let unifiedResults = [];
+    let filteredResults = [];
     let visibleCount = 0;
     let currentSource = null;
     let searchController = null;
@@ -134,7 +138,8 @@
         ...searchResults.map((item, index) => ({ type: 'search', index })),
         ...tmdbResults.map((item, index) => ({ type: 'tmdb', index }))
       ];
-      renderMoreResults(true);
+      populateQualityFilter();
+      applyResultFilters();
 
       if (!unifiedResults.length) {
         torrentGrid.innerHTML = `<div class="empty">${escapeHtml(errors[0] || 'No matching results found.')}</div>`;
@@ -149,24 +154,55 @@
         errors.length ? 'error' : 'success');
     }
 
+    function qualityKey(item) {
+      const text = String(item.quality || item.resolution || '').toLowerCase();
+      const match = text.match(/(2160|1440|1080|720|480|360)p?/);
+      return match ? `${match[1]}p` : 'unknown';
+    }
+
+    function applyResultFilters() {
+      const source = resultSourceFilter.value;
+      const quality = qualityFilter.value;
+      filteredResults = unifiedResults.filter(entry => {
+        if (source !== 'all' && entry.type !== source) return false;
+        if (entry.type === 'search' && quality !== 'all' && qualityKey(searchResults[entry.index]) !== quality) return false;
+        return true;
+      });
+      renderMoreResults(true);
+      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb');
+    }
+
+    function populateQualityFilter() {
+      const qualities = [...new Set(searchResults.map(qualityKey))];
+      const ordered = ['2160p', '1440p', '1080p', '720p', '480p', '360p', 'unknown'];
+      const available = ordered.filter(value => qualities.includes(value));
+      qualityFilter.innerHTML = '<option value="all">All qualities</option>' +
+        available.map(value => `<option value="${value}">${value === 'unknown' ? 'Unspecified' : value}</option>`).join('');
+      qualityFilter.value = 'all';
+      qualityFilterWrap.classList.toggle('filter-disabled', resultSourceFilter.value === 'tmdb' || !searchResults.length);
+    }
+
     function renderMoreResults(reset = false) {
       const batchSize = Number.parseInt(pageSizeSelect.value, 10) || 10;
       if (reset) {
         torrentGrid.innerHTML = '';
         visibleCount = 0;
       }
-      const nextCount = Math.min(unifiedResults.length, visibleCount + batchSize);
-      const slice = unifiedResults.slice(visibleCount, nextCount);
+      const nextCount = Math.min(filteredResults.length, visibleCount + batchSize);
+      const slice = filteredResults.slice(visibleCount, nextCount);
       const markup = slice.map(entry => {
         const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
         return item ? cardMarkup(item, entry.index, entry.type) : '';
       }).join('');
       torrentGrid.insertAdjacentHTML('beforeend', markup);
       visibleCount = nextCount;
-      loadMoreButton.classList.toggle('hidden', visibleCount >= unifiedResults.length);
-      loadMoreButton.textContent = `Load more results (${unifiedResults.length - visibleCount} left) ↓`;
+      loadMoreButton.classList.toggle('hidden', visibleCount >= filteredResults.length);
+      loadMoreButton.textContent = `Load more results (${filteredResults.length - visibleCount} left) ↓`;
       document.getElementById('results-note').textContent =
-        `Showing ${visibleCount} of ${unifiedResults.length} results in one list.`;
+        filteredResults.length
+          ? `Showing ${visibleCount} of ${filteredResults.length} filtered results (${unifiedResults.length} total).`
+          : 'No results match the selected filters.';
+      if (!filteredResults.length) torrentGrid.innerHTML = '<div class="empty">No results match these filters. Try changing the source or picture quality.</div>';
     }
 
     async function handleTorrentSelection(source, title) {
@@ -307,6 +343,8 @@
     });
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
+    resultSourceFilter.addEventListener('change', applyResultFilters);
+    qualityFilter.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('player-close').addEventListener('click', closePlayer);
@@ -333,7 +371,23 @@
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'episode-choice';
-          button.textContent = `E${String(episode.episodeNumber).padStart(2, '0')} · ${episode.name || 'Untitled episode'}`;
+          const number = document.createElement('span');
+          number.className = 'episode-number';
+          number.textContent = `E${String(episode.episodeNumber).padStart(2, '0')}`;
+          const copy = document.createElement('span');
+          copy.className = 'episode-copy';
+          const name = document.createElement('strong');
+          name.className = 'episode-name';
+          name.textContent = episode.name || 'Untitled episode';
+          const overview = document.createElement('span');
+          overview.className = 'episode-overview';
+          overview.textContent = episode.overview || 'Select to play this episode';
+          copy.append(name, overview);
+          const play = document.createElement('span');
+          play.className = 'episode-play';
+          play.setAttribute('aria-hidden', 'true');
+          play.textContent = '▶';
+          button.append(number, copy, play);
           button.title = episode.overview || episode.name || '';
           button.addEventListener('click', async clickEvent => {
             clickEvent.stopPropagation();
