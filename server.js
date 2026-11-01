@@ -762,7 +762,13 @@ app.get('/api/title-search', async (req, res) => {
       });
       if (!response.ok) throw new Error(`TMDB ${mediaType} search failed: HTTP ${response.status}`);
       const data = await response.json();
-      return (Array.isArray(data.results) ? data.results : []).slice(0, 10).map(item => ({
+      const rawResults = Array.isArray(data.results) ? data.results : [];
+      // Exclude movies with a release date after today. TV shows are unaffected.
+      const today = new Date().toISOString().slice(0, 10);
+      const eligibleResults = mediaType === 'movie'
+        ? rawResults.filter(item => !item.release_date || item.release_date <= today)
+        : rawResults;
+      return eligibleResults.slice(0, 10).map(item => ({
         tmdbId: String(item.id),
         mediaType,
         title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
