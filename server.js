@@ -28,6 +28,34 @@ const YTS_API_BASE =
 // in the browser. Set TMDB_API_READ_ACCESS_TOKEN in the server environment.
 const TMDB_API_READ_ACCESS_TOKEN = process.env.TMDB_API_READ_ACCESS_TOKEN || '';
 
+// Retry transient upstream failures using a bounded logarithmic backoff.
+// Delays grow as baseDelayMs * ln(attempt + 1), capped to avoid long stalls.
+async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream API') {
+  const maxRetries = Math.max(0, Math.min(4, Number(process.env.UPSTREAM_MAX_RETRIES) || 3));
+  const baseDelayMs = Math.max(100, Number(process.env.UPSTREAM_RETRY_BASE_MS) || 800);
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || ![408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
+        return response;
+      }
+      lastError = new Error(`${label} returned HTTP ${response.status}`);
+    } catch (error) {
+      if (options.signal?.aborted || error?.name === 'AbortError') throw error;
+      lastError = error;
+    }
+
+    if (attempt < maxRetries) {
+      const delayMs = Math.min(5000, Math.round(baseDelayMs * Math.log(attempt + 2)));
+      console.warn(`[${label}] Attempt ${attempt + 1}/${maxRetries + 1} failed; retrying in ${delayMs}ms: ${lastError.message}`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError || new Error(`${label} request failed`);
+}
+
 
 // Optional licensed external-player adapter. Configure a provider you are authorized
 // to embed; the browser never submits an arbitrary iframe URL to the server.
@@ -255,9 +283,9 @@ async function searchYts(query, requestedLimit = 50) {
     url.searchParams.set('sort_by', 'seeds');
     url.searchParams.set('order_by', 'desc');
 
-    const response = await fetch(url, {
+    const response = await fetchWithLogarithmicBackoff(url, {
       signal: AbortSignal.timeout(Number(process.env.YTS_TIMEOUT_MS) || 15000)
-    });
+    }, 'YTS');
 
     if (!response.ok) {
       throw new Error(`YTS returned HTTP ${response.status}`);
@@ -756,10 +784,10 @@ app.get('/api/title-search', async (req, res) => {
       url.searchParams.set('include_adult', 'false');
       url.searchParams.set('language', 'en-US');
       url.searchParams.set('page', '1');
-      const response = await fetch(url, {
+      const response = await fetchWithLogarithmicBackoff(url, {
         headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
         signal: AbortSignal.timeout(10000)
-      });
+      }, `TMDB ${mediaType} search`);
       if (!response.ok) throw new Error(`TMDB ${mediaType} search failed: HTTP ${response.status}`);
       const data = await response.json();
       const rawResults = Array.isArray(data.results) ? data.results : [];
@@ -788,6 +816,60 @@ app.get('/api/title-search', async (req, res) => {
   } catch (error) {
     console.error('TMDB title search error:', error.message);
     res.status(502).json({ error: 'Could not search both movies and TV shows on TMDB. Try again in a moment.' });
+  }
+});
+
+
+// Fetch the season list for a TMDB TV series.
+app.get('/api/tv/:id/seasons', async (req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const id = String(req.params.id || '');
+  if (!/^\\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Invalid TMDB TV ID.' });
+  try {
+    const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
+      headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(10000)
+    }, 'TMDB TV seasons');
+    if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
+    const data = await response.json();
+    res.json({
+      seasons: (Array.isArray(data.seasons) ? data.seasons : []).map(season => ({
+        seasonNumber: Number(season.season_number),
+        name: String(season.name || `Season ${season.season_number}`),
+        episodeCount: Number(season.episode_count || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('TMDB season list error:', error.message);
+    res.status(502).json({ error: 'Could not load seasons from TMDB. Please try again.' });
+  }
+});
+
+// Fetch named episodes for one season of a TMDB TV series.
+app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const id = String(req.params.id || '');
+  const seasonNumber = Number(req.params.seasonNumber);
+  if (!/^\\d{1,12}$/.test(id) || !Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 99) {
+    return res.status(400).json({ error: 'Invalid TV series or season number.' });
+  }
+  try {
+    const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`, {
+      headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(10000)
+    }, 'TMDB TV episodes');
+    if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
+    const data = await response.json();
+    res.json({
+      episodes: (Array.isArray(data.episodes) ? data.episodes : []).map(episode => ({
+        episodeNumber: Number(episode.episode_number),
+        name: String(episode.name || 'Untitled episode'),
+        overview: String(episode.overview || '')
+      }))
+    });
+  } catch (error) {
+    console.error('TMDB episode list error:', error.message);
+    res.status(502).json({ error: 'Could not load episode names from TMDB. Please try again.' });
   }
 });
 
