@@ -23,8 +23,13 @@
       <h1><span class="gradient-text">Find it. Stream it.</span></h1>
       <p class="hero-copy">Search the catalog and available torrent sources in one place. Pick a result to inspect its files before playback begins.</p>
       <form class="search-panel" id="search-form" role="search">
-        <input type="search" id="search" autocomplete="off" placeholder="Search a title or paste a magnet URI…" aria-label="Search movies or paste a magnet URI">
-        <button class="btn btn-primary" type="submit">⌕ &nbsp; Search titles</button>
+        <input type="search" id="search" autocomplete="off" placeholder="Search movies, TV shows, or torrents…" aria-label="Search movies, TV shows, or torrents">
+        <select id="search-source" class="select-control search-source" aria-label="Choose search sources">
+          <option value="both">Both sources</option>
+          <option value="torrents">Torrent files only</option>
+          <option value="tmdb">TMDB results only</option>
+        </select>
+        <button class="btn btn-primary" type="submit">⌕ &nbsp; Search</button>
       </form>
       <div id="status-banner" class="status" role="status" aria-live="polite"></div>
     </section>
@@ -39,8 +44,15 @@
           </select>
         </div>
       </div>
-      <div class="grid" id="torrent-grid"></div>
-      <div class="load-more-wrap"><button class="btn btn-secondary hidden" id="load-more" type="button">Load more results ↓</button></div>
+      <div id="torrent-results-block">
+        <div class="section-kicker">Torrent files</div>
+        <div class="grid" id="torrent-grid"></div>
+        <div class="load-more-wrap"><button class="btn btn-secondary hidden" id="load-more" type="button">Load more results ↓</button></div>
+      </div>
+      <div id="tmdb-results-block" class="hidden">
+        <div class="section-kicker">TMDB results</div>
+        <div class="title-search-results" id="title-search-results" aria-live="polite"></div>
+      </div>
     </section>
 
     <section class="section" aria-labelledby="catalog-title">
@@ -50,13 +62,8 @@
       <div class="grid" id="catalog-grid"></div>
     </section>
 
-    <section class="section" aria-label="Title search and external playback">
+    <section class="section" aria-label="External playback">
       <div class="embed-panel">
-        <form id="title-search-form" class="title-search-row">
-          <input id="title-search-query" type="search" maxlength="120" placeholder="Search for a movie or TV show…" autocomplete="off" aria-label="Movie or TV show title">
-          <button class="btn btn-secondary" type="submit">Search titles</button>
-        </form>
-        <div class="title-search-results" id="title-search-results" aria-live="polite"></div>
         <form id="external-player-form" class="embed-form">
           <label class="embed-field">Media type
             <select id="external-media-type" class="select-control"><option value="movie">Movie</option><option value="tv">TV episode</option></select>
