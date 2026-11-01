@@ -28,31 +28,92 @@ const YTS_API_BASE =
 // in the browser. Set TMDB_API_READ_ACCESS_TOKEN in the server environment.
 const TMDB_API_READ_ACCESS_TOKEN = process.env.TMDB_API_READ_ACCESS_TOKEN || '';
 
+// Retry transient upstream failures using a bounded logarithmic backoff.
+// Delays grow as baseDelayMs * ln(attempt + 1), capped to avoid long stalls.
+async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream API') {
+  const maxRetries = Math.max(0, Math.min(4, Number(process.env.UPSTREAM_MAX_RETRIES) || 3));
+  const baseDelayMs = Math.max(100, Number(process.env.UPSTREAM_RETRY_BASE_MS) || 800);
+  const { timeoutMs = 0, signal: callerSignal, ...fetchOptions } = options;
+  const retryableStatuses = [408, 425, 429, 500, 502, 503, 504];
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (callerSignal?.aborted) throw callerSignal.reason || new Error(`${label} request aborted`);
+
+    const controller = new AbortController();
+    const forwardAbort = () => controller.abort(callerSignal.reason);
+    callerSignal?.addEventListener('abort', forwardAbort, { once: true });
+    const timeout = Number(timeoutMs) > 0
+      ? setTimeout(() => controller.abort(new Error(`${label} request timed out after ${timeoutMs}ms`)), Number(timeoutMs))
+      : null;
+
+    try {
+      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      if (response.ok || !retryableStatuses.includes(response.status)) return response;
+      lastError = new Error(`${label} returned HTTP ${response.status}`);
+    } catch (error) {
+      if (callerSignal?.aborted) throw callerSignal.reason || error;
+      lastError = error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      callerSignal?.removeEventListener('abort', forwardAbort);
+    }
+
+    if (attempt < maxRetries) {
+      const delayMs = Math.min(5000, Math.round(baseDelayMs * Math.log(attempt + 2)));
+      console.warn(`[${label}] Attempt ${attempt + 1}/${maxRetries + 1} failed; retrying in ${delayMs}ms: ${lastError.message}`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError || new Error(`${label} request failed`);
+}
+
 
 // Optional licensed external-player adapter. Configure a provider you are authorized
 // to embed; the browser never submits an arbitrary iframe URL to the server.
-const EMBED_PROVIDER = {
-  name: process.env.EMBED_PROVIDER_NAME || 'VidSrc',
-  baseUrl: process.env.EMBED_PROVIDER_BASE_URL || 'https://vidsrc.sh',
-  moviePath: process.env.EMBED_MOVIE_PATH_TEMPLATE || '/embed/movie/{id}',
-  tvPath: process.env.EMBED_TV_PATH_TEMPLATE || '/embed/tv/{id}/{season}/{episode}'
-};
+function readEmbedProviders() {
+  const ids = String(process.env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
+  const providerIds = ids.length ? ids : ['default'];
+  const providers = [];
 
-function getEmbedProviderConfig() {
-  if (!EMBED_PROVIDER.baseUrl || !EMBED_PROVIDER.moviePath || !EMBED_PROVIDER.tvPath) return null;
-  if (!EMBED_PROVIDER.moviePath.includes('{id}') || !['{id}', '{season}', '{episode}'].every(token => EMBED_PROVIDER.tvPath.includes(token))) return null;
-  try {
-    const base = new URL(EMBED_PROVIDER.baseUrl);
-    if (base.protocol !== 'https:' || base.username || base.password) return null;
-    for (const template of [EMBED_PROVIDER.moviePath, EMBED_PROVIDER.tvPath]) {
-      if (!template.startsWith('/') || template.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(template)) return null;
-      const resolved = new URL(template.replace(/\{(?:id|season|episode)\}/g, 'placeholder'), base);
-      if (resolved.origin !== base.origin) return null;
+  for (const id of providerIds) {
+    if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+
+    const prefix = 'EMBED_' + id.toUpperCase() + '_';
+    const legacy = id === 'default';
+    const name = process.env[prefix + 'NAME'] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
+    const baseUrl = process.env[prefix + 'BASE_URL'] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
+    const moviePath = process.env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
+    const tvPath = process.env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
+
+    if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') ||
+        !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
+
+    try {
+      const base = new URL(baseUrl);
+      if (base.protocol !== 'https:' || base.username || base.password) continue;
+
+      let valid = true;
+      for (const template of [moviePath, tvPath]) {
+        if (!template.startsWith('/') || template.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(template)) {
+          valid = false;
+          break;
+        }
+        const safePath = template.replace(/\{(?:id|season|episode)\}/g, 'placeholder');
+        if (new URL(safePath, base).origin !== base.origin) valid = false;
+      }
+
+      if (valid) providers.push({ id, name, base, moviePath, tvPath });
+    } catch (_) {
+      // Ignore invalid entries; keep valid servers available.
     }
-    return { base, name: EMBED_PROVIDER.name, moviePath: EMBED_PROVIDER.moviePath, tvPath: EMBED_PROVIDER.tvPath };
-  } catch (_) {
-    return null;
   }
+
+  return providers;
+}
+function getEmbedProviderConfig(providerId) {
+  const providers = readEmbedProviders();
+  return providers.find(provider => provider.id === providerId) || providers[0] || null;
 }
 
 const DEFAULT_TRACKERS = [
@@ -255,9 +316,9 @@ async function searchYts(query, requestedLimit = 50) {
     url.searchParams.set('sort_by', 'seeds');
     url.searchParams.set('order_by', 'desc');
 
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(Number(process.env.YTS_TIMEOUT_MS) || 15000)
-    });
+    const response = await fetchWithLogarithmicBackoff(url, {
+      timeoutMs: Number(process.env.YTS_TIMEOUT_MS) || 15000
+    }, 'YTS');
 
     if (!response.ok) {
       throw new Error(`YTS returned HTTP ${response.status}`);
@@ -698,46 +759,33 @@ function pipeFileToResponse(key, file, req, res) {
 // 5. EXPRESS API ROUTES
 // ============================================================================
 app.get('/api/embed-config', (_req, res) => {
-  const config = getEmbedProviderConfig();
-  res.json({ enabled: Boolean(config), providerName: config?.name || null });
+  const providers = readEmbedProviders();
+  res.json({ enabled: providers.length > 0, providerName: providers[0]?.name || null,
+    defaultProviderId: providers[0]?.id || null,
+    providers: providers.map(({ id, name }) => ({ id, name })) });
 });
 
 app.post('/api/external-player', (req, res) => {
-  const config = getEmbedProviderConfig();
-  if (!config) {
-    return res.status(503).json({ error: 'External playback is not configured. Check the provider HTTPS origin and URL templates.' });
-  }
-
+  const config = getEmbedProviderConfig(String(req.body?.serverId || ''));
+  if (!config) return res.status(503).json({ error: 'No valid external player servers are configured. Check EMBED_SERVERS and EMBED_<ID>_* variables.' });
   const mediaType = req.body?.mediaType === 'tv' ? 'tv' : req.body?.mediaType === 'movie' ? 'movie' : null;
   const id = String(req.body?.id || '').trim();
-  if (!mediaType || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) {
-    return res.status(400).json({ error: 'Provide a valid IMDb/TMDB-style ID and choose movie or TV.' });
-  }
-
-  let season = null;
-  let episode = null;
+  if (!mediaType || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return res.status(400).json({ error: 'Provide a valid IMDb/TMDB-style ID and choose movie or TV.' });
+  let season = null, episode = null;
   if (mediaType === 'tv') {
-    season = Number(req.body?.season);
-    episode = Number(req.body?.episode);
-    if (!Number.isInteger(season) || season < 0 || season > 99 || !Number.isInteger(episode) || episode < 1 || episode > 999) {
+    season = Number(req.body?.season); episode = Number(req.body?.episode);
+    if (!Number.isInteger(season) || season < 0 || season > 99 || !Number.isInteger(episode) || episode < 1 || episode > 999)
       return res.status(400).json({ error: 'TV playback requires a valid season (0–99) and episode (1–999).' });
-    }
   }
-
   const template = mediaType === 'movie' ? config.moviePath : config.tvPath;
-  const path = template
-    .replaceAll('{id}', encodeURIComponent(id))
+  const path = template.replaceAll('{id}', encodeURIComponent(id))
     .replaceAll('{season}', encodeURIComponent(String(season ?? '')))
     .replaceAll('{episode}', encodeURIComponent(String(episode ?? '')));
   try {
     const url = new URL(path, config.base);
-    if (url.origin !== config.base.origin || url.protocol !== 'https:') {
-      return res.status(500).json({ error: 'Configured embed path must remain on the configured HTTPS provider origin.' });
-    }
-    res.json({ url: url.toString(), providerName: config.name, mediaType });
-  } catch (_) {
-    res.status(500).json({ error: 'The configured provider path is invalid.' });
-  }
+    if (url.origin !== config.base.origin || url.protocol !== 'https:') return res.status(500).json({ error: 'Configured embed path must remain on the configured HTTPS provider origin.' });
+    res.json({ url: url.toString(), providerName: config.name, providerId: config.id, mediaType });
+  } catch (_) { res.status(500).json({ error: 'The configured provider path is invalid.' }); }
 });
 
 app.get('/api/title-search', async (req, res) => {
@@ -756,13 +804,19 @@ app.get('/api/title-search', async (req, res) => {
       url.searchParams.set('include_adult', 'false');
       url.searchParams.set('language', 'en-US');
       url.searchParams.set('page', '1');
-      const response = await fetch(url, {
+      const response = await fetchWithLogarithmicBackoff(url, {
         headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
+        timeoutMs: 10000
+      }, `TMDB ${mediaType} search`);
       if (!response.ok) throw new Error(`TMDB ${mediaType} search failed: HTTP ${response.status}`);
       const data = await response.json();
-      return (Array.isArray(data.results) ? data.results : []).slice(0, 10).map(item => ({
+      const rawResults = Array.isArray(data.results) ? data.results : [];
+      // Exclude movies with a release date after today. TV shows are unaffected.
+      const today = new Date().toISOString().slice(0, 10);
+      const eligibleResults = mediaType === 'movie'
+        ? rawResults.filter(item => !item.release_date || item.release_date <= today)
+        : rawResults;
+      return eligibleResults.slice(0, 10).map(item => ({
         tmdbId: String(item.id),
         mediaType,
         title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
@@ -782,6 +836,60 @@ app.get('/api/title-search', async (req, res) => {
   } catch (error) {
     console.error('TMDB title search error:', error.message);
     res.status(502).json({ error: 'Could not search both movies and TV shows on TMDB. Try again in a moment.' });
+  }
+});
+
+
+// Fetch the season list for a TMDB TV series.
+app.get('/api/tv/:id/seasons', async (req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const id = String(req.params.id || '');
+  if (!/^\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Invalid TMDB TV ID.' });
+  try {
+    const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
+      headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+      timeoutMs: 10000
+    }, 'TMDB TV seasons');
+    if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
+    const data = await response.json();
+    res.json({
+      seasons: (Array.isArray(data.seasons) ? data.seasons : []).map(season => ({
+        seasonNumber: Number(season.season_number),
+        name: String(season.name || `Season ${season.season_number}`),
+        episodeCount: Number(season.episode_count || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('TMDB season list error:', error.message);
+    res.status(502).json({ error: 'Could not load seasons from TMDB. Please try again.' });
+  }
+});
+
+// Fetch named episodes for one season of a TMDB TV series.
+app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const id = String(req.params.id || '');
+  const seasonNumber = Number(req.params.seasonNumber);
+  if (!/^\d{1,12}$/.test(id) || !Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 99) {
+    return res.status(400).json({ error: 'Invalid TV series or season number.' });
+  }
+  try {
+    const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`, {
+      headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+      timeoutMs: 10000
+    }, 'TMDB TV episodes');
+    if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
+    const data = await response.json();
+    res.json({
+      episodes: (Array.isArray(data.episodes) ? data.episodes : []).map(episode => ({
+        episodeNumber: Number(episode.episode_number),
+        name: String(episode.name || 'Untitled episode'),
+        overview: String(episode.overview || '')
+      }))
+    });
+  } catch (error) {
+    console.error('TMDB episode list error:', error.message);
+    res.status(502).json({ error: 'Could not load episode names from TMDB. Please try again.' });
   }
 });
 

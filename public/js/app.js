@@ -11,14 +11,30 @@
     const nowPlaying = document.getElementById('now-playing');
     const video = document.getElementById('video-element');
     const externalFrame = document.getElementById('external-player-frame');
+    const externalServerControl = document.getElementById('external-server-control');
+    const externalServerSelect = document.getElementById('external-server-select');
+    const externalServerStatus = document.getElementById('external-server-status');
+    const episodePickerModal = document.getElementById('episode-picker-modal');
+    const episodePickerContent = document.getElementById('episode-picker-content');
+    let externalProviders = [];
+    let activeExternalPayload = null;
+    let activeExternalTitle = '';
+    let activeExternalServerId = null;
     const playerTip = document.getElementById('player-tip');
     let currentPlaybackMode = 'torrent';
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
+    const resultSourceFilter = document.getElementById('result-source-filter');
+    const qualityFilter = document.getElementById('quality-filter');
+    const qualityFilterWrap = document.getElementById('quality-filter-wrap');
     let searchResults = [];
+    let tmdbResults = [];
+    let unifiedResults = [];
+    let filteredResults = [];
     let visibleCount = 0;
     let currentSource = null;
     let searchController = null;
+    let tmdbController = null;
     let selectionController = null;
     const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="285" fill="#a78bfa" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#aab4ce" font-family="sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
 
@@ -43,14 +59,19 @@
     }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
-      const poster = escapeHtml(posterUrl(item.poster));
-      const provider = type === 'catalog' ? 'Curated' : (item.provider || 'Torrent');
+      const poster = escapeHtml(posterUrl(type === 'tmdb' ? item.posterUrl : item.poster));
+      const isTmdb = type === 'tmdb';
+      const provider = type === 'catalog' ? 'Curated' : isTmdb ? 'TMDB' : (item.provider || 'Torrent');
       const metaLeft = type === 'catalog'
         ? escapeHtml(item.year || '')
-        : `Seeds: ${Number(item.seeders || 0).toLocaleString()}`;
+        : isTmdb
+          ? `${escapeHtml(item.year || 'Year unknown')} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'}`
+          : `Seeds: ${Number(item.seeders || 0).toLocaleString()}`;
       const metaRight = type === 'catalog'
         ? 'Quick pick'
-        : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
+        : isTmdb
+          ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
+          : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
       return `<article class="card" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
         <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
           <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span></div>
@@ -74,37 +95,100 @@
 
     async function searchTorrents() {
       const query = searchInput.value.trim();
+      const sourceMode = document.getElementById('search-source').value;
+      const wantsTorrents = sourceMode !== 'tmdb';
+      const wantsTmdb = sourceMode !== 'torrents';
+
       if (!query) {
         searchSection.classList.add('hidden');
-        setStatus('Enter a title or paste a magnet URI to search.');
+        setStatus('Enter a title to search.');
         searchInput.focus();
         return;
       }
-      if (searchController) searchController.abort();
-      searchController = new AbortController();
-      setStatus(`Searching YTS first, then other available sources, for “${query}”…`);
+
+      searchController?.abort();
+      tmdbController?.abort();
+      searchController = wantsTorrents ? new AbortController() : null;
+      tmdbController = wantsTmdb ? new AbortController() : null;
       searchSection.classList.remove('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching sources…</div>';
       loadMoreButton.classList.add('hidden');
-      try {
-        const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
-        if (!response.ok) throw new Error(`Search failed (HTTP ${response.status})`);
-        const data = await response.json();
-        searchResults = Array.isArray(data.results) ? data.results : [];
-        visibleCount = 0;
-        renderMoreResults(true);
-        if (!searchResults.length) {
-          setStatus(`No matching torrents found for “${query}”. Try a shorter title.`, 'error');
-        } else {
-          const ytsCount = searchResults.filter(item => item.provider === 'YTS').length;
-          setStatus(`Found ${searchResults.length} results${ytsCount ? `, including ${ytsCount} YTS releases shown first` : ''}. Select a card to inspect its video files.`, 'success');
-        }
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-        searchResults = [];
-        torrentGrid.innerHTML = '<div class="empty">Search failed. Check your server connection and try again.</div>';
-        setStatus(error.message || 'Could not search sources.', 'error');
+      torrentGrid.innerHTML = '<div class="empty">Searching selected sources…</div>';
+      searchResults = [];
+      tmdbResults = [];
+      unifiedResults = [];
+      setStatus(`Searching ${sourceMode === 'both' ? 'torrent sources and TMDB' : sourceMode === 'tmdb' ? 'TMDB' : 'torrent sources'} for “${query}”…`);
+
+      const tasks = [];
+      if (wantsTorrents) {
+        tasks.push((async () => {
+          const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
+          if (!response.ok) throw new Error(`Torrent search failed (HTTP ${response.status})`);
+          const data = await response.json();
+          searchResults = Array.isArray(data.results) ? data.results : [];
+        })());
       }
+      if (wantsTmdb) {
+        tasks.push((async () => {
+          const response = await fetch(`/api/title-search?q=${encodeURIComponent(query)}`, { signal: tmdbController.signal });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'TMDB search failed.');
+          tmdbResults = Array.isArray(data.results) ? data.results : [];
+        })());
+      }
+
+      const outcomes = await Promise.allSettled(tasks);
+      if ((searchController?.signal.aborted || !wantsTorrents) &&
+          (tmdbController?.signal.aborted || !wantsTmdb)) return;
+
+      const errors = outcomes
+        .filter(result => result.status === 'rejected' && result.reason?.name !== 'AbortError')
+        .map(result => result.reason?.message || 'A search source failed.');
+      unifiedResults = [
+        ...searchResults.map((item, index) => ({ type: 'search', index })),
+        ...tmdbResults.map((item, index) => ({ type: 'tmdb', index }))
+      ];
+      populateQualityFilter();
+      applyResultFilters();
+
+      if (!unifiedResults.length) {
+        torrentGrid.innerHTML = `<div class="empty">${escapeHtml(errors[0] || 'No matching results found.')}</div>`;
+      }
+      const summary = [
+        wantsTorrents ? `${searchResults.length} torrent${searchResults.length === 1 ? '' : 's'}` : null,
+        wantsTmdb ? `${tmdbResults.length} TMDB title${tmdbResults.length === 1 ? '' : 's'}` : null
+      ].filter(Boolean).join(' and ');
+      setStatus(errors.length
+        ? `Search partially completed: ${errors.join(' · ')}`
+        : `Search complete for “${query}”: ${summary}. Upcoming movies are excluded from TMDB results.`,
+        errors.length ? 'error' : 'success');
+    }
+
+    function qualityKey(item) {
+      const text = String(item.quality || item.resolution || '').toLowerCase();
+      const match = text.match(/(2160|1440|1080|720|480|360)p?/);
+      return match ? `${match[1]}p` : 'unknown';
+    }
+
+    function applyResultFilters() {
+      const source = resultSourceFilter.value;
+      const quality = qualityFilter.value;
+      filteredResults = unifiedResults.filter(entry => {
+        if (source !== 'all' && entry.type !== source) return false;
+        if (entry.type === 'search' && quality !== 'all' && qualityKey(searchResults[entry.index]) !== quality) return false;
+        return true;
+      });
+      renderMoreResults(true);
+      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb');
+    }
+
+    function populateQualityFilter() {
+      const qualities = [...new Set(searchResults.map(qualityKey))];
+      const ordered = ['2160p', '1440p', '1080p', '720p', '480p', '360p', 'unknown'];
+      const available = ordered.filter(value => qualities.includes(value));
+      qualityFilter.innerHTML = '<option value="all">All qualities</option>' +
+        available.map(value => `<option value="${value}">${value === 'unknown' ? 'Unspecified' : value}</option>`).join('');
+      qualityFilter.value = 'all';
+      qualityFilterWrap.classList.toggle('filter-disabled', resultSourceFilter.value === 'tmdb' || !searchResults.length);
     }
 
     function renderMoreResults(reset = false) {
@@ -113,15 +197,21 @@
         torrentGrid.innerHTML = '';
         visibleCount = 0;
       }
-      const nextCount = Math.min(searchResults.length, visibleCount + batchSize);
-      const slice = searchResults.slice(visibleCount, nextCount);
-      const offset = visibleCount;
-      torrentGrid.insertAdjacentHTML('beforeend', slice.map((item, i) => cardMarkup(item, offset + i, 'search')).join(''));
+      const nextCount = Math.min(filteredResults.length, visibleCount + batchSize);
+      const slice = filteredResults.slice(visibleCount, nextCount);
+      const markup = slice.map(entry => {
+        const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
+        return item ? cardMarkup(item, entry.index, entry.type) : '';
+      }).join('');
+      torrentGrid.insertAdjacentHTML('beforeend', markup);
       visibleCount = nextCount;
-      loadMoreButton.classList.toggle('hidden', visibleCount >= searchResults.length);
-      loadMoreButton.textContent = `Load more results (${searchResults.length - visibleCount} left) ↓`;
+      loadMoreButton.classList.toggle('hidden', visibleCount >= filteredResults.length);
+      loadMoreButton.textContent = `Load more results (${filteredResults.length - visibleCount} left) ↓`;
       document.getElementById('results-note').textContent =
-        `Showing ${visibleCount} of ${searchResults.length}. YTS results are prioritized first.`;
+        filteredResults.length
+          ? `Showing ${visibleCount} of ${filteredResults.length} filtered results (${unifiedResults.length} total).`
+          : 'No results match the selected filters.';
+      if (!filteredResults.length) torrentGrid.innerHTML = '<div class="empty">No results match these filters. Try changing the source or picture quality.</div>';
     }
 
     async function handleTorrentSelection(source, title) {
@@ -163,6 +253,9 @@
       currentPlaybackMode = 'torrent';
       externalFrame.removeAttribute('src');
       externalFrame.classList.add('hidden');
+      externalServerControl.classList.add('hidden');
+      externalServerStatus.textContent = '';
+      activeExternalPayload = null;
       video.classList.remove('hidden');
       playerTip.textContent = 'Tip: use a smaller 720p release with healthy seed availability for faster starts.';
       nowPlaying.textContent = fileName ? `Streaming · ${fileName}` : 'Now playing';
@@ -211,108 +304,50 @@
     externalTypeSelect.addEventListener('change', updateExternalTypeFields);
     updateExternalTypeFields();
     fetch('/api/embed-config').then(response => response.json()).then(config => {
+      externalProviders = Array.isArray(config.providers) ? config.providers : [];
       externalStatus.textContent = config.enabled
-        ? `Configured provider: ${config.providerName}. Use only content you have permission to access.`
-        : 'No external provider configured. Check the EMBED_PROVIDER_* environment variables.';
-    }).catch(() => {
-      externalStatus.textContent = 'Could not check provider configuration. Confirm the server is running.';
-    });
+        ? `Configured servers: ${externalProviders.map(provider => provider.name).join(', ')}. Use only content you have permission to access.`
+        : 'No external servers configured. Check the EMBED_SERVERS and EMBED_<ID>_* environment variables.';
+    }).catch(() => { externalStatus.textContent = 'Could not check player server configuration. Confirm the server is running.'; });
 
-    const titleSearchForm = document.getElementById('title-search-form');
-    const titleSearchInput = document.getElementById('title-search-query');
-    const titleSearchResults = document.getElementById('title-search-results');
-    titleSearchForm.addEventListener('submit', async event => {
-      event.preventDefault();
-      const query = titleSearchInput.value.trim();
-      if (query.length < 2) {
-        titleSearchResults.textContent = 'Enter at least two characters to search.';
-        return;
-      }
-      titleSearchResults.textContent = 'Searching movies and TV shows on TMDB…';
-      try {
-        const type = externalTypeSelect.value;
-        const response = await fetch(`/api/title-search?type=${encodeURIComponent(type)}&q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Title search failed.');
-        titleSearchResults.replaceChildren();
-        if (!data.results?.length) {
-          titleSearchResults.textContent = 'No matching movies or TV shows found. Try another spelling.';
-          return;
-        }
-        data.results.forEach(item => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'title-search-result';
-          const poster = document.createElement(item.posterUrl ? 'img' : 'div');
-          if (item.posterUrl) {
-            poster.src = item.posterUrl;
-            poster.alt = '';
-            poster.loading = 'lazy';
-          } else {
-            poster.className = 'title-search-poster-placeholder';
-            poster.setAttribute('aria-hidden', 'true');
-          }
-          const copy = document.createElement('div');
-          copy.className = 'title-search-result-copy';
-          const title = document.createElement('div');
-          title.className = 'title-search-result-title';
-          title.textContent = item.title;
-          const meta = document.createElement('div');
-          meta.className = 'title-search-result-meta';
-          meta.textContent = `${item.year || 'Year unknown'} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'} · TMDB ${item.tmdbId}`;
-          const overview = document.createElement('div');
-          overview.className = 'title-search-result-overview';
-          overview.textContent = item.overview;
-          copy.append(title, meta, overview);
-          const choose = document.createElement('span');
-          choose.className = 'btn btn-secondary';
-          choose.textContent = item.mediaType === 'movie' ? 'Play movie' : 'Choose episode';
-          button.append(poster, copy, choose);
-          button.addEventListener('click', async () => {
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = item.mediaType;
-            updateExternalTypeFields();
-            titleSearchResults.querySelectorAll('button').forEach(resultButton => resultButton.setAttribute('aria-pressed', String(resultButton === button)));
-            if (item.mediaType === 'movie') {
-              // One click selects the movie and starts playback immediately.
-              await playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
-            } else {
-              // TV needs a season and episode, so select the show and focus season first.
-              externalStatus.textContent = `Selected ${item.title} (${item.year || 'year unknown'}). Choose season and episode, then click Play selected title/episode.`;
-              document.getElementById('external-season').focus();
-            }
-          });
-          titleSearchResults.append(button);
-        });
-      } catch (error) {
-        titleSearchResults.textContent = error.message || 'Could not search titles.';
-      }
-    });
 
-    async function playExternalPlayer(payload, displayTitle = '') {
+    async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
+      activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+      const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
       externalStatus.textContent = 'Preparing external player…';
+      externalServerControl.classList.add('hidden'); externalServerStatus.textContent = '';
       try {
         const response = await fetch('/api/external-player', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, serverId: requestedServer })
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
-        currentPlaybackMode = 'external';
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-        video.classList.add('hidden');
-        externalFrame.classList.remove('hidden');
-        externalFrame.title = `${result.providerName} external player`;
+        currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
+        video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
+        externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
         externalFrame.src = result.url;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
+        if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
+        externalServerSelect.replaceChildren();
+        externalProviders.forEach(provider => { const option = document.createElement('option'); option.value = provider.id; option.textContent = provider.name; externalServerSelect.append(option); });
+        externalServerSelect.value = result.providerId;
         showModal(playerModal);
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
-      } catch (error) {
-        externalStatus.textContent = error.message || 'Could not open external player.';
-      }
+      } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
+
+    externalFrame.addEventListener('load', () => {
+      if (currentPlaybackMode === 'external' && playerModal.classList.contains('open'))
+        externalServerControl.classList.toggle('hidden', externalProviders.length < 2);
+    });
+    externalServerSelect.addEventListener('change', async () => {
+      if (!activeExternalPayload || !externalServerSelect.value) return;
+      externalServerStatus.textContent = 'Switching server…';
+      await playExternalPlayer(activeExternalPayload, activeExternalTitle, externalServerSelect.value);
+      externalServerStatus.textContent = `Using ${externalServerSelect.options[externalServerSelect.selectedIndex]?.text || 'selected server'}.`;
+    });
 
     document.getElementById('external-player-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -331,8 +366,12 @@
     });
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
+    resultSourceFilter.addEventListener('change', applyResultFilters);
+    qualityFilter.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
+    document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
+    episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
     document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
     fileListContainer.addEventListener('click', event => {
@@ -342,13 +381,125 @@
       const file = (fileListContainer._files || []).find(item => Number(item.index) === index);
       if (file) playFile(fileListContainer._source, index, file.name);
     });
+    async function loadTmdbSeasonEpisodes(card, item, seasonNumber, episodesContainer) {
+      episodesContainer.innerHTML = '<div class="empty">Loading episodes…</div>';
+      try {
+        const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons/${encodeURIComponent(seasonNumber)}/episodes`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load this season.');
+        episodesContainer.replaceChildren();
+        if (!data.episodes?.length) {
+          episodesContainer.innerHTML = '<div class="empty">No episodes are listed for this season.</div>';
+          return;
+        }
+        data.episodes.forEach(episode => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'episode-choice';
+          const number = document.createElement('span');
+          number.className = 'episode-number';
+          number.textContent = `E${String(episode.episodeNumber).padStart(2, '0')}`;
+          const copy = document.createElement('span');
+          copy.className = 'episode-copy';
+          const name = document.createElement('strong');
+          name.className = 'episode-name';
+          name.textContent = episode.name || 'Untitled episode';
+          const overview = document.createElement('span');
+          overview.className = 'episode-overview';
+          overview.textContent = episode.overview || 'Select to play this episode';
+          copy.append(name, overview);
+          const play = document.createElement('span');
+          play.className = 'episode-play';
+          play.setAttribute('aria-hidden', 'true');
+          play.textContent = '▶';
+          button.append(number, copy, play);
+          button.title = episode.overview || episode.name || '';
+          button.addEventListener('click', async clickEvent => {
+            clickEvent.stopPropagation();
+            document.getElementById('external-media-id').value = item.tmdbId;
+            externalTypeSelect.value = 'tv';
+            updateExternalTypeFields();
+            document.getElementById('external-season').value = seasonNumber;
+            document.getElementById('external-episode').value = episode.episodeNumber;
+            hideModal(episodePickerModal);
+            await playExternalPlayer({
+              mediaType: 'tv', id: item.tmdbId,
+              season: seasonNumber, episode: episode.episodeNumber
+            }, `${item.title} · S${seasonNumber}E${episode.episodeNumber} · ${episode.name || ''}`);
+          });
+          episodesContainer.append(button);
+        });
+      } catch (error) {
+        episodesContainer.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Could not load episodes.')}</div>`;
+      }
+    }
+
+    async function expandTmdbShow(card, item) {
+      episodePickerContent.replaceChildren();
+      const details = document.createElement('div');
+      details.className = 'tmdb-series-details episode-picker-details';
+      details.innerHTML = '<div class="section-note">Loading seasons…</div>';
+      episodePickerContent.append(details);
+      document.getElementById('episode-picker-title').textContent = item.title || 'Choose an episode';
+      showModal(episodePickerModal);
+      try {
+        const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load seasons.');
+        const seasons = Array.isArray(data.seasons) ? data.seasons : [];
+        details.replaceChildren();
+        if (!seasons.length) {
+          details.innerHTML = '<div class="section-note">No seasons are listed for this show.</div>';
+          return;
+        }
+        const label = document.createElement('label');
+        label.className = 'season-label';
+        label.textContent = 'Choose season';
+        const select = document.createElement('select');
+        select.className = 'select-control season-select';
+        seasons.forEach(season => {
+          const option = document.createElement('option');
+          option.value = season.seasonNumber;
+          option.textContent = `${season.name || `Season ${season.seasonNumber}`} · ${season.episodeCount} episodes`;
+          select.append(option);
+        });
+        const episodes = document.createElement('div');
+        episodes.className = 'episode-list';
+        label.append(select);
+        details.append(label, episodes);
+        const loadSelected = () => loadTmdbSeasonEpisodes(card, item, select.value, episodes);
+        select.addEventListener('change', event => {
+          event.stopPropagation();
+          loadSelected();
+        });
+        await loadSelected();
+      } catch (error) {
+        details.innerHTML = `<div class="section-note">${escapeHtml(error.message || 'Could not load seasons.')}</div>`;
+      }
+    }
+
     function handleCardActivation(event) {
+      if (event.target.closest('.tmdb-series-details')) return;
       const card = event.target.closest('[data-card-type]');
       if (!card) return;
       const index = Number(card.dataset.index);
-      const items = card.dataset.cardType === 'catalog' ? catalogGrid._items : searchResults;
+      const type = card.dataset.cardType;
+      if (type === 'tmdb') {
+        const item = tmdbResults[index];
+        if (!item) return;
+        if (item.mediaType === 'movie') {
+          document.getElementById('external-media-id').value = item.tmdbId;
+          externalTypeSelect.value = 'movie';
+          updateExternalTypeFields();
+          void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
+        } else {
+          void expandTmdbShow(card, item);
+        }
+        return;
+      }
+      const items = type === 'catalog' ? catalogGrid._items : searchResults;
       const item = items && items[index];
-      if (item) handleTorrentSelection(card.dataset.cardType === 'catalog' ? item.magnet : item.source, item.title);
+      if (item) handleTorrentSelection(type === 'catalog' ? item.magnet : item.source, item.title);
     }
     document.addEventListener('click', handleCardActivation);
     document.addEventListener('keydown', event => {
