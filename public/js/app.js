@@ -19,6 +19,7 @@
     let visibleCount = 0;
     let currentSource = null;
     let searchController = null;
+    let tmdbController = null;
     let selectionController = null;
     const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="285" fill="#a78bfa" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#aab4ce" font-family="sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
 
@@ -74,37 +75,127 @@
 
     async function searchTorrents() {
       const query = searchInput.value.trim();
+      const sourceMode = document.getElementById('search-source').value;
+      const torrentBlock = document.getElementById('torrent-results-block');
+      const tmdbBlock = document.getElementById('tmdb-results-block');
+      const wantsTorrents = sourceMode !== 'tmdb';
+      const wantsTmdb = sourceMode !== 'torrents';
+
       if (!query) {
         searchSection.classList.add('hidden');
-        setStatus('Enter a title or paste a magnet URI to search.');
+        setStatus('Enter a title to search.');
         searchInput.focus();
         return;
       }
+
       if (searchController) searchController.abort();
-      searchController = new AbortController();
-      setStatus(`Searching YTS first, then other available sources, for “${query}”…`);
+      if (tmdbController) tmdbController.abort();
+      searchController = wantsTorrents ? new AbortController() : null;
+      tmdbController = wantsTmdb ? new AbortController() : null;
       searchSection.classList.remove('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching sources…</div>';
+      torrentBlock.classList.toggle('hidden', !wantsTorrents);
+      tmdbBlock.classList.toggle('hidden', !wantsTmdb);
       loadMoreButton.classList.add('hidden');
-      try {
-        const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
-        if (!response.ok) throw new Error(`Search failed (HTTP ${response.status})`);
-        const data = await response.json();
-        searchResults = Array.isArray(data.results) ? data.results : [];
-        visibleCount = 0;
-        renderMoreResults(true);
-        if (!searchResults.length) {
-          setStatus(`No matching torrents found for “${query}”. Try a shorter title.`, 'error');
-        } else {
-          const ytsCount = searchResults.filter(item => item.provider === 'YTS').length;
-          setStatus(`Found ${searchResults.length} results${ytsCount ? `, including ${ytsCount} YTS releases shown first` : ''}. Select a card to inspect its video files.`, 'success');
-        }
-      } catch (error) {
-        if (error.name === 'AbortError') return;
+      if (wantsTorrents) torrentGrid.innerHTML = '<div class="empty">Searching torrent sources…</div>';
+      if (wantsTmdb) titleSearchResults.innerHTML = '<div class="empty">Searching TMDB…</div>';
+      setStatus(`Searching ${sourceMode === 'both' ? 'torrent sources and TMDB' : sourceMode === 'tmdb' ? 'TMDB' : 'torrent sources'} for “${query}”…`);
+
+      const tasks = [];
+      if (wantsTorrents) {
+        tasks.push((async () => {
+          try {
+            const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
+            if (!response.ok) throw new Error(`Torrent search failed (HTTP ${response.status})`);
+            const data = await response.json();
+            searchResults = Array.isArray(data.results) ? data.results : [];
+            visibleCount = 0;
+            renderMoreResults(true);
+            if (!searchResults.length) torrentGrid.innerHTML = '<div class="empty">No matching torrent files found.</div>';
+          } catch (error) {
+            if (error.name === 'AbortError') throw error;
+            searchResults = [];
+            torrentGrid.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Torrent search failed.')}</div>`;
+          }
+        })());
+      } else {
         searchResults = [];
-        torrentGrid.innerHTML = '<div class="empty">Search failed. Check your server connection and try again.</div>';
-        setStatus(error.message || 'Could not search sources.', 'error');
+        torrentGrid.innerHTML = '';
       }
+      if (wantsTmdb) {
+        tasks.push((async () => {
+          try {
+            const response = await fetch(`/api/title-search?q=${encodeURIComponent(query)}`, { signal: tmdbController.signal });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'TMDB search failed.');
+            renderTmdbResults(Array.isArray(data.results) ? data.results : []);
+          } catch (error) {
+            if (error.name === 'AbortError') throw error;
+            titleSearchResults.innerHTML = `<div class="empty">${escapeHtml(error.message || 'TMDB search failed.')}</div>`;
+          }
+        })());
+      } else {
+        titleSearchResults.replaceChildren();
+      }
+
+      const outcomes = await Promise.allSettled(tasks);
+      if (outcomes.every(result => result.status === 'rejected' && result.reason?.name === 'AbortError')) return;
+      const torrentCount = wantsTorrents ? searchResults.length : null;
+      const tmdbCount = wantsTmdb ? titleSearchResults.querySelectorAll('.title-search-result').length : null;
+      const messages = [];
+      if (wantsTorrents) messages.push(`${torrentCount} torrent result${torrentCount === 1 ? '' : 's'}`);
+      if (wantsTmdb) messages.push(`${tmdbCount} TMDB result${tmdbCount === 1 ? '' : 's'}`);
+      setStatus(`Search complete for “${query}”: ${messages.join(' · ')}. Upcoming movies are excluded from TMDB results.`, 'success');
+    }
+
+    function renderTmdbResults(items) {
+      titleSearchResults.replaceChildren();
+      if (!items.length) {
+        titleSearchResults.innerHTML = '<div class="empty">No released movies or TV shows found. Try another spelling.</div>';
+        return;
+      }
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'title-search-result';
+        const poster = document.createElement(item.posterUrl ? 'img' : 'div');
+        if (item.posterUrl) {
+          poster.src = item.posterUrl;
+          poster.alt = '';
+          poster.loading = 'lazy';
+        } else {
+          poster.className = 'title-search-poster-placeholder';
+          poster.setAttribute('aria-hidden', 'true');
+        }
+        const copy = document.createElement('div');
+        copy.className = 'title-search-result-copy';
+        const title = document.createElement('div');
+        title.className = 'title-search-result-title';
+        title.textContent = item.title;
+        const meta = document.createElement('div');
+        meta.className = 'title-search-result-meta';
+        meta.textContent = `${item.year || 'Year unknown'} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'} · TMDB ${item.tmdbId}`;
+        const overview = document.createElement('div');
+        overview.className = 'title-search-result-overview';
+        overview.textContent = item.overview;
+        copy.append(title, meta, overview);
+        const choose = document.createElement('span');
+        choose.className = 'btn btn-secondary';
+        choose.textContent = item.mediaType === 'movie' ? 'Play movie' : 'Choose episode';
+        button.append(poster, copy, choose);
+        button.addEventListener('click', async () => {
+          document.getElementById('external-media-id').value = item.tmdbId;
+          externalTypeSelect.value = item.mediaType;
+          updateExternalTypeFields();
+          titleSearchResults.querySelectorAll('button').forEach(resultButton => resultButton.setAttribute('aria-pressed', String(resultButton === button)));
+          if (item.mediaType === 'movie') {
+            await playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
+          } else {
+            externalStatus.textContent = `Selected ${item.title} (${item.year || 'year unknown'}). Choose season and episode, then click Play selected title/episode.`;
+            document.getElementById('external-season').focus();
+          }
+        });
+        titleSearchResults.append(button);
+      });
     }
 
     function renderMoreResults(reset = false) {
@@ -121,7 +212,7 @@
       loadMoreButton.classList.toggle('hidden', visibleCount >= searchResults.length);
       loadMoreButton.textContent = `Load more results (${searchResults.length - visibleCount} left) ↓`;
       document.getElementById('results-note').textContent =
-        `Showing ${visibleCount} of ${searchResults.length}. YTS results are prioritized first.`;
+        `Showing ${visibleCount} of ${searchResults.length} torrent results. YTS results are prioritized first.`;
     }
 
     async function handleTorrentSelection(source, title) {
@@ -218,76 +309,7 @@
       externalStatus.textContent = 'Could not check provider configuration. Confirm the server is running.';
     });
 
-    const titleSearchForm = document.getElementById('title-search-form');
-    const titleSearchInput = document.getElementById('title-search-query');
-    const titleSearchResults = document.getElementById('title-search-results');
-    titleSearchForm.addEventListener('submit', async event => {
-      event.preventDefault();
-      const query = titleSearchInput.value.trim();
-      if (query.length < 2) {
-        titleSearchResults.textContent = 'Enter at least two characters to search.';
-        return;
-      }
-      titleSearchResults.textContent = 'Searching movies and TV shows on TMDB…';
-      try {
-        const type = externalTypeSelect.value;
-        const response = await fetch(`/api/title-search?type=${encodeURIComponent(type)}&q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Title search failed.');
-        titleSearchResults.replaceChildren();
-        if (!data.results?.length) {
-          titleSearchResults.textContent = 'No matching movies or TV shows found. Try another spelling.';
-          return;
-        }
-        data.results.forEach(item => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'title-search-result';
-          const poster = document.createElement(item.posterUrl ? 'img' : 'div');
-          if (item.posterUrl) {
-            poster.src = item.posterUrl;
-            poster.alt = '';
-            poster.loading = 'lazy';
-          } else {
-            poster.className = 'title-search-poster-placeholder';
-            poster.setAttribute('aria-hidden', 'true');
-          }
-          const copy = document.createElement('div');
-          copy.className = 'title-search-result-copy';
-          const title = document.createElement('div');
-          title.className = 'title-search-result-title';
-          title.textContent = item.title;
-          const meta = document.createElement('div');
-          meta.className = 'title-search-result-meta';
-          meta.textContent = `${item.year || 'Year unknown'} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'} · TMDB ${item.tmdbId}`;
-          const overview = document.createElement('div');
-          overview.className = 'title-search-result-overview';
-          overview.textContent = item.overview;
-          copy.append(title, meta, overview);
-          const choose = document.createElement('span');
-          choose.className = 'btn btn-secondary';
-          choose.textContent = item.mediaType === 'movie' ? 'Play movie' : 'Choose episode';
-          button.append(poster, copy, choose);
-          button.addEventListener('click', async () => {
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = item.mediaType;
-            updateExternalTypeFields();
-            titleSearchResults.querySelectorAll('button').forEach(resultButton => resultButton.setAttribute('aria-pressed', String(resultButton === button)));
-            if (item.mediaType === 'movie') {
-              // One click selects the movie and starts playback immediately.
-              await playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
-            } else {
-              // TV needs a season and episode, so select the show and focus season first.
-              externalStatus.textContent = `Selected ${item.title} (${item.year || 'year unknown'}). Choose season and episode, then click Play selected title/episode.`;
-              document.getElementById('external-season').focus();
-            }
-          });
-          titleSearchResults.append(button);
-        });
-      } catch (error) {
-        titleSearchResults.textContent = error.message || 'Could not search titles.';
-      }
-    });
+
 
     async function playExternalPlayer(payload, displayTitle = '') {
       externalStatus.textContent = 'Preparing external player…';
