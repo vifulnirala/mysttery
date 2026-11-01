@@ -75,25 +75,40 @@ function readEmbedProviders() {
   const ids = String(process.env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
   const providerIds = ids.length ? ids : ['default'];
   const providers = [];
+
   for (const id of providerIds) {
     if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
-    const prefix = \`EMBED_\${id.toUpperCase()}_\`, legacy = id === 'default';
-    const name = process.env[\`\${prefix}NAME\`] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
-    const baseUrl = process.env[\`\${prefix}BASE_URL\`] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
-    const moviePath = process.env[\`\${prefix}MOVIE_PATH_TEMPLATE\`] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
-    const tvPath = process.env[\`\${prefix}TV_PATH_TEMPLATE\`] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
-    if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') || !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
+
+    const prefix = 'EMBED_' + id.toUpperCase() + '_';
+    const legacy = id === 'default';
+    const name = process.env[prefix + 'NAME'] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
+    const baseUrl = process.env[prefix + 'BASE_URL'] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
+    const moviePath = process.env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
+    const tvPath = process.env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
+
+    if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') ||
+        !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
+
     try {
       const base = new URL(baseUrl);
       if (base.protocol !== 'https:' || base.username || base.password) continue;
+
       let valid = true;
       for (const template of [moviePath, tvPath]) {
-        if (!template.startsWith('/') || template.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(template)) { valid = false; break; }
-        if (new URL(template.replace(/\{(?:id|season|episode)\}/g, 'placeholder'), base).origin !== base.origin) valid = false;
+        if (!template.startsWith('/') || template.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(template)) {
+          valid = false;
+          break;
+        }
+        const safePath = template.replace(/\{(?:id|season|episode)\}/g, 'placeholder');
+        if (new URL(safePath, base).origin !== base.origin) valid = false;
       }
+
       if (valid) providers.push({ id, name, base, moviePath, tvPath });
-    } catch (_) { /* Ignore invalid entries; keep valid servers available. */ }
+    } catch (_) {
+      // Ignore invalid entries; keep valid servers available.
+    }
   }
+
   return providers;
 }
 function getEmbedProviderConfig(providerId) {
