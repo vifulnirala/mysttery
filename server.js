@@ -33,18 +33,30 @@ const TMDB_API_READ_ACCESS_TOKEN = process.env.TMDB_API_READ_ACCESS_TOKEN || '';
 async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream API') {
   const maxRetries = Math.max(0, Math.min(4, Number(process.env.UPSTREAM_MAX_RETRIES) || 3));
   const baseDelayMs = Math.max(100, Number(process.env.UPSTREAM_RETRY_BASE_MS) || 800);
+  const { timeoutMs = 0, signal: callerSignal, ...fetchOptions } = options;
+  const retryableStatuses = [408, 425, 429, 500, 502, 503, 504];
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (callerSignal?.aborted) throw callerSignal.reason || new Error(`${label} request aborted`);
+
+    const controller = new AbortController();
+    const forwardAbort = () => controller.abort(callerSignal.reason);
+    callerSignal?.addEventListener('abort', forwardAbort, { once: true });
+    const timeout = Number(timeoutMs) > 0
+      ? setTimeout(() => controller.abort(new Error(`${label} request timed out after ${timeoutMs}ms`)), Number(timeoutMs))
+      : null;
+
     try {
-      const response = await fetch(url, options);
-      if (response.ok || ![408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
-        return response;
-      }
+      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      if (response.ok || !retryableStatuses.includes(response.status)) return response;
       lastError = new Error(`${label} returned HTTP ${response.status}`);
     } catch (error) {
-      if (options.signal?.aborted || error?.name === 'AbortError') throw error;
+      if (callerSignal?.aborted) throw callerSignal.reason || error;
       lastError = error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      callerSignal?.removeEventListener('abort', forwardAbort);
     }
 
     if (attempt < maxRetries) {
@@ -284,7 +296,7 @@ async function searchYts(query, requestedLimit = 50) {
     url.searchParams.set('order_by', 'desc');
 
     const response = await fetchWithLogarithmicBackoff(url, {
-      signal: AbortSignal.timeout(Number(process.env.YTS_TIMEOUT_MS) || 15000)
+      timeoutMs: Number(process.env.YTS_TIMEOUT_MS) || 15000
     }, 'YTS');
 
     if (!response.ok) {
@@ -786,7 +798,7 @@ app.get('/api/title-search', async (req, res) => {
       url.searchParams.set('page', '1');
       const response = await fetchWithLogarithmicBackoff(url, {
         headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
-        signal: AbortSignal.timeout(10000)
+        timeoutMs: 10000
       }, `TMDB ${mediaType} search`);
       if (!response.ok) throw new Error(`TMDB ${mediaType} search failed: HTTP ${response.status}`);
       const data = await response.json();
@@ -828,7 +840,7 @@ app.get('/api/tv/:id/seasons', async (req, res) => {
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
-      signal: AbortSignal.timeout(10000)
+      timeoutMs: 10000
     }, 'TMDB TV seasons');
     if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
     const data = await response.json();
@@ -856,7 +868,7 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
-      signal: AbortSignal.timeout(10000)
+      timeoutMs: 10000
     }, 'TMDB TV episodes');
     if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
     const data = await response.json();
