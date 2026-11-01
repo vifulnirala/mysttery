@@ -15,9 +15,9 @@
     let currentPlaybackMode = 'torrent';
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
-    const titleSearchResults = document.getElementById('title-search-results');
     let searchResults = [];
     let tmdbResults = [];
+    let unifiedResults = [];
     let visibleCount = 0;
     let currentSource = null;
     let searchController = null;
@@ -83,8 +83,6 @@
     async function searchTorrents() {
       const query = searchInput.value.trim();
       const sourceMode = document.getElementById('search-source').value;
-      const torrentBlock = document.getElementById('torrent-results-block');
-      const tmdbBlock = document.getElementById('tmdb-results-block');
       const wantsTorrents = sourceMode !== 'tmdb';
       const wantsTmdb = sourceMode !== 'torrents';
 
@@ -95,74 +93,60 @@
         return;
       }
 
-      if (searchController) searchController.abort();
-      if (tmdbController) tmdbController.abort();
+      searchController?.abort();
+      tmdbController?.abort();
       searchController = wantsTorrents ? new AbortController() : null;
       tmdbController = wantsTmdb ? new AbortController() : null;
       searchSection.classList.remove('hidden');
-      torrentBlock.classList.toggle('hidden', !wantsTorrents);
-      tmdbBlock.classList.toggle('hidden', !wantsTmdb);
       loadMoreButton.classList.add('hidden');
-      if (wantsTorrents) torrentGrid.innerHTML = '<div class="empty">Searching torrent sources…</div>';
-      if (wantsTmdb) titleSearchResults.innerHTML = '<div class="empty">Searching TMDB…</div>';
+      torrentGrid.innerHTML = '<div class="empty">Searching selected sources…</div>';
+      searchResults = [];
+      tmdbResults = [];
+      unifiedResults = [];
       setStatus(`Searching ${sourceMode === 'both' ? 'torrent sources and TMDB' : sourceMode === 'tmdb' ? 'TMDB' : 'torrent sources'} for “${query}”…`);
 
       const tasks = [];
       if (wantsTorrents) {
         tasks.push((async () => {
-          try {
-            const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
-            if (!response.ok) throw new Error(`Torrent search failed (HTTP ${response.status})`);
-            const data = await response.json();
-            searchResults = Array.isArray(data.results) ? data.results : [];
-            visibleCount = 0;
-            renderMoreResults(true);
-            if (!searchResults.length) torrentGrid.innerHTML = '<div class="empty">No matching torrent files found.</div>';
-          } catch (error) {
-            if (error.name === 'AbortError') throw error;
-            searchResults = [];
-            torrentGrid.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Torrent search failed.')}</div>`;
-          }
+          const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
+          if (!response.ok) throw new Error(`Torrent search failed (HTTP ${response.status})`);
+          const data = await response.json();
+          searchResults = Array.isArray(data.results) ? data.results : [];
         })());
-      } else {
-        searchResults = [];
-        torrentGrid.innerHTML = '';
       }
       if (wantsTmdb) {
         tasks.push((async () => {
-          try {
-            const response = await fetch(`/api/title-search?q=${encodeURIComponent(query)}`, { signal: tmdbController.signal });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'TMDB search failed.');
-            renderTmdbResults(Array.isArray(data.results) ? data.results : []);
-          } catch (error) {
-            if (error.name === 'AbortError') throw error;
-            titleSearchResults.innerHTML = `<div class="empty">${escapeHtml(error.message || 'TMDB search failed.')}</div>`;
-          }
+          const response = await fetch(`/api/title-search?q=${encodeURIComponent(query)}`, { signal: tmdbController.signal });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'TMDB search failed.');
+          tmdbResults = Array.isArray(data.results) ? data.results : [];
         })());
-      } else {
-        titleSearchResults.replaceChildren();
       }
 
       const outcomes = await Promise.allSettled(tasks);
-      if (outcomes.every(result => result.status === 'rejected' && result.reason?.name === 'AbortError')) return;
-      const torrentCount = wantsTorrents ? searchResults.length : null;
-      const tmdbCount = wantsTmdb ? titleSearchResults.querySelectorAll('.title-search-result').length : null;
-      const messages = [];
-      if (wantsTorrents) messages.push(`${torrentCount} torrent result${torrentCount === 1 ? '' : 's'}`);
-      if (wantsTmdb) messages.push(`${tmdbCount} TMDB result${tmdbCount === 1 ? '' : 's'}`);
-      setStatus(`Search complete for “${query}”: ${messages.join(' · ')}. Upcoming movies are excluded from TMDB results.`, 'success');
-    }
+      if ((searchController?.signal.aborted || !wantsTorrents) &&
+          (tmdbController?.signal.aborted || !wantsTmdb)) return;
 
-    function renderTmdbResults(items) {
-      titleSearchResults.replaceChildren();
-      titleSearchResults.classList.add('grid');
-      if (!items.length) {
-        titleSearchResults.innerHTML = '<div class="empty">No released movies or TV shows found. Try another spelling.</div>';
-        return;
+      const errors = outcomes
+        .filter(result => result.status === 'rejected' && result.reason?.name !== 'AbortError')
+        .map(result => result.reason?.message || 'A search source failed.');
+      unifiedResults = [
+        ...searchResults.map((item, index) => ({ type: 'search', index })),
+        ...tmdbResults.map((item, index) => ({ type: 'tmdb', index }))
+      ];
+      renderMoreResults(true);
+
+      if (!unifiedResults.length) {
+        torrentGrid.innerHTML = `<div class="empty">${escapeHtml(errors[0] || 'No matching results found.')}</div>`;
       }
-      tmdbResults = items;
-      titleSearchResults.innerHTML = items.map((item, index) => cardMarkup(item, index, 'tmdb')).join('');
+      const summary = [
+        wantsTorrents ? `${searchResults.length} torrent${searchResults.length === 1 ? '' : 's'}` : null,
+        wantsTmdb ? `${tmdbResults.length} TMDB title${tmdbResults.length === 1 ? '' : 's'}` : null
+      ].filter(Boolean).join(' and ');
+      setStatus(errors.length
+        ? `Search partially completed: ${errors.join(' · ')}`
+        : `Search complete for “${query}”: ${summary}. Upcoming movies are excluded from TMDB results.`,
+        errors.length ? 'error' : 'success');
     }
 
     function renderMoreResults(reset = false) {
@@ -171,15 +155,18 @@
         torrentGrid.innerHTML = '';
         visibleCount = 0;
       }
-      const nextCount = Math.min(searchResults.length, visibleCount + batchSize);
-      const slice = searchResults.slice(visibleCount, nextCount);
-      const offset = visibleCount;
-      torrentGrid.insertAdjacentHTML('beforeend', slice.map((item, i) => cardMarkup(item, offset + i, 'search')).join(''));
+      const nextCount = Math.min(unifiedResults.length, visibleCount + batchSize);
+      const slice = unifiedResults.slice(visibleCount, nextCount);
+      const markup = slice.map(entry => {
+        const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
+        return item ? cardMarkup(item, entry.index, entry.type) : '';
+      }).join('');
+      torrentGrid.insertAdjacentHTML('beforeend', markup);
       visibleCount = nextCount;
-      loadMoreButton.classList.toggle('hidden', visibleCount >= searchResults.length);
-      loadMoreButton.textContent = `Load more results (${searchResults.length - visibleCount} left) ↓`;
+      loadMoreButton.classList.toggle('hidden', visibleCount >= unifiedResults.length);
+      loadMoreButton.textContent = `Load more results (${unifiedResults.length - visibleCount} left) ↓`;
       document.getElementById('results-note').textContent =
-        `Showing ${visibleCount} of ${searchResults.length} torrent results. YTS results are prioritized first.`;
+        `Showing ${visibleCount} of ${unifiedResults.length} results in one list.`;
     }
 
     async function handleTorrentSelection(source, title) {
