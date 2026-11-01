@@ -195,3 +195,81 @@
     .episode-list { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; }
     .episode-choice { width: 100%; padding: 8px 9px; text-align: left; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-2); font-size: .76rem; line-height: 1.35; cursor: pointer; }
     .episode-choice:hover { border-color: var(--accent); color: var(--accent-2); }
+
+
+/* Search result filters */
+.result-controls { align-items: end; }
+.filter-field { display: grid; gap: 6px; color: var(--muted); font-size: .72rem; font-weight: 750; }
+.filter-field .select-control { min-width: 138px; }
+.filter-field.filter-disabled { opacity: .45; }
+.filter-field.filter-disabled select { cursor: not-allowed; }
+@media (max-width: 760px) {
+  .result-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-field .select-control { width: 100%; min-width: 0; }
+  .filter-field:last-child { grid-column: 1 / -1; }
+}
+
+/* TV season and episode picker */
+.tmdb-series-details {
+  grid-column: 1 / -1;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-solid);
+}
+.season-label { gap: 8px; font-size: .76rem; letter-spacing: .02em; }
+.season-select {
+  min-height: 46px;
+  padding: 10px 40px 10px 12px;
+  border-radius: 11px;
+  font-size: .88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.episode-list { gap: 8px; max-height: 310px; padding: 2px 3px 2px 0; }
+.episode-choice {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 11px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.episode-choice:hover { background: var(--surface-2); transform: translateX(2px); }
+.episode-number {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: var(--accent-2);
+  background: var(--surface-2);
+  font-size: .78rem;
+  font-weight: 850;
+}
+.episode-copy { display: grid; gap: 4px; min-width: 0; }
+.episode-name { color: var(--text); font-size: .82rem; line-height: 1.35; }
+.episode-overview {
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.episode-play {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  font-size: .68rem;
+}
