@@ -71,28 +71,34 @@ async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream 
 
 // Optional licensed external-player adapter. Configure a provider you are authorized
 // to embed; the browser never submits an arbitrary iframe URL to the server.
-const EMBED_PROVIDER = {
-  name: process.env.EMBED_PROVIDER_NAME || 'VidSrc',
-  baseUrl: process.env.EMBED_PROVIDER_BASE_URL || 'https://vidsrc.sh',
-  moviePath: process.env.EMBED_MOVIE_PATH_TEMPLATE || '/embed/movie/{id}',
-  tvPath: process.env.EMBED_TV_PATH_TEMPLATE || '/embed/tv/{id}/{season}/{episode}'
-};
-
-function getEmbedProviderConfig() {
-  if (!EMBED_PROVIDER.baseUrl || !EMBED_PROVIDER.moviePath || !EMBED_PROVIDER.tvPath) return null;
-  if (!EMBED_PROVIDER.moviePath.includes('{id}') || !['{id}', '{season}', '{episode}'].every(token => EMBED_PROVIDER.tvPath.includes(token))) return null;
-  try {
-    const base = new URL(EMBED_PROVIDER.baseUrl);
-    if (base.protocol !== 'https:' || base.username || base.password) return null;
-    for (const template of [EMBED_PROVIDER.moviePath, EMBED_PROVIDER.tvPath]) {
-      if (!template.startsWith('/') || template.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(template)) return null;
-      const resolved = new URL(template.replace(/\{(?:id|season|episode)\}/g, 'placeholder'), base);
-      if (resolved.origin !== base.origin) return null;
-    }
-    return { base, name: EMBED_PROVIDER.name, moviePath: EMBED_PROVIDER.moviePath, tvPath: EMBED_PROVIDER.tvPath };
-  } catch (_) {
-    return null;
+function readEmbedProviders() {
+  const ids = String(process.env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
+  const providerIds = ids.length ? ids : ['default'];
+  const providers = [];
+  for (const id of providerIds) {
+    if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+    const prefix = \`EMBED_\${id.toUpperCase()}_\`, legacy = id === 'default';
+    const name = process.env[\`\${prefix}NAME\`] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
+    const baseUrl = process.env[\`\${prefix}BASE_URL\`] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
+    const moviePath = process.env[\`\${prefix}MOVIE_PATH_TEMPLATE\`] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
+    const tvPath = process.env[\`\${prefix}TV_PATH_TEMPLATE\`] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
+    if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') || !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
+    try {
+      const base = new URL(baseUrl);
+      if (base.protocol !== 'https:' || base.username || base.password) continue;
+      let valid = true;
+      for (const template of [moviePath, tvPath]) {
+        if (!template.startsWith('/') || template.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(template)) { valid = false; break; }
+        if (new URL(template.replace(/\{(?:id|season|episode)\}/g, 'placeholder'), base).origin !== base.origin) valid = false;
+      }
+      if (valid) providers.push({ id, name, base, moviePath, tvPath });
+    } catch (_) { /* Ignore invalid entries; keep valid servers available. */ }
   }
+  return providers;
+}
+function getEmbedProviderConfig(providerId) {
+  const providers = readEmbedProviders();
+  return providers.find(provider => provider.id === providerId) || providers[0] || null;
 }
 
 const DEFAULT_TRACKERS = [
@@ -738,46 +744,33 @@ function pipeFileToResponse(key, file, req, res) {
 // 5. EXPRESS API ROUTES
 // ============================================================================
 app.get('/api/embed-config', (_req, res) => {
-  const config = getEmbedProviderConfig();
-  res.json({ enabled: Boolean(config), providerName: config?.name || null });
+  const providers = readEmbedProviders();
+  res.json({ enabled: providers.length > 0, providerName: providers[0]?.name || null,
+    defaultProviderId: providers[0]?.id || null,
+    providers: providers.map(({ id, name }) => ({ id, name })) });
 });
 
 app.post('/api/external-player', (req, res) => {
-  const config = getEmbedProviderConfig();
-  if (!config) {
-    return res.status(503).json({ error: 'External playback is not configured. Check the provider HTTPS origin and URL templates.' });
-  }
-
+  const config = getEmbedProviderConfig(String(req.body?.serverId || ''));
+  if (!config) return res.status(503).json({ error: 'No valid external player servers are configured. Check EMBED_SERVERS and EMBED_<ID>_* variables.' });
   const mediaType = req.body?.mediaType === 'tv' ? 'tv' : req.body?.mediaType === 'movie' ? 'movie' : null;
   const id = String(req.body?.id || '').trim();
-  if (!mediaType || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) {
-    return res.status(400).json({ error: 'Provide a valid IMDb/TMDB-style ID and choose movie or TV.' });
-  }
-
-  let season = null;
-  let episode = null;
+  if (!mediaType || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return res.status(400).json({ error: 'Provide a valid IMDb/TMDB-style ID and choose movie or TV.' });
+  let season = null, episode = null;
   if (mediaType === 'tv') {
-    season = Number(req.body?.season);
-    episode = Number(req.body?.episode);
-    if (!Number.isInteger(season) || season < 0 || season > 99 || !Number.isInteger(episode) || episode < 1 || episode > 999) {
+    season = Number(req.body?.season); episode = Number(req.body?.episode);
+    if (!Number.isInteger(season) || season < 0 || season > 99 || !Number.isInteger(episode) || episode < 1 || episode > 999)
       return res.status(400).json({ error: 'TV playback requires a valid season (0–99) and episode (1–999).' });
-    }
   }
-
   const template = mediaType === 'movie' ? config.moviePath : config.tvPath;
-  const path = template
-    .replaceAll('{id}', encodeURIComponent(id))
+  const path = template.replaceAll('{id}', encodeURIComponent(id))
     .replaceAll('{season}', encodeURIComponent(String(season ?? '')))
     .replaceAll('{episode}', encodeURIComponent(String(episode ?? '')));
   try {
     const url = new URL(path, config.base);
-    if (url.origin !== config.base.origin || url.protocol !== 'https:') {
-      return res.status(500).json({ error: 'Configured embed path must remain on the configured HTTPS provider origin.' });
-    }
-    res.json({ url: url.toString(), providerName: config.name, mediaType });
-  } catch (_) {
-    res.status(500).json({ error: 'The configured provider path is invalid.' });
-  }
+    if (url.origin !== config.base.origin || url.protocol !== 'https:') return res.status(500).json({ error: 'Configured embed path must remain on the configured HTTPS provider origin.' });
+    res.json({ url: url.toString(), providerName: config.name, providerId: config.id, mediaType });
+  } catch (_) { res.status(500).json({ error: 'The configured provider path is invalid.' }); }
 });
 
 app.get('/api/title-search', async (req, res) => {
