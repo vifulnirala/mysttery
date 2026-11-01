@@ -15,6 +15,7 @@
     let currentPlaybackMode = 'torrent';
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
+    const titleSearchResults = document.getElementById('title-search-results');
     let searchResults = [];
     let visibleCount = 0;
     let currentSource = null;
