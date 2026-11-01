@@ -303,16 +303,28 @@
     }
     externalTypeSelect.addEventListener('change', updateExternalTypeFields);
     updateExternalTypeFields();
-    fetch('/api/embed-config').then(response => response.json()).then(config => {
-      externalProviders = Array.isArray(config.providers) ? config.providers : [];
-      externalStatus.textContent = config.enabled
-        ? `Configured servers: ${externalProviders.map(provider => provider.name).join(', ')}. Use only content you have permission to access.`
-        : 'No external servers configured. Check the EMBED_SERVERS and EMBED_<ID>_* environment variables.';
-    }).catch(() => { externalStatus.textContent = 'Could not check player server configuration. Confirm the server is running.'; });
+    const externalConfigPromise = fetch('/api/embed-config')
+      .then(response => {
+        if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
+        return response.json();
+      })
+      .then(config => {
+        externalProviders = Array.isArray(config.providers) ? config.providers : [];
+        externalStatus.textContent = externalProviders.length
+          ? 'Configured servers: ' + externalProviders.map(provider => provider.name).join(', ') + '.'
+          : 'No valid external servers found. Check EMBED_SERVERS and each EMBED_<ID>_* setting.';
+        return externalProviders;
+      })
+      .catch(error => {
+        externalStatus.textContent = error.message || 'Could not load player server configuration.';
+        externalProviders = [];
+        return externalProviders;
+      });
 
 
     async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
       activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+      await externalConfigPromise;
       const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
       externalStatus.textContent = 'Preparing external player…';
       externalServerControl.classList.add('hidden'); externalServerStatus.textContent = '';
@@ -326,7 +338,6 @@
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
-        externalFrame.src = result.url;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
         if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
@@ -334,6 +345,8 @@
         externalProviders.forEach(provider => { const option = document.createElement('option'); option.value = provider.id; option.textContent = provider.name; externalServerSelect.append(option); });
         externalServerSelect.value = result.providerId;
         showModal(playerModal);
+        // Set src only after opening the modal so a fast iframe load cannot beat the load handler.
+        externalFrame.src = result.url;
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
