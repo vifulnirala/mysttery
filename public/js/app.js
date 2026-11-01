@@ -17,6 +17,7 @@
     const pageSizeSelect = document.getElementById('page-size');
     const titleSearchResults = document.getElementById('title-search-results');
     let searchResults = [];
+    let tmdbResults = [];
     let visibleCount = 0;
     let currentSource = null;
     let searchController = null;
@@ -45,14 +46,19 @@
     }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
-      const poster = escapeHtml(posterUrl(item.poster));
-      const provider = type === 'catalog' ? 'Curated' : (item.provider || 'Torrent');
+      const poster = escapeHtml(posterUrl(type === 'tmdb' ? item.posterUrl : item.poster));
+      const isTmdb = type === 'tmdb';
+      const provider = type === 'catalog' ? 'Curated' : isTmdb ? 'TMDB' : (item.provider || 'Torrent');
       const metaLeft = type === 'catalog'
         ? escapeHtml(item.year || '')
-        : `Seeds: ${Number(item.seeders || 0).toLocaleString()}`;
+        : isTmdb
+          ? `${escapeHtml(item.year || 'Year unknown')} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'}`
+          : `Seeds: ${Number(item.seeders || 0).toLocaleString()}`;
       const metaRight = type === 'catalog'
         ? 'Quick pick'
-        : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
+        : isTmdb
+          ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
+          : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
       return `<article class="card" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
         <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
           <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span></div>
@@ -150,53 +156,13 @@
 
     function renderTmdbResults(items) {
       titleSearchResults.replaceChildren();
+      titleSearchResults.classList.add('grid');
       if (!items.length) {
         titleSearchResults.innerHTML = '<div class="empty">No released movies or TV shows found. Try another spelling.</div>';
         return;
       }
-      items.forEach(item => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'title-search-result';
-        const poster = document.createElement(item.posterUrl ? 'img' : 'div');
-        if (item.posterUrl) {
-          poster.src = item.posterUrl;
-          poster.alt = '';
-          poster.loading = 'lazy';
-        } else {
-          poster.className = 'title-search-poster-placeholder';
-          poster.setAttribute('aria-hidden', 'true');
-        }
-        const copy = document.createElement('div');
-        copy.className = 'title-search-result-copy';
-        const title = document.createElement('div');
-        title.className = 'title-search-result-title';
-        title.textContent = item.title;
-        const meta = document.createElement('div');
-        meta.className = 'title-search-result-meta';
-        meta.textContent = `${item.year || 'Year unknown'} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'} · TMDB ${item.tmdbId}`;
-        const overview = document.createElement('div');
-        overview.className = 'title-search-result-overview';
-        overview.textContent = item.overview;
-        copy.append(title, meta, overview);
-        const choose = document.createElement('span');
-        choose.className = 'btn btn-secondary';
-        choose.textContent = item.mediaType === 'movie' ? 'Play movie' : 'Choose episode';
-        button.append(poster, copy, choose);
-        button.addEventListener('click', async () => {
-          document.getElementById('external-media-id').value = item.tmdbId;
-          externalTypeSelect.value = item.mediaType;
-          updateExternalTypeFields();
-          titleSearchResults.querySelectorAll('button').forEach(resultButton => resultButton.setAttribute('aria-pressed', String(resultButton === button)));
-          if (item.mediaType === 'movie') {
-            await playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
-          } else {
-            externalStatus.textContent = `Selected ${item.title} (${item.year || 'year unknown'}). Choose season and episode, then click Play selected title/episode.`;
-            document.getElementById('external-season').focus();
-          }
-        });
-        titleSearchResults.append(button);
-      });
+      tmdbResults = items;
+      titleSearchResults.innerHTML = items.map((item, index) => cardMarkup(item, index, 'tmdb')).join('');
     }
 
     function renderMoreResults(reset = false) {
@@ -365,13 +331,112 @@
       const file = (fileListContainer._files || []).find(item => Number(item.index) === index);
       if (file) playFile(fileListContainer._source, index, file.name);
     });
+    async function loadTmdbSeasonEpisodes(card, item, seasonNumber, episodesContainer) {
+      episodesContainer.innerHTML = '<div class="empty">Loading episodes…</div>';
+      try {
+        const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons/${encodeURIComponent(seasonNumber)}/episodes`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load this season.');
+        episodesContainer.replaceChildren();
+        if (!data.episodes?.length) {
+          episodesContainer.innerHTML = '<div class="empty">No episodes are listed for this season.</div>';
+          return;
+        }
+        data.episodes.forEach(episode => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'episode-choice';
+          button.textContent = `E${String(episode.episodeNumber).padStart(2, '0')} · ${episode.name || 'Untitled episode'}`;
+          button.title = episode.overview || episode.name || '';
+          button.addEventListener('click', async clickEvent => {
+            clickEvent.stopPropagation();
+            document.getElementById('external-media-id').value = item.tmdbId;
+            externalTypeSelect.value = 'tv';
+            updateExternalTypeFields();
+            document.getElementById('external-season').value = seasonNumber;
+            document.getElementById('external-episode').value = episode.episodeNumber;
+            await playExternalPlayer({
+              mediaType: 'tv', id: item.tmdbId,
+              season: seasonNumber, episode: episode.episodeNumber
+            }, `${item.title} · S${seasonNumber}E${episode.episodeNumber} · ${episode.name || ''}`);
+          });
+          episodesContainer.append(button);
+        });
+      } catch (error) {
+        episodesContainer.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Could not load episodes.')}</div>`;
+      }
+    }
+
+    async function expandTmdbShow(card, item) {
+      const existing = card.querySelector('.tmdb-series-details');
+      if (existing) {
+        existing.remove();
+        card.dataset.expanded = 'false';
+        return;
+      }
+      card.dataset.expanded = 'true';
+      const details = document.createElement('div');
+      details.className = 'tmdb-series-details';
+      details.innerHTML = '<div class="section-note">Loading seasons…</div>';
+      card.querySelector('.card-info').append(details);
+      try {
+        const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load seasons.');
+        const seasons = Array.isArray(data.seasons) ? data.seasons : [];
+        details.replaceChildren();
+        if (!seasons.length) {
+          details.innerHTML = '<div class="section-note">No seasons are listed for this show.</div>';
+          return;
+        }
+        const label = document.createElement('label');
+        label.className = 'season-label';
+        label.textContent = 'Choose season';
+        const select = document.createElement('select');
+        select.className = 'select-control season-select';
+        seasons.forEach(season => {
+          const option = document.createElement('option');
+          option.value = season.seasonNumber;
+          option.textContent = `${season.name || `Season ${season.seasonNumber}`} · ${season.episodeCount} episodes`;
+          select.append(option);
+        });
+        const episodes = document.createElement('div');
+        episodes.className = 'episode-list';
+        label.append(select);
+        details.append(label, episodes);
+        const loadSelected = () => loadTmdbSeasonEpisodes(card, item, select.value, episodes);
+        select.addEventListener('change', event => {
+          event.stopPropagation();
+          loadSelected();
+        });
+        await loadSelected();
+      } catch (error) {
+        details.innerHTML = `<div class="section-note">${escapeHtml(error.message || 'Could not load seasons.')}</div>`;
+      }
+    }
+
     function handleCardActivation(event) {
+      if (event.target.closest('.tmdb-series-details')) return;
       const card = event.target.closest('[data-card-type]');
       if (!card) return;
       const index = Number(card.dataset.index);
-      const items = card.dataset.cardType === 'catalog' ? catalogGrid._items : searchResults;
+      const type = card.dataset.cardType;
+      if (type === 'tmdb') {
+        const item = tmdbResults[index];
+        if (!item) return;
+        if (item.mediaType === 'movie') {
+          document.getElementById('external-media-id').value = item.tmdbId;
+          externalTypeSelect.value = 'movie';
+          updateExternalTypeFields();
+          void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
+        } else {
+          void expandTmdbShow(card, item);
+        }
+        return;
+      }
+      const items = type === 'catalog' ? catalogGrid._items : searchResults;
       const item = items && items[index];
-      if (item) handleTorrentSelection(card.dataset.cardType === 'catalog' ? item.magnet : item.source, item.title);
+      if (item) handleTorrentSelection(type === 'catalog' ? item.magnet : item.source, item.title);
     }
     document.addEventListener('click', handleCardActivation);
     document.addEventListener('keydown', event => {
