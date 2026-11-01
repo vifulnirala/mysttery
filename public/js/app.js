@@ -421,6 +421,7 @@
             updateExternalTypeFields();
             document.getElementById('external-season').value = seasonNumber;
             document.getElementById('external-episode').value = episode.episodeNumber;
+            hideModal(episodePickerModal);
             await playExternalPlayer({
               mediaType: 'tv', id: item.tmdbId,
               season: seasonNumber, episode: episode.episodeNumber
