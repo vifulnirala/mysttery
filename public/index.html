@@ -38,10 +38,21 @@
       <div class="section-head">
         <div><div class="section-kicker">Search results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note">YTS results are shown first.</p></div>
         <div class="result-controls">
-          <label for="page-size" class="section-note">Show per batch</label>
-          <select id="page-size" class="select-control" aria-label="Number of search results to show at a time">
-            <option value="10">10 results</option><option value="20">20 results</option><option value="30">30 results</option><option value="50">50 results</option>
-          </select>
+          <label class="filter-field"><span>Source</span>
+            <select id="result-source-filter" class="select-control" aria-label="Filter results by source">
+              <option value="all">All sources</option><option value="search">YTS torrents</option><option value="tmdb">TMDB titles</option>
+            </select>
+          </label>
+          <label class="filter-field" id="quality-filter-wrap"><span>Picture quality</span>
+            <select id="quality-filter" class="select-control" aria-label="Filter YTS results by picture quality">
+              <option value="all">All qualities</option>
+            </select>
+          </label>
+          <label class="filter-field"><span>Show per page</span>
+            <select id="page-size" class="select-control" aria-label="Number of search results to show at a time">
+              <option value="10">10 results</option><option value="20">20 results</option><option value="30">30 results</option><option value="50">50 results</option>
+            </select>
+          </label>
         </div>
       </div>
       <div class="grid" id="torrent-grid" aria-live="polite"></div>
