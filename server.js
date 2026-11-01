@@ -836,7 +836,7 @@ app.get('/api/title-search', async (req, res) => {
 app.get('/api/tv/:id/seasons', async (req, res) => {
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
   const id = String(req.params.id || '');
-  if (!/^\\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Invalid TMDB TV ID.' });
+  if (!/^\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Invalid TMDB TV ID.' });
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
@@ -862,7 +862,7 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
   const id = String(req.params.id || '');
   const seasonNumber = Number(req.params.seasonNumber);
-  if (!/^\\d{1,12}$/.test(id) || !Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 99) {
+  if (!/^\d{1,12}$/.test(id) || !Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 99) {
     return res.status(400).json({ error: 'Invalid TV series or season number.' });
   }
   try {
