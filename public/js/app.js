@@ -11,6 +11,15 @@
     const nowPlaying = document.getElementById('now-playing');
     const video = document.getElementById('video-element');
     const externalFrame = document.getElementById('external-player-frame');
+    const externalServerControl = document.getElementById('external-server-control');
+    const externalServerSelect = document.getElementById('external-server-select');
+    const externalServerStatus = document.getElementById('external-server-status');
+    const episodePickerModal = document.getElementById('episode-picker-modal');
+    const episodePickerContent = document.getElementById('episode-picker-content');
+    let externalProviders = [];
+    let activeExternalPayload = null;
+    let activeExternalTitle = '';
+    let activeExternalServerId = null;
     const playerTip = document.getElementById('player-tip');
     let currentPlaybackMode = 'torrent';
     const loadMoreButton = document.getElementById('load-more');
@@ -244,6 +253,9 @@
       currentPlaybackMode = 'torrent';
       externalFrame.removeAttribute('src');
       externalFrame.classList.add('hidden');
+      externalServerControl.classList.add('hidden');
+      externalServerStatus.textContent = '';
+      activeExternalPayload = null;
       video.classList.remove('hidden');
       playerTip.textContent = 'Tip: use a smaller 720p release with healthy seed availability for faster starts.';
       nowPlaying.textContent = fileName ? `Streaming · ${fileName}` : 'Now playing';
@@ -292,39 +304,50 @@
     externalTypeSelect.addEventListener('change', updateExternalTypeFields);
     updateExternalTypeFields();
     fetch('/api/embed-config').then(response => response.json()).then(config => {
+      externalProviders = Array.isArray(config.providers) ? config.providers : [];
       externalStatus.textContent = config.enabled
-        ? `Configured provider: ${config.providerName}. Use only content you have permission to access.`
-        : 'No external provider configured. Check the EMBED_PROVIDER_* environment variables.';
-    }).catch(() => {
-      externalStatus.textContent = 'Could not check provider configuration. Confirm the server is running.';
-    });
+        ? `Configured servers: ${externalProviders.map(provider => provider.name).join(', ')}. Use only content you have permission to access.`
+        : 'No external servers configured. Check the EMBED_SERVERS and EMBED_<ID>_* environment variables.';
+    }).catch(() => { externalStatus.textContent = 'Could not check player server configuration. Confirm the server is running.'; });
 
 
-
-    async function playExternalPlayer(payload, displayTitle = '') {
+    async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
+      activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+      const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
       externalStatus.textContent = 'Preparing external player…';
+      externalServerControl.classList.add('hidden'); externalServerStatus.textContent = '';
       try {
         const response = await fetch('/api/external-player', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, serverId: requestedServer })
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
-        currentPlaybackMode = 'external';
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-        video.classList.add('hidden');
-        externalFrame.classList.remove('hidden');
-        externalFrame.title = `${result.providerName} external player`;
+        currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
+        video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
+        externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
         externalFrame.src = result.url;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
+        if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
+        externalServerSelect.replaceChildren();
+        externalProviders.forEach(provider => { const option = document.createElement('option'); option.value = provider.id; option.textContent = provider.name; externalServerSelect.append(option); });
+        externalServerSelect.value = result.providerId;
         showModal(playerModal);
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
-      } catch (error) {
-        externalStatus.textContent = error.message || 'Could not open external player.';
-      }
+      } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
+
+    externalFrame.addEventListener('load', () => {
+      if (currentPlaybackMode === 'external' && playerModal.classList.contains('open'))
+        externalServerControl.classList.toggle('hidden', externalProviders.length < 2);
+    });
+    externalServerSelect.addEventListener('change', async () => {
+      if (!activeExternalPayload || !externalServerSelect.value) return;
+      externalServerStatus.textContent = 'Switching server…';
+      await playExternalPlayer(activeExternalPayload, activeExternalTitle, externalServerSelect.value);
+      externalServerStatus.textContent = `Using ${externalServerSelect.options[externalServerSelect.selectedIndex]?.text || 'selected server'}.`;
+    });
 
     document.getElementById('external-player-form').addEventListener('submit', async event => {
       event.preventDefault();
@@ -347,6 +370,8 @@
     qualityFilter.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
+    document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
+    episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
     document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
     fileListContainer.addEventListener('click', event => {
@@ -409,17 +434,13 @@
     }
 
     async function expandTmdbShow(card, item) {
-      const existing = card.querySelector('.tmdb-series-details');
-      if (existing) {
-        existing.remove();
-        card.dataset.expanded = 'false';
-        return;
-      }
-      card.dataset.expanded = 'true';
+      episodePickerContent.replaceChildren();
       const details = document.createElement('div');
-      details.className = 'tmdb-series-details';
+      details.className = 'tmdb-series-details episode-picker-details';
       details.innerHTML = '<div class="section-note">Loading seasons…</div>';
-      card.querySelector('.card-info').append(details);
+      episodePickerContent.append(details);
+      document.getElementById('episode-picker-title').textContent = item.title || 'Choose an episode';
+      showModal(episodePickerModal);
       try {
         const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons`);
         const data = await response.json();
