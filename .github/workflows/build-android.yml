@@ -7,6 +7,11 @@ on:
       - feature/android-port
     paths:
       - "android/**"
+      - "server.js"
+      - "public/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/build-android.yml"
 
 jobs:
@@ -15,6 +20,26 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Set up Node.js for backend dependency staging
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Stage the unchanged Mystery Vault backend and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev --omit=optional
+          mkdir -p android/app/src/main/assets/backend
+          cp server.js android/app/src/main/assets/backend/
+          cp -a public android/app/src/main/assets/backend/
+          cp -a node_modules android/app/src/main/assets/backend/
+          test -f android/app/src/main/assets/backend/server.js
+          test -f android/app/src/main/assets/backend/public/index.html
+          test -f android/app/src/main/assets/backend/node_modules/express/package.json
+          echo "Backend staged: $(du -sh android/app/src/main/assets/backend | cut -f1)"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
