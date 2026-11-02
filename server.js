@@ -561,6 +561,13 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
     return existing.promise;
   }
 
+  // Keep exactly one swarm resident. Selecting a different title tears down
+  // the previous swarm immediately instead of allowing several 30-second idle
+  // sessions to overlap on the 512 MB Render instance.
+  for (const [otherKey, otherEntry] of [...activeTorrents.entries()]) {
+    if (otherKey !== key) destroyTorrentEntry(otherKey, otherEntry);
+  }
+
   const entry = {
     promise: null,
     torrent: null,
@@ -596,14 +603,16 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
         settled = true;
         reject(err);
       }
-      if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+      destroyTorrentEntry(key, entry);
     });
 
     metadataTimeout = setTimeout(() => {
       if (settled) return;
       settled = true;
       console.warn('[Torrent] Metadata discovery timed out');
-      destroyTorrentEntry(key, entry);
+      if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+      try { torrent.destroy({ destroyStore: true }); } catch (_) {}
+      reject(new Error('Torrent metadata discovery timed out. Try a torrent with more seeders.'));
     }, Math.max(15000, Number(process.env.TORRENT_METADATA_TIMEOUT_MS) || 45000));
     metadataTimeout.unref?.();
 
