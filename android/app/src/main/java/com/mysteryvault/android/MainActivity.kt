@@ -27,7 +27,7 @@ class MainActivity : Activity() {
         val root = FrameLayout(this)
         webView = WebView(this)
         statusView = TextView(this).apply {
-            text = "Starting embedded Node.js…"
+            text = "Preparing Mystery Vault…"
             textSize = 16f
             setPadding(40, 40, 40, 40)
         }
@@ -53,30 +53,55 @@ class MainActivity : Activity() {
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
                 if (request.isForMainFrame) {
-                    statusView.text = "Embedded Node.js service did not start. Check the app runtime logs."
+                    statusView.text = "Mystery Vault backend could not be reached. Reopen the app or check its runtime logs."
                     statusView.visibility = View.VISIBLE
                 }
             }
         }
 
-        val projectDir = File(filesDir, "nodejs").apply { mkdirs() }
-        assets.open("nodejs/index.js").use { input ->
-            File(projectDir, "index.js").outputStream().use { output -> input.copyTo(output) }
+        val backendDir = File(filesDir, "backend")
+        try {
+            copyAssetFolder("backend", backendDir)
+        } catch (error: Exception) {
+            statusView.text = "Unable to prepare Mystery Vault backend: ${error.message}"
+            return
         }
         val cache = File(cacheDir, "node-tmp").apply { mkdirs() }
 
         Thread {
             try {
-                startNode(projectDir.absolutePath, cache.absolutePath)
+                val result = startNode(backendDir.absolutePath, cache.absolutePath)
+                runOnUiThread {
+                    statusView.text = "Mystery Vault backend stopped (exit code $result)."
+                    statusView.visibility = View.VISIBLE
+                }
             } catch (error: Throwable) {
                 runOnUiThread {
-                    statusView.text = "Unable to start embedded Node.js: ${error.message}"
+                    statusView.text = "Unable to start Mystery Vault backend: ${error.message}"
                     statusView.visibility = View.VISIBLE
                 }
             }
         }.apply { name = "mystery-vault-node"; isDaemon = true }.start()
 
-        webView.postDelayed({ webView.loadUrl(LOCAL_APP_URL) }, 1200)
+        webView.postDelayed({ webView.loadUrl(LOCAL_APP_URL) }, 1800)
+    }
+
+    private fun copyAssetFolder(assetPath: String, destination: File) {
+        destination.mkdirs()
+        val entries = assets.list(assetPath) ?: emptyArray()
+        for (entry in entries) {
+            val childAssetPath = "$assetPath/$entry"
+            val childDestination = File(destination, entry)
+            val children = assets.list(childAssetPath) ?: emptyArray()
+            if (children.isNotEmpty()) {
+                copyAssetFolder(childAssetPath, childDestination)
+            } else {
+                assets.open(childAssetPath).use { input ->
+                    childDestination.parentFile?.mkdirs()
+                    childDestination.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
     }
 
     @Suppress("DEPRECATION")
