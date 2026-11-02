@@ -240,16 +240,16 @@
     }
 
     function addBrowserTrackers(magnet) {
-      const url = new URL(magnet);
+      const separator = magnet.includes('?') ? '&' : '?';
       const trackers = [
         'wss://tracker.openwebtorrent.com',
         'wss://tracker.btorrent.xyz',
         'wss://tracker.webtorrent.dev'
       ];
       trackers.forEach(tracker => {
-        if (!url.searchParams.getAll('tr').includes(tracker)) url.searchParams.append('tr', tracker);
+        if (!magnet.includes(`tr=${encodeURIComponent(tracker)}`) && !magnet.includes(`tr=${tracker}`)) {\n          magnet += `${magnet.includes('?') ? '&' : '?'}tr=${encodeURIComponent(tracker)}`;\n        }
       });
-      return url.toString();
+      return magnet;
     }
 
     async function destroyBrowserTorrent() {
