@@ -1,18 +1,16 @@
 package com.mysteryvault.android
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.TextView
 import android.widget.FrameLayout
-import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
+import android.widget.TextView
 
 /**
  * Initial Android host for the existing Mystery Vault web UI.
@@ -20,7 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
  * The Android-local backend is intentionally a separate porting milestone:
  * this activity expects it at 127.0.0.1:3000 and never exposes it on the LAN.
  */
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var statusView: TextView
 
@@ -79,17 +77,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.loadUrl(LOCAL_APP_URL)
+    }
 
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (webView.canGoBack()) webView.goBack() else finish()
-            }
-        })
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            super.onBackPressed()
+        }
     }
 
     override fun onDestroy() {
-        webView.stopLoading()
-        webView.destroy()
+        if (::webView.isInitialized) {
+            webView.stopLoading()
+            webView.destroy()
+        }
         super.onDestroy()
     }
 
