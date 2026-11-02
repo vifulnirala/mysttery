@@ -118,6 +118,17 @@
           <button class="btn btn-secondary" id="player-episode-apply" type="button">Go to episode</button>
           <span id="player-episode-status" role="status" aria-live="polite"></span>
         </div>
+        <iframe id="external-player-frame"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowfullscreen
+          referrerpolicy="strict-origin-when-cross-origin"
+          class="hidden"
+          title="External video player"></iframe>
+      <div class="external-server-control hidden" id="external-server-control">
+        <label for="external-server-select">Player server</label>
+        <select id="external-server-select" class="select-control"></select>
+        <span id="external-server-status" role="status" aria-live="polite"></span>
       </div>
       <div class="player-foot"><span id="player-tip">Tip: use a smaller 720p release with healthy seed availability for faster starts.</span><button class="btn btn-secondary" id="player-close-bottom" type="button">Close player</button></div>
     </div>
