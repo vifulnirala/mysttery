@@ -27,6 +27,12 @@
     let activeExternalServerId = null;
     const playerTip = document.getElementById('player-tip');
     let currentPlaybackMode = 'torrent';
+    let browserWebTorrentModulePromise = null;
+    let browserTorrentClient = null;
+    let activeBrowserTorrent = null;
+    let activeTorrentSource = '';
+    let activeTorrentTitle = '';
+
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
     const resultSourceFilter = document.getElementById('result-source-filter');
@@ -219,32 +225,126 @@
       if (!filteredResults.length) torrentGrid.innerHTML = '<div class="empty">No results match these filters. Try changing the source or picture quality.</div>';
     }
 
+    async function loadBrowserWebTorrent() {
+      if (!browserWebTorrentModulePromise) {
+        browserWebTorrentModulePromise = import('https://cdn.jsdelivr.net/npm/webtorrent@2.8.5/+esm')
+          .then(module => {
+            const WebTorrent = module.default || module.WebTorrent;
+            if (!WebTorrent || !WebTorrent.WEBRTC_SUPPORT) {
+              throw new Error('This browser does not support WebRTC torrent playback.');
+            }
+            return WebTorrent;
+          });
+      }
+      return browserWebTorrentModulePromise;
+    }
+
+    function addBrowserTrackers(magnet) {
+      const url = new URL(magnet);
+      const trackers = [
+        'wss://tracker.openwebtorrent.com',
+        'wss://tracker.btorrent.xyz',
+        'wss://tracker.webtorrent.dev'
+      ];
+      trackers.forEach(tracker => {
+        if (!url.searchParams.getAll('tr').includes(tracker)) url.searchParams.append('tr', tracker);
+      });
+      return url.toString();
+    }
+
+    async function destroyBrowserTorrent() {
+      const client = browserTorrentClient;
+      browserTorrentClient = null;
+      activeBrowserTorrent = null;
+      if (client) {
+        try { await new Promise(resolve => client.destroy(() => resolve())); }
+        catch (error) { console.warn('Browser torrent cleanup:', error); }
+      }
+    }
+
+    async function handleServerTorrentSelection(source, title) {
+      setStatus(`Inspecting available video files for “${title}”…`);
+      const response = await fetch(`/api/torrent-files?source=${encodeURIComponent(source)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not inspect this source.');
+      if (!Array.isArray(data.files) || !data.files.length) {
+        throw new Error('No supported video files (.mp4, .mkv, .webm) were found in this source.');
+      }
+      setStatus('');
+      if (data.files.length === 1) {
+        playFile(source, data.files[0].index, data.files[0].name);
+      } else {
+        modalTorrentTitle.textContent = data.torrentName || title;
+        fileListContainer.innerHTML = data.files.map(file =>
+          `<button type="button" class="file-item" data-file-index="${Number(file.index)}">
+            <span class="file-name">▣ &nbsp;${escapeHtml(file.path || file.name)}</span><span class="file-size">${escapeHtml(formatSize(file.sizeMB))}</span>
+          </button>`
+        ).join('');
+        fileListContainer._source = source;
+        fileListContainer._files = data.files;
+        fileListContainer._browserTorrent = false;
+        showModal(fileModal);
+      }
+    }
+
+    async function inspectBrowserTorrent(source, title) {
+      await destroyBrowserTorrent();
+      const WebTorrent = await loadBrowserWebTorrent();
+      browserTorrentClient = new WebTorrent({ maxConns: 20 });
+      activeTorrentSource = source;
+      activeTorrentTitle = title;
+      setStatus(`Connecting to browser-compatible peers for “${title}”…`);
+      const magnet = addBrowserTrackers(source);
+      const torrent = browserTorrentClient.add(magnet);
+      activeBrowserTorrent = torrent;
+
+      const metadata = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Browser peers did not provide torrent metadata in time.')), 35000);
+        const cleanup = () => { clearTimeout(timeout); torrent.removeListener('error', onError); };
+        const onError = error => { cleanup(); reject(error); };
+        torrent.once('metadata', () => { cleanup(); resolve(torrent); });
+        torrent.once('error', onError);
+      });
+
+      const files = metadata.files
+        .map((file, index) => ({ index, name: file.name, path: file.path, sizeMB: file.length / (1024 * 1024) }))
+        .filter(file => /\.(mp4|mkv|webm|m4v|mov|ogv)$/i.test(file.name));
+      if (!files.length) throw new Error('No supported video files were found in this torrent.');
+
+      setStatus('');
+      fileListContainer._source = source;
+      fileListContainer._files = files;
+      fileListContainer._browserTorrent = true;
+      if (files.length === 1) {
+        playBrowserFile(files[0].index, files[0].name);
+      } else {
+        modalTorrentTitle.textContent = title;
+        fileListContainer.innerHTML = files.map(file =>
+          `<button type="button" class="file-item" data-file-index="${file.index}">
+            <span class="file-name">▣ &nbsp;${escapeHtml(file.path || file.name)}</span>
+            <span class="file-size">${escapeHtml(formatSize(file.sizeMB))}</span>
+          </button>`
+        ).join('');
+        showModal(fileModal);
+      }
+    }
+
     async function handleTorrentSelection(source, title) {
       currentSource = source;
       if (selectionController) selectionController.abort();
       selectionController = new AbortController();
-      setStatus(`Inspecting available video files for “${title}”…`);
       try {
-        const response = await fetch(`/api/torrent-files?source=${encodeURIComponent(source)}`, { signal: selectionController.signal });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Could not inspect this source.');
-        if (!Array.isArray(data.files) || !data.files.length) {
-          setStatus('No supported video files (.mp4, .mkv, .webm) were found in this source.', 'error');
-          return;
-        }
-        setStatus('');
-        if (data.files.length === 1) {
-          playFile(source, data.files[0].index, data.files[0].name);
+        if (/^magnet:\?/i.test(source)) {
+          try {
+            await inspectBrowserTorrent(source, title);
+          } catch (browserError) {
+            console.warn('Browser torrent playback unavailable; falling back to server streaming:', browserError);
+            await destroyBrowserTorrent();
+            setStatus(`Browser P2P unavailable. Trying server streaming…`);
+            await handleServerTorrentSelection(source, title);
+          }
         } else {
-          modalTorrentTitle.textContent = data.torrentName || title;
-          fileListContainer.innerHTML = data.files.map(file =>
-            `<button type="button" class="file-item" data-file-index="${Number(file.index)}">
-              <span class="file-name">▣ &nbsp;${escapeHtml(file.path || file.name)}</span><span class="file-size">${escapeHtml(formatSize(file.sizeMB))}</span>
-            </button>`
-          ).join('');
-          fileListContainer._source = source;
-          fileListContainer._files = data.files;
-          showModal(fileModal);
+          await handleServerTorrentSelection(source, title);
         }
       } catch (error) {
         if (error.name === 'AbortError') return;
@@ -253,7 +353,41 @@
       }
     }
 
+    function playBrowserFile(fileIndex, fileName) {
+      const file = activeBrowserTorrent?.files?.[fileIndex];
+      if (!file) {
+        setStatus('The selected browser torrent file is no longer available.', 'error');
+        return;
+      }
+      hideModal(fileModal);
+      currentPlaybackMode = 'browser-torrent';
+      externalFrame.removeAttribute('src');
+      externalFrame.classList.add('hidden');
+      externalPlayerControls.classList.add('hidden');
+      video.classList.remove('hidden');
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      nowPlaying.textContent = `Browser P2P · ${fileName}`;
+      playerTip.textContent = 'Downloading directly from WebRTC-capable peers. Your browser may also upload pieces while this torrent is active.';
+      showModal(playerModal);
+      try {
+        file.streamTo(video);
+        const playPromise = video.play();
+        if (playPromise?.catch) playPromise.catch(() => setStatus('Torrent is buffering. Press play when the video is ready.'));
+        activeBrowserTorrent.on('download', () => {
+          const downloaded = (activeBrowserTorrent.downloaded / (1024 * 1024)).toFixed(1);
+          const speed = (activeBrowserTorrent.downloadSpeed / (1024 * 1024)).toFixed(2);
+          setStatus(`Browser P2P: ${activeBrowserTorrent.numPeers} peers · ${downloaded} MB downloaded · ${speed} MB/s`);
+        });
+        setStatus(`Browser P2P connected: ${activeBrowserTorrent.numPeers} peer(s). Waiting for video data…`);
+      } catch (error) {
+        setStatus(error.message || 'Could not start browser torrent playback.', 'error');
+      }
+    }
+
     function playFile(source, fileIndex, fileName) {
+      void destroyBrowserTorrent();
       hideModal(fileModal);
       currentPlaybackMode = 'torrent';
       externalFrame.removeAttribute('src');
@@ -285,7 +419,7 @@
       externalFrame.classList.add('hidden');
       video.classList.remove('hidden');
       hideModal(playerModal);
-      if (closingMode === 'external') {
+      if (closingMode === 'browser-torrent') {\n        await destroyBrowserTorrent();\n        setStatus('Browser torrent stopped. No video data was streamed through Render.', 'success');\n        return;\n      }\n      if (closingMode === 'external') {
         setStatus('External player closed.', 'success');
         return;
       }
@@ -406,8 +540,12 @@
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
     resultSourceFilter.addEventListener('change', applyResultFilters);
     qualityFilter.addEventListener('change', applyResultFilters);
-    document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
-    document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
+    const closeFilePicker = () => {
+      hideModal(fileModal);
+      if (fileListContainer._browserTorrent) void destroyBrowserTorrent();
+    };
+    document.getElementById('file-close').addEventListener('click', closeFilePicker);
+    document.getElementById('file-cancel').addEventListener('click', closeFilePicker);
     document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
     episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
@@ -417,7 +555,10 @@
       if (!button) return;
       const index = Number(button.dataset.fileIndex);
       const file = (fileListContainer._files || []).find(item => Number(item.index) === index);
-      if (file) playFile(fileListContainer._source, index, file.name);
+      if (file) {
+        if (fileListContainer._browserTorrent) playBrowserFile(index, file.name);
+        else playFile(fileListContainer._source, index, file.name);
+      }
     });
     async function loadTmdbSeasonEpisodes(card, item, seasonNumber, episodesContainer) {
       episodesContainer.innerHTML = '<div class="empty">Loading episodes…</div>';
