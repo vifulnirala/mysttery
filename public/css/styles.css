@@ -309,3 +309,18 @@
   .episode-picker-details .episode-overview { font-size:.75rem; }
   .episode-picker-details .episode-play { width:30px; height:30px; }
 }
+
+/* External player controls for server and TV episode selection */
+.external-player-controls { display:flex; flex-direction:column; gap:0; background:#0b1020; border-top:1px solid rgba(255,255,255,.1); }
+.external-server-control { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:10px 18px; color:#cbd5e1; font-size:.84rem; }
+.external-server-control label, .external-episode-control label { font-weight:750; }
+.external-server-control select, .external-episode-control input { min-width:100px; color:#f8fafc; background:#18213a; border-color:rgba(255,255,255,.18); }
+#external-server-status, #player-episode-status { color:#94a3b8; font-size:.76rem; }
+.external-episode-control { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:10px 18px 14px; color:#cbd5e1; font-size:.84rem; border-top:1px solid rgba(255,255,255,.08); }
+.external-episode-control input { width:86px; min-height:40px; }
+.external-episode-control .btn { min-height:40px; }
+@media (max-width:640px) {
+  .external-episode-control { gap:8px; padding:10px 12px 14px; }
+  .external-episode-control input { width:70px; }
+  #player-episode-status { flex-basis:100%; }
+}

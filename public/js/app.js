@@ -11,9 +11,14 @@
     const nowPlaying = document.getElementById('now-playing');
     const video = document.getElementById('video-element');
     const externalFrame = document.getElementById('external-player-frame');
+    const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
     const externalServerStatus = document.getElementById('external-server-status');
+    const externalEpisodeControl = document.getElementById('external-episode-control');
+    const playerSeasonInput = document.getElementById('player-season');
+    const playerEpisodeInput = document.getElementById('player-episode');
+    const playerEpisodeStatus = document.getElementById('player-episode-status');
     const episodePickerModal = document.getElementById('episode-picker-modal');
     const episodePickerContent = document.getElementById('episode-picker-content');
     let externalProviders = [];
@@ -95,9 +100,9 @@
 
     async function searchTorrents() {
       const query = searchInput.value.trim();
-      const sourceMode = document.getElementById('search-source').value;
-      const wantsTorrents = sourceMode !== 'tmdb';
-      const wantsTmdb = sourceMode !== 'torrents';
+      // Always search both sources; source and quality choices are post-search filters. 
+      const wantsTorrents = true;
+      const wantsTmdb = true;
 
       if (!query) {
         searchSection.classList.add('hidden');
@@ -112,11 +117,11 @@
       tmdbController = wantsTmdb ? new AbortController() : null;
       searchSection.classList.remove('hidden');
       loadMoreButton.classList.add('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching selected sources…</div>';
+      torrentGrid.innerHTML = '<div class="empty">Searching torrent sources and TMDB…</div>';
       searchResults = [];
       tmdbResults = [];
       unifiedResults = [];
-      setStatus(`Searching ${sourceMode === 'both' ? 'torrent sources and TMDB' : sourceMode === 'tmdb' ? 'TMDB' : 'torrent sources'} for “${query}”…`);
+      setStatus(`Searching torrent sources and TMDB for “${query}”…`);
 
       const tasks = [];
       if (wantsTorrents) {
@@ -253,6 +258,7 @@
       currentPlaybackMode = 'torrent';
       externalFrame.removeAttribute('src');
       externalFrame.classList.add('hidden');
+      externalPlayerControls.classList.add('hidden');
       externalServerControl.classList.add('hidden');
       externalServerStatus.textContent = '';
       activeExternalPayload = null;
@@ -303,19 +309,31 @@
     }
     externalTypeSelect.addEventListener('change', updateExternalTypeFields);
     updateExternalTypeFields();
-    fetch('/api/embed-config').then(response => response.json()).then(config => {
-      externalProviders = Array.isArray(config.providers) ? config.providers : [];
-      externalStatus.textContent = config.enabled
-        ? `Configured servers: ${externalProviders.map(provider => provider.name).join(', ')}. Use only content you have permission to access.`
-        : 'No external servers configured. Check the EMBED_SERVERS and EMBED_<ID>_* environment variables.';
-    }).catch(() => { externalStatus.textContent = 'Could not check player server configuration. Confirm the server is running.'; });
+    const externalConfigPromise = fetch('/api/embed-config')
+      .then(response => {
+        if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
+        return response.json();
+      })
+      .then(config => {
+        externalProviders = Array.isArray(config.providers) ? config.providers : [];
+        externalStatus.textContent = externalProviders.length
+          ? 'Configured servers: ' + externalProviders.map(provider => provider.name).join(', ') + '.'
+          : 'No valid external servers found. Check EMBED_SERVERS and each EMBED_<ID>_* setting.';
+        return externalProviders;
+      })
+      .catch(error => {
+        externalStatus.textContent = error.message || 'Could not load player server configuration.';
+        externalProviders = [];
+        return externalProviders;
+      });
 
 
     async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
       activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+      await externalConfigPromise;
       const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
       externalStatus.textContent = 'Preparing external player…';
-      externalServerControl.classList.add('hidden'); externalServerStatus.textContent = '';
+      externalPlayerControls.classList.add('hidden'); externalServerStatus.textContent = ''; playerEpisodeStatus.textContent = '';
       try {
         const response = await fetch('/api/external-player', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -326,27 +344,47 @@
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
-        externalFrame.src = result.url;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
         if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
         externalServerSelect.replaceChildren();
         externalProviders.forEach(provider => { const option = document.createElement('option'); option.value = provider.id; option.textContent = provider.name; externalServerSelect.append(option); });
         externalServerSelect.value = result.providerId;
+        const isTv = payload.mediaType === 'tv';
+        externalEpisodeControl.classList.toggle('hidden', !isTv);
+        playerSeasonInput.value = String(payload.season ?? 1);
+        playerEpisodeInput.value = String(payload.episode ?? 1);
         showModal(playerModal);
+        // Set src only after opening the modal so a fast iframe load cannot beat the load handler.
+        externalFrame.src = result.url;
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
 
     externalFrame.addEventListener('load', () => {
-      if (currentPlaybackMode === 'external' && playerModal.classList.contains('open'))
+      if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
+        externalPlayerControls.classList.remove('hidden');
         externalServerControl.classList.toggle('hidden', externalProviders.length < 2);
+      }
     });
     externalServerSelect.addEventListener('change', async () => {
       if (!activeExternalPayload || !externalServerSelect.value) return;
       externalServerStatus.textContent = 'Switching server…';
       await playExternalPlayer(activeExternalPayload, activeExternalTitle, externalServerSelect.value);
       externalServerStatus.textContent = `Using ${externalServerSelect.options[externalServerSelect.selectedIndex]?.text || 'selected server'}.`;
+    });
+    document.getElementById('player-episode-apply').addEventListener('click', async () => {
+      if (!activeExternalPayload || activeExternalPayload.mediaType !== 'tv') return;
+      const season = Number(playerSeasonInput.value);
+      const episode = Number(playerEpisodeInput.value);
+      if (!Number.isInteger(season) || season < 0 || season > 99 ||
+          !Number.isInteger(episode) || episode < 1 || episode > 999) {
+        playerEpisodeStatus.textContent = 'Enter a season from 0–99 and episode from 1–999.';
+        return;
+      }
+      playerEpisodeStatus.textContent = 'Loading selected episode…';
+      await playExternalPlayer({ ...activeExternalPayload, season, episode }, activeExternalTitle, activeExternalServerId || '');
+      playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
     });
 
     document.getElementById('external-player-form').addEventListener('submit', async event => {
