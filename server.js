@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
 import WebTorrent from 'webtorrent';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,7 +10,6 @@ const TORRENT_MAX_PEERS = Math.max(8, Math.min(40, Number(process.env.TORRENT_MA
 const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(APP_ROOT, 'public')));
 
