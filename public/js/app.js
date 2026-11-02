@@ -246,7 +246,9 @@
         'wss://tracker.webtorrent.dev'
       ];
       trackers.forEach(tracker => {
-        if (!magnet.includes(`tr=${encodeURIComponent(tracker)}`) && !magnet.includes(`tr=${tracker}`)) {\n          magnet += `${magnet.includes('?') ? '&' : '?'}tr=${encodeURIComponent(tracker)}`;\n        }
+        if (!magnet.includes(`tr=${encodeURIComponent(tracker)}`) && !magnet.includes(`tr=${tracker}`)) {
+          magnet += `${magnet.includes('?') ? '&' : '?'}tr=${encodeURIComponent(tracker)}`;
+        }
       });
       return magnet;
     }
@@ -307,7 +309,7 @@
 
       const files = metadata.files
         .map((file, index) => ({ index, name: file.name, path: file.path, sizeMB: file.length / (1024 * 1024) }))
-        .filter(file => /\.(mp4|mkv|webm|m4v|mov|ogv)$/i.test(file.name));
+        .filter(file => /\.(mp4|webm|ogv)$/i.test(file.name));
       if (!files.length) throw new Error('No browser-compatible video files (.mp4, .webm, .ogv) were found in this torrent.');
 
       setStatus('');
@@ -371,7 +373,9 @@
       playerTip.textContent = 'Downloading directly from WebRTC-capable peers. Your browser may also upload pieces while this torrent is active.';
       showModal(playerModal);
       try {
-        file.renderTo(video, {}, error => {\n          if (error) setStatus(error.message || 'Browser could not render this video format.', 'error');\n        });
+        file.renderTo(video, {}, error => {
+          if (error) setStatus(error.message || 'Browser could not render this video format.', 'error');
+        });
         const playPromise = video.play();
         if (playPromise?.catch) playPromise.catch(() => setStatus('Torrent is buffering. Press play when the video is ready.'));
         activeBrowserTorrent.on('download', () => {
@@ -418,7 +422,12 @@
       externalFrame.classList.add('hidden');
       video.classList.remove('hidden');
       hideModal(playerModal);
-      if (closingMode === 'browser-torrent') {\n        await destroyBrowserTorrent();\n        setStatus('Browser torrent stopped. No video data was streamed through Render.', 'success');\n        return;\n      }\n      if (closingMode === 'external') {
+      if (closingMode === 'browser-torrent') {
+        await destroyBrowserTorrent();
+        setStatus('Browser torrent stopped. No video data was streamed through Render.', 'success');
+        return;
+      }
+      if (closingMode === 'external') {
         setStatus('External player closed.', 'success');
         return;
       }
