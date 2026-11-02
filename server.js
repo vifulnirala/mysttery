@@ -2,15 +2,18 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import WebTorrent from 'webtorrent';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const app = express();
-const port = 3000;
+const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_PORT = 3000;
 const TORRENT_MAX_PEERS = Math.max(8, Math.min(40, Number(process.env.TORRENT_MAX_PEERS) || 20));
 const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
+const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(APP_ROOT, 'public')));
 
 // ============================================================================
 // 1. CONFIGURATION & TRACKERS
@@ -1018,18 +1021,45 @@ const memoryLogInterval = setInterval(() => {
 }, 30000);
 memoryLogInterval.unref?.();
 
-app.listen(Number(process.env.PORT) || port, '0.0.0.0', () => {
-  console.log(`Server listening on port ${Number(process.env.PORT) || port}`);
-  console.log(`[Torrent Lifecycle] One bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
-});
+let activeHttpServer = null;
 
-// Graceful shutdown: release all sockets and torrent stores when the server exits.
-async function shutdown(signal) {
-  console.log(`[Shutdown] ${signal} received; closing torrent sessions...`);
-  clearInterval(memoryLogInterval);
-  for (const [key, entry] of activeTorrents.entries()) destroyTorrentEntry(key, entry);
-  try { await client.destroy(); } catch (_) {}
-  process.exit(0);
+export async function startServer({ host = process.env.HOST || '0.0.0.0', port = Number(process.env.PORT) || DEFAULT_PORT } = {}) {
+  if (activeHttpServer?.listening) {
+    const address = activeHttpServer.address();
+    return { server: activeHttpServer, host, port: address.port, close: closeServer };
+  }
+  activeHttpServer = await new Promise((resolve, reject) => {
+    const server = app.listen(port, host);
+    server.once('error', reject);
+    server.once('listening', () => resolve(server));
+  });
+  const address = activeHttpServer.address();
+  const actualPort = typeof address === 'object' && address ? address.port : port;
+  console.log(`Server listening on http://${host}:${actualPort}`);
+  console.log(`[Torrent Lifecycle] One bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
+  return { server: activeHttpServer, host, port: actualPort, close: closeServer };
 }
-process.once('SIGINT', () => void shutdown('SIGINT'));
-process.once('SIGTERM', () => void shutdown('SIGTERM'));
+
+export async function closeServer() {
+  clearInterval(dynamicCleanupInterval);
+  clearInterval(memoryLogInterval);
+  for (const [key, entry] of [...activeTorrents.entries()]) destroyTorrentEntry(key, entry);
+  if (activeHttpServer?.listening) await new Promise(resolve => activeHttpServer.close(() => resolve()));
+  activeHttpServer = null;
+  try { await client.destroy(); } catch (_) {}
+}
+
+// Keep the normal web-server command working; importing this module from Electron
+// no longer starts a listener as a side effect.
+const isDirectRun = process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+if (isDirectRun) {
+  const host = process.env.HOST || '0.0.0.0';
+  startServer({ host }).catch(error => { console.error('[Server Startup Error]', error); process.exitCode = 1; });
+  const shutdown = async signal => {
+    console.log(`[Shutdown] ${signal} received; closing torrent sessions...`);
+    await closeServer();
+    process.exit(0);
+  };
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+}
