@@ -10,12 +10,52 @@
   "scripts": {
     "postinstall": "node scripts/fix-webtorrent-infohash.cjs",
     "start": "node server.js",
-    "check": "node --check server.js && node --check public/js/app.js"
+    "check": "node --check server.js && node --check public/js/app.js && node --check desktop/main.js && node --check desktop/preload.js",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win nsis"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^18.0.9",
     "express": "^4.21.2",
     "webtorrent": "2.8.5"
+  },
+  "main": "desktop/main.js",
+  "devDependencies": {
+    "electron": "^35.1.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.mysteryvault.desktop",
+    "productName": "Mystery Vault",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "public/**/*",
+      "server.js",
+      "scripts/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mystery Vault"
+    }
   }
 }
