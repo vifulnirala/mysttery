@@ -327,11 +327,17 @@ async function searchYts(query, requestedLimit = 50) {
     }
 
     const movies = payload?.data?.movies || [];
+    // UDP trackers preserve compatibility with the server-side WebTorrent
+    // fallback. WebSocket trackers allow browser WebTorrent clients to discover
+    // WebRTC-capable peers; browsers cannot use the UDP tracker entries.
     const trackers = [
       'udp://tracker.opentrackr.org:1337/announce',
       'udp://open.stealth.si:80/announce',
       'udp://tracker.torrent.eu.org:451/announce',
-      'udp://tracker.openbittorrent.com:6969/announce'
+      'udp://tracker.openbittorrent.com:6969/announce',
+      'wss://tracker.openwebtorrent.com',
+      'wss://tracker.btorrent.xyz',
+      'wss://tracker.webtorrent.dev'
     ];
 
     for (const movie of movies) {
