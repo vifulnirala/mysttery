@@ -706,10 +706,9 @@ function pipeFileToResponse(key, file, req, res) {
     clearTimeout(entry.pauseTimers.get(file));
     entry.pauseTimers.delete(file);
   }
-  try { file.select(10); } catch (err) {
-    console.warn(`[Stream] Could not prioritize ${file.name}: ${err.message}`);
-  }
-
+  // Avoid selecting the entire movie file: that triggers a full background
+  // download. WebTorrent's createReadStream selects the requested byte range
+  // and prioritizes pieces needed by the player.
   const stream = file.createReadStream({ start, end, highWaterMark: 256 * 1024 });
   if (entry) {
     entry.openStreams.add(stream);
