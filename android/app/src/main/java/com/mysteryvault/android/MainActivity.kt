@@ -11,37 +11,28 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.TextView
+import java.io.File
 
-/**
- * Initial Android host for the existing Mystery Vault web UI.
- *
- * The Android-local backend is intentionally a separate porting milestone:
- * this activity expects it at 127.0.0.1:3000 and never exposes it on the LAN.
- */
 class MainActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var statusView: TextView
 
+    private external fun startNode(projectDir: String, cacheDir: String): Int
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        System.loadLibrary("node_bridge")
 
         val root = FrameLayout(this)
         webView = WebView(this)
         statusView = TextView(this).apply {
-            text = "Starting Mystery Vault…"
+            text = "Starting embedded Node.js…"
             textSize = 16f
             setPadding(40, 40, 40, 40)
-            visibility = View.VISIBLE
         }
-        root.addView(webView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ))
-        root.addView(statusView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ))
+        root.addView(webView, FrameLayout.LayoutParams(-1, -1))
+        root.addView(statusView, FrameLayout.LayoutParams(-1, -2))
         setContentView(root)
 
         webView.settings.javaScriptEnabled = true
@@ -51,12 +42,8 @@ class MainActivity : Activity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                val isLocal = uri.host == LOCAL_HOST && uri.scheme == "http"
-                if (isLocal) return false
-
-                if (uri.scheme == "https") {
-                    startActivity(Intent(Intent.ACTION_VIEW, uri))
-                }
+                if (uri.host == LOCAL_HOST && uri.scheme == "http") return false
+                if (uri.scheme == "https") startActivity(Intent(Intent.ACTION_VIEW, uri))
                 return true
             }
 
@@ -64,28 +51,37 @@ class MainActivity : Activity() {
                 statusView.visibility = View.GONE
             }
 
-            override fun onReceivedError(
-                view: WebView,
-                request: WebResourceRequest,
-                error: android.webkit.WebResourceError
-            ) {
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
                 if (request.isForMainFrame) {
-                    statusView.text = "Mystery Vault's local service is not running yet.\n\nAndroid backend integration is the next porting step."
+                    statusView.text = "Embedded Node.js service did not start. Check the app runtime logs."
                     statusView.visibility = View.VISIBLE
                 }
             }
         }
 
-        webView.loadUrl(LOCAL_APP_URL)
+        val projectDir = File(filesDir, "nodejs").apply { mkdirs() }
+        assets.open("nodejs/index.js").use { input ->
+            File(projectDir, "index.js").outputStream().use { output -> input.copyTo(output) }
+        }
+        val cache = File(cacheDir, "node-tmp").apply { mkdirs() }
+
+        Thread {
+            try {
+                startNode(projectDir.absolutePath, cache.absolutePath)
+            } catch (error: Throwable) {
+                runOnUiThread {
+                    statusView.text = "Unable to start embedded Node.js: ${error.message}"
+                    statusView.visibility = View.VISIBLE
+                }
+            }
+        }.apply { name = "mystery-vault-node"; isDaemon = true }.start()
+
+        webView.postDelayed({ webView.loadUrl(LOCAL_APP_URL) }, 1200)
     }
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (::webView.isInitialized && webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
+        if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 
     override fun onDestroy() {
