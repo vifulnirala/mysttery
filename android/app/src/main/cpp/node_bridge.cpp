@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <cstdlib>
 #include <string>
+#include <unistd.h>
 #include <node.h>
 
 extern "C" JNIEXPORT jint JNICALL
@@ -15,7 +16,15 @@ Java_com_mysteryvault_android_MainActivity_startNode(
     setenv("NODE_COMPILE_CACHE_PORTABLE", "1", 1);
     setenv("NODE_OPTIONS", "--max-old-space-size-percentage=35", 1);
 
-    const std::string entry = std::string(project) + "/index.js";
+    // server.js uses relative paths for dotenv and Express static assets.
+    // Run it from its app-private backend directory without changing its source.
+    if (chdir(project) != 0) {
+        env->ReleaseStringUTFChars(project_dir, project);
+        env->ReleaseStringUTFChars(cache_dir, cache);
+        return 1;
+    }
+
+    const std::string entry = std::string(project) + "/server.js";
     env->ReleaseStringUTFChars(project_dir, project);
     env->ReleaseStringUTFChars(cache_dir, cache);
 
