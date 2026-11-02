@@ -240,9 +240,11 @@
     }
 
     function addBrowserTrackers(magnet) {
-            const trackers = [
+            // Keep the browser tracker list to the currently configured
+      // WebTorrent-compatible endpoints. A failed tracker is non-fatal:
+      // WebTorrent continues announcing to the remaining trackers.
+      const trackers = [
         'wss://tracker.openwebtorrent.com',
-        'wss://tracker.btorrent.xyz',
         'wss://tracker.webtorrent.dev'
       ];
       trackers.forEach(tracker => {
