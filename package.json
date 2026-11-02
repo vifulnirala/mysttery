@@ -24,38 +24,5 @@
   "devDependencies": {
     "electron": "^35.1.5",
     "electron-builder": "^26.0.12"
-  },
-  "build": {
-    "appId": "com.mysteryvault.desktop",
-    "productName": "Mystery Vault",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "desktop/**/*",
-      "public/**/*",
-      "server.js",
-      "scripts/**/*",
-      "package.json"
-    ],
-    "asar": true,
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Mystery Vault"
-    }
   }
 }
