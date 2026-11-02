@@ -5,7 +5,8 @@ import WebTorrent from 'webtorrent';
 
 const app = express();
 const port = 3000;
-const client = new WebTorrent();
+const TORRENT_MAX_PEERS = Math.max(8, Math.min(40, Number(process.env.TORRENT_MAX_PEERS) || 20));
+const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
 
 app.use(cors());
 app.use(express.json());
@@ -118,12 +119,8 @@ function getEmbedProviderConfig(providerId) {
 
 const DEFAULT_TRACKERS = [
   'udp://tracker.opentrackr.org:1337/announce',
-  'udp://open.stealth.si:80/announce',
   'udp://tracker.torrent.eu.org:451/announce',
-  'udp://exodus.desync.com:6969/announce',
-  'udp://tracker.openbittorrent.com:6969/announce',
-  'http://tracker.opentrackr.org:1337/announce',
-  'wss://tracker.openwebtorrent.com'
+  'udp://tracker.openbittorrent.com:6969/announce'
 ];
 
 const CATALOG = [
@@ -530,7 +527,7 @@ function destroyTorrentEntry(key, entry) {
 
 // Any torrent session opened for inspection but not actively streaming is
 // removed after a short idle timeout, including curated catalogue items.
-const DYNAMIC_IDLE_TIMEOUT_MS = 60 * 1000;
+const DYNAMIC_IDLE_TIMEOUT_MS = 30 * 1000;
 function stopDynamicTorrents() {
   const now = Date.now();
   for (const [key, entry] of activeTorrents.entries()) {
@@ -579,9 +576,10 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
     console.log(`\n[Torrent] Opening ${isCurated ? 'curated' : 'search'} source on explicit selection: ${String(torrentSource).slice(0, 80)}`);
 
     let settled = false;
+    let metadataTimeout = null;
     let torrent;
     try {
-      torrent = client.add(torrentSource, { announce: DEFAULT_TRACKERS });
+      torrent = client.add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4 });
       entry.torrent = torrent;
     } catch (err) {
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
@@ -591,6 +589,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
 
     torrent.once('error', (err) => {
       console.error(`[Torrent Error] ${err.message}`);
+      if (metadataTimeout) clearTimeout(metadataTimeout);
       if (entry.statsInterval) clearInterval(entry.statsInterval);
       entry.statsInterval = null;
       if (!settled) {
@@ -600,9 +599,18 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
     });
 
+    metadataTimeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.warn('[Torrent] Metadata discovery timed out');
+      destroyTorrentEntry(key, entry);
+    }, Math.max(15000, Number(process.env.TORRENT_METADATA_TIMEOUT_MS) || 45000));
+    metadataTimeout.unref?.();
+
     torrent.once('metadata', () => {
       if (settled) return;
       settled = true;
+      if (metadataTimeout) clearTimeout(metadataTimeout);
       torrent.setMaxListeners(0);
       console.log(`[Torrent] Metadata ready! Found ${torrent.files.length} files in "${torrent.name}"`);
 
@@ -693,7 +701,7 @@ function pipeFileToResponse(key, file, req, res) {
     console.warn(`[Stream] Could not prioritize ${file.name}: ${err.message}`);
   }
 
-  const stream = file.createReadStream({ start, end });
+  const stream = file.createReadStream({ start, end, highWaterMark: 256 * 1024 });
   if (entry) {
     entry.openStreams.add(stream);
     entry.streamFiles.set(stream, file);
@@ -993,17 +1001,24 @@ app.post('/api/stop-stream', (req, res) => {
 });
 
 // Reap idle dynamic sessions periodically, without affecting active playback.
-const dynamicCleanupInterval = setInterval(stopDynamicTorrents, 60 * 1000);
+const dynamicCleanupInterval = setInterval(stopDynamicTorrents, 15 * 1000);
 dynamicCleanupInterval.unref?.();
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-  console.log('[Torrent Lifecycle] Background warmup disabled; torrents start only after explicit selection.');
+const memoryLogInterval = setInterval(() => {
+  const m = process.memoryUsage();
+  console.log(`[Memory] RSS ${(m.rss / 1048576).toFixed(1)} MB | Heap ${(m.heapUsed / 1048576).toFixed(1)} MB | External ${(m.external / 1048576).toFixed(1)} MB | ArrayBuffers ${(m.arrayBuffers / 1048576).toFixed(1)} MB | Torrents ${activeTorrents.size} | Peer cap ${TORRENT_MAX_PEERS}`);
+}, 30000);
+memoryLogInterval.unref?.();
+
+app.listen(Number(process.env.PORT) || port, '0.0.0.0', () => {
+  console.log(`Server listening on port ${Number(process.env.PORT) || port}`);
+  console.log(`[Torrent Lifecycle] One bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
 });
 
 // Graceful shutdown: release all sockets and torrent stores when the server exits.
 async function shutdown(signal) {
   console.log(`[Shutdown] ${signal} received; closing torrent sessions...`);
+  clearInterval(memoryLogInterval);
   for (const [key, entry] of activeTorrents.entries()) destroyTorrentEntry(key, entry);
   try { await client.destroy(); } catch (_) {}
   process.exit(0);
