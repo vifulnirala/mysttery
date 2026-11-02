@@ -49,6 +49,23 @@ jobs:
           mkdir -p android/app/node-include
           cp -a "$NODE_INCLUDE_DIR/." android/app/node-include/
 
+      - name: Package Android C++ shared runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK_ROOT="${ANDROID_HOME}/ndk/27.3.13750724"
+          HOST_TAG="linux-x86_64"
+          declare -A TRIPLE_BY_ABI=(
+            [arm64-v8a]=aarch64-linux-android
+            [armeabi-v7a]=arm-linux-androideabi
+            [x86_64]=x86_64-linux-android
+          )
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            RUNTIME="${NDK_ROOT}/toolchains/llvm/prebuilt/${HOST_TAG}/sysroot/usr/lib/${TRIPLE_BY_ABI[$ABI]}/libc++_shared.so"
+            test -f "$RUNTIME"
+            cp "$RUNTIME" "android/app/src/main/jniLibs/$ABI/libc++_shared.so"
+          done
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
