@@ -308,7 +308,7 @@
       const files = metadata.files
         .map((file, index) => ({ index, name: file.name, path: file.path, sizeMB: file.length / (1024 * 1024) }))
         .filter(file => /\.(mp4|mkv|webm|m4v|mov|ogv)$/i.test(file.name));
-      if (!files.length) throw new Error('No supported video files were found in this torrent.');
+      if (!files.length) throw new Error('No browser-compatible video files (.mp4, .webm, .ogv) were found in this torrent.');
 
       setStatus('');
       fileListContainer._source = source;
