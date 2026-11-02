@@ -240,8 +240,7 @@
     }
 
     function addBrowserTrackers(magnet) {
-      const separator = magnet.includes('?') ? '&' : '?';
-      const trackers = [
+            const trackers = [
         'wss://tracker.openwebtorrent.com',
         'wss://tracker.btorrent.xyz',
         'wss://tracker.webtorrent.dev'
@@ -372,7 +371,7 @@
       playerTip.textContent = 'Downloading directly from WebRTC-capable peers. Your browser may also upload pieces while this torrent is active.';
       showModal(playerModal);
       try {
-        file.streamTo(video);
+        file.renderTo(video, {}, error => {\n          if (error) setStatus(error.message || 'Browser could not render this video format.', 'error');\n        });
         const playPromise = video.play();
         if (playPromise?.catch) playPromise.catch(() => setStatus('Torrent is buffering. Press play when the video is ready.'));
         activeBrowserTorrent.on('download', () => {
