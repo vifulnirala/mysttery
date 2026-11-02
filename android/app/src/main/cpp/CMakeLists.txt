@@ -14,3 +14,10 @@ add_library(node_bridge SHARED node_bridge.cpp)
 target_include_directories(node_bridge PRIVATE "${NODE_INCLUDE_DIR}")
 find_library(log-lib log)
 target_link_libraries(node_bridge PRIVATE node ${log-lib})
+
+# Node.js 26 / V8 headers use C++20 language features.
+set_target_properties(node_bridge PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
