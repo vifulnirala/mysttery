@@ -85,7 +85,16 @@ class LocalHttpServer(private val context: Context) {
             if (index > 0) headers[lines[i].substring(0, index).trim().lowercase()] = lines[i].substring(index + 1).trim()
         }
         val length = headers["content-length"]?.toIntOrNull() ?: 0
-        val body = if (length > 0) String(input.readNBytes(length), StandardCharsets.UTF_8) else ""
+        val body = if (length > 0) {
+            val bytes = ByteArray(length)
+            var offset = 0
+            while (offset < length) {
+                val read = input.read(bytes, offset, length - offset)
+                if (read < 0) throw EOFException("Unexpected end of request body")
+                offset += read
+            }
+            String(bytes, StandardCharsets.UTF_8)
+        } else ""
         return HttpRequest(first[0], uri.path.ifEmpty { "/" }, parseQuery(uri.rawQuery), headers, body)
     }
 
