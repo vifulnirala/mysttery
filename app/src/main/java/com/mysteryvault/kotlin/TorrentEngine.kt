@@ -25,6 +25,7 @@ class TorrentEngine(context: Context) {
         if (!session.isRunning) session.start()
     }
 
+    @Synchronized
     fun stopAll() {
         for ((_, torrent) in active) {
             try { session.remove(torrent.handle) } catch (_: Throwable) {}
@@ -131,6 +132,7 @@ class TorrentEngine(context: Context) {
         } catch (_: Throwable) { emptyList() }
     }
 
+    @Synchronized
     fun files(source: String): JSONObject {
         require(source.isNotBlank()) { "Missing torrent source" }
         val torrent = ensureTorrent(source)
@@ -148,6 +150,7 @@ class TorrentEngine(context: Context) {
         return JSONObject().put("torrentName", torrent.info.name()).put("files", files)
     }
 
+    @Synchronized
     fun stream(client: java.net.Socket, source: String, fileIndex: Int, rangeHeader: String?) {
         require(source.isNotBlank() && fileIndex >= 0) { "Missing source or fileIndex parameter" }
         val torrent = ensureTorrent(source)
