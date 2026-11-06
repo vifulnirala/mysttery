@@ -137,12 +137,18 @@ class LocalHttpServer(private val context: Context) {
     }
 
     private fun serveAssetOr404(client: Socket, path: String) {
+        // The browser sees the frontend at /, so its absolute asset URLs are
+        // /css/... and /js/.... Those files are packaged under assets/public/.
+        // Translate the web paths to the packaged asset paths before serving.
         val normalized = path.removePrefix("/").replace("..", "")
-        if (!normalized.startsWith("public/")) {
-            sendText(client, 404, "text/plain; charset=utf-8", "Not found")
-            return
+        val assetPath = when {
+            normalized == "css" || normalized.startsWith("css/") -> "public/$normalized"
+            normalized == "js" || normalized.startsWith("js/") -> "public/$normalized"
+            normalized == "index.html" -> "public/index.html"
+            normalized.startsWith("public/") -> normalized
+            else -> "public/$normalized"
         }
-        serveAsset(client, normalized)
+        serveAsset(client, assetPath)
     }
 
     private fun serveAsset(client: Socket, assetPath: String) {
