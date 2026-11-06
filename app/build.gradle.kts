@@ -14,17 +14,17 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        buildConfigField("String", "TMDB_TOKEN", """")
-        buildConfigField("String", "YTS_API_BASE", ""https://yts.lt/api/v2/list_movies.json"")
-        buildConfigField("String", "EMBED_SERVERS", ""vidcore,vidsrc"")
-        buildConfigField("String", "EMBED_VIDCORE_NAME", ""Vidcore"")
-        buildConfigField("String", "EMBED_VIDCORE_BASE_URL", ""https://vidcore.org"")
-        buildConfigField("String", "EMBED_VIDCORE_MOVIE_PATH", ""/embed/movie/{id}"")
-        buildConfigField("String", "EMBED_VIDCORE_TV_PATH", ""/embed/tv/{id}/{season}/{episode}"")
-        buildConfigField("String", "EMBED_VIDSRC_NAME", ""Vidsrc"")
-        buildConfigField("String", "EMBED_VIDSRC_BASE_URL", ""https://vidsrc.mov"")
-        buildConfigField("String", "EMBED_VIDSRC_MOVIE_PATH", ""/embed/movie/{id}"")
-        buildConfigField("String", "EMBED_VIDSRC_TV_PATH", ""/embed/tv/{id}/{season}/{episode}"")
+        buildConfigField("String", "TMDB_TOKEN", "\"\"")
+        buildConfigField("String", "YTS_API_BASE", "\"https://yts.lt/api/v2/list_movies.json\"")
+        buildConfigField("String", "EMBED_SERVERS", "\"vidcore,vidsrc\"")
+        buildConfigField("String", "EMBED_VIDCORE_NAME", "\"Vidcore\"")
+        buildConfigField("String", "EMBED_VIDCORE_BASE_URL", "\"https://vidcore.org\"")
+        buildConfigField("String", "EMBED_VIDCORE_MOVIE_PATH", "\"/embed/movie/{id}\"")
+        buildConfigField("String", "EMBED_VIDCORE_TV_PATH", "\"/embed/tv/{id}/{season}/{episode}\"")
+        buildConfigField("String", "EMBED_VIDSRC_NAME", "\"Vidsrc\"")
+        buildConfigField("String", "EMBED_VIDSRC_BASE_URL", "\"https://vidsrc.mov\"")
+        buildConfigField("String", "EMBED_VIDSRC_MOVIE_PATH", "\"/embed/movie/{id}\"")
+        buildConfigField("String", "EMBED_VIDSRC_TV_PATH", "\"/embed/tv/{id}/{season}/{episode}\"")
     }
 
     buildFeatures { buildConfig = true }
