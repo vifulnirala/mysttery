@@ -5,6 +5,7 @@ import com.frostwire.jlibtorrent.Priority
 import com.frostwire.jlibtorrent.SessionManager
 import com.frostwire.jlibtorrent.TorrentHandle
 import com.frostwire.jlibtorrent.TorrentInfo
+import com.frostwire.jlibtorrent.TorrentFlags
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -170,8 +171,12 @@ class TorrentEngine(context: Context) {
         // before sending the first byte, which made WebView look permanently
         // stuck on "loading" when peers were slow.
         torrent.handle.filePriority(fileIndex, Priority.SEVEN)
-        for (piece in firstPiece..lastPiece) {
-            torrent.handle.setPieceDeadline(piece, 30_000)
+        // Do not enqueue deadlines for the entire HTTP range up front.
+        // A browser can request a very large range; prioritize a small
+        // playback window and advance deadlines as each piece is consumed.
+        val initialWindowEnd = minOf(lastPiece, firstPiece + 8)
+        for (piece in firstPiece..initialWindowEnd) {
+            torrent.handle.setPieceDeadline(piece, 15_000)
         }
 
         val contentType = when (file.extension.lowercase()) {
@@ -194,7 +199,8 @@ class TorrentEngine(context: Context) {
         while (cursor <= end) {
             val absoluteOffset = fs.fileOffset(fileIndex) + cursor
             val piece = (absoluteOffset / pieceLength).toInt()
-            torrent.handle.setPieceDeadline(piece, 30_000)
+            torrent.handle.setPieceDeadline(piece, 15_000)
+            if (piece + 8 <= lastPiece) torrent.handle.setPieceDeadline(piece + 8, 30_000)
 
             val pieceDeadline = System.currentTimeMillis() + 90_000
             while (!torrent.handle.havePiece(piece)) {
@@ -238,7 +244,17 @@ class TorrentEngine(context: Context) {
         val info = TorrentInfo.bdecode(metadata)
         val hash = info.infoHashV1()?.toHex() ?: info.infoHashV2()?.toHex() ?: System.currentTimeMillis().toString()
         val saveDir = File(root, hash).apply { mkdirs() }
-        session.download(info, saveDir)
+        // Streaming needs pieces in playback order. The default download()
+        // overload adds a torrent with no sequential flag, so rarity-based
+        // scheduling can leave the beginning of the selected file unavailable.
+        session.download(
+            info,
+            saveDir,
+            null,
+            null,
+            null,
+            TorrentFlags.SEQUENTIAL_DOWNLOAD
+        )
 
         var handle: TorrentHandle? = null
         for (attempt in 0 until 100) {
