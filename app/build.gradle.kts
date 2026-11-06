@@ -13,6 +13,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        ndk { abiFilters += listOf("arm64-v8a") }
 
         buildConfigField("String", "TMDB_TOKEN", "\"\"")
         buildConfigField("String", "YTS_API_BASE", "\"https://yts.lt/api/v2/list_movies.json\"")
@@ -33,7 +34,6 @@ android {
         jniLibs { useLegacyPackaging = true }
     }
 
-    ndk { abiFilters += listOf("arm64-v8a") }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
