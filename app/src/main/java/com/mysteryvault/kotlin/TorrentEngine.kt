@@ -58,7 +58,8 @@ class TorrentEngine(context: Context) {
         return JSONObject().put("best", ranked.firstOrNull() ?: JSONObject.NULL).put("results", out)
     }
 
-    private fun searchYts(query: String, limit: Int): List<JSONObject> {\n        return try {
+    private fun searchYts(query: String, limit: Int): List<JSONObject> {
+        return try {
         val url = URL(
             BuildConfig.YTS_API_BASE + "?query_term=" + URLEncoder.encode(query, "UTF-8") +
                 "&limit=" + limit.coerceIn(1, 50) + "&sort_by=seeds&order_by=desc"
@@ -98,10 +99,11 @@ class TorrentEngine(context: Context) {
         out
     } catch (_: Throwable) { emptyList() }
 
-    private fun searchArchive(query: String): List<JSONObject> {\n        return try {
+    private fun searchArchive(query: String): List<JSONObject> {
+        return try {
         val tokens = tokenize(query)
         if (tokens.isEmpty()) return emptyList()
-        val clause = tokens.joinToString(" AND ") { """ + it + """ }
+        val clause = tokens.joinToString(" AND ") { "\"" + it + "\"" }
         val iaQuery = "title:(" + clause + ") AND mediatype:(movies) AND -title:(commercial OR promo OR trailer OR podcast OR opening)"
         val url = URL(
             "https://archive.org/advancedsearch.php?q=" + URLEncoder.encode(iaQuery, "UTF-8") +
