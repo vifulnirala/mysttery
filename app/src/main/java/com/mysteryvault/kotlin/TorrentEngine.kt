@@ -182,37 +182,43 @@ class TorrentEngine(context: Context) {
             if (partial) "bytes " + start + "-" + end + "/" + fileSize else null
         )
 
-        RandomAccessFile(file, "r").use { raf ->
-            val output = client.getOutputStream()
-            val buffer = ByteArray(256 * 1024)
-            var cursor = start
-            while (cursor <= end) {
-                val absoluteOffset = fs.fileOffset(fileIndex) + cursor
-                val piece = (absoluteOffset / pieceLength).toInt()
-                torrent.handle.setPieceDeadline(piece, 30_000)
+        // Do not open the payload file until its first piece has completed.
+        // libtorrent creates/preallocates files asynchronously; opening it
+        // immediately after adding the torrent can fail on Android storage.
+        val output = client.getOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        var cursor = start
+        while (cursor <= end) {
+            val absoluteOffset = fs.fileOffset(fileIndex) + cursor
+            val piece = (absoluteOffset / pieceLength).toInt()
+            torrent.handle.setPieceDeadline(piece, 30_000)
 
-                val pieceDeadline = System.currentTimeMillis() + 30_000
-                while (!torrent.handle.havePiece(piece)) {
-                    if (System.currentTimeMillis() > pieceDeadline) {
-                        throw IOException("Timed out waiting for torrent piece $piece")
-                    }
-                    Thread.sleep(100)
+            val pieceDeadline = System.currentTimeMillis() + 90_000
+            while (!torrent.handle.havePiece(piece)) {
+                if (client.isClosed || client.isOutputShutdown) return
+                if (System.currentTimeMillis() > pieceDeadline) {
+                    throw IOException("Timed out waiting for torrent piece $piece. Check seed availability.")
                 }
+                Thread.sleep(150)
+            }
 
-                val pieceFileStart = maxOf(0L, piece * pieceLength - fs.fileOffset(fileIndex))
-                val pieceFileEnd = minOf(fileSize - 1, pieceFileStart + pieceLength - 1)
-                val chunkEnd = minOf(end, pieceFileEnd)
+            // Re-open for each piece so a file created after metadata resolution
+            // is picked up reliably, and avoid retaining a native-backed handle.
+            val pieceFileStart = maxOf(0L, piece * pieceLength - fs.fileOffset(fileIndex))
+            val pieceFileEnd = minOf(fileSize - 1, pieceFileStart + pieceLength - 1)
+            val chunkEnd = minOf(end, pieceFileEnd)
+            RandomAccessFile(file, "r").use { raf ->
                 raf.seek(cursor)
                 var remaining = chunkEnd - cursor + 1
                 while (remaining > 0) {
                     val read = raf.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                    if (read <= 0) throw IOException("Torrent file became unavailable while streaming")
+                    if (read <= 0) throw IOException("Torrent piece $piece is marked complete but its data is not readable yet")
                     output.write(buffer, 0, read)
                     remaining -= read
                     cursor += read
                 }
-                output.flush()
             }
+            output.flush()
         }
     }
 
@@ -232,9 +238,9 @@ class TorrentEngine(context: Context) {
         session.download(info, saveDir)
 
         var handle: TorrentHandle? = null
-        repeat(100) {
+        for (attempt in 0 until 100) {
             handle = session.find(info)
-            if (handle?.isValid() == true) return@repeat
+            if (handle?.isValid() == true) break
             Thread.sleep(100)
         }
         val result = handle ?: throw IOException("Torrent engine did not create a valid handle")
