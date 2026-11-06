@@ -40,26 +40,6 @@ jobs:
           test -f app/src/main/assets/public/index.html
           test -f app/src/main/assets/public/js/app.js
 
-      - name: Configure optional TMDB token
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          p = Path("app/build.gradle.kts")
-          s = p.read_text()
-          token = os.environ.get("TMDB_API_READ_ACCESS_TOKEN", "")
-          token = token.replace("\\", "\\\\").replace('"', '\\\"')
-          needle = 'buildConfigField("String", "TMDB_TOKEN", "\\"\\\"")'
-          replacement = 'buildConfigField("String", "TMDB_TOKEN", "\\"' + token + '\\\"")'
-          if needle not in s:
-              raise SystemExit("TMDB BuildConfig placeholder not found")
-          p.write_text(s.replace(needle, replacement, 1))
-          PY
-        env:
-          TMDB_API_READ_ACCESS_TOKEN: ${{ secrets.TMDB_API_READ_ACCESS_TOKEN }}
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
