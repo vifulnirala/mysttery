@@ -15,7 +15,15 @@ android {
         versionName = "1.0.0"
         ndk { abiFilters += listOf("arm64-v8a") }
 
-        buildConfigField("String", "TMDB_TOKEN", "\"\"")
+        val tmdbToken = providers.environmentVariable("TMDB_READ_TOKEN")
+            .orElse(providers.environmentVariable("TMDB_TOKEN"))
+            .orElse(providers.gradleProperty("TMDB_READ_TOKEN"))
+            .orElse(providers.gradleProperty("TMDB_TOKEN"))
+            .orElse("")
+            .get()
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        buildConfigField("String", "TMDB_TOKEN", "\"$tmdbToken\"")
         buildConfigField("String", "YTS_API_BASE", "\"https://yts.lt/api/v2/list_movies.json\"")
         buildConfigField("String", "EMBED_SERVERS", "\"vidcore,vidsrc\"")
         buildConfigField("String", "EMBED_VIDCORE_NAME", "\"Vidcore\"")
