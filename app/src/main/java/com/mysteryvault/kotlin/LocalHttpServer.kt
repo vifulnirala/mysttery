@@ -1,6 +1,7 @@
 package com.mysteryvault.kotlin
 
 import android.content.Context
+import android.util.Log
 import org.json.JSONObject
 import java.io.*
 import java.net.*
@@ -184,13 +185,27 @@ class LocalHttpServer(private val context: Context) {
             416 -> "Range Not Satisfiable"; 500 -> "Internal Server Error"; 502 -> "Bad Gateway"; else -> "Error"
         }
         val header = "HTTP/1.1 $status $reason\r\nContent-Type: $contentType\r\nContent-Length: ${bytes.size}\r\nCache-Control: no-store\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
-        val output = client.getOutputStream()
-        output.write(header.toByteArray(StandardCharsets.ISO_8859_1))
-        output.write(bytes)
-        output.flush()
+        try {
+            val output = client.getOutputStream()
+            output.write(header.toByteArray(StandardCharsets.ISO_8859_1))
+            output.write(bytes)
+            output.flush()
+        } catch (_: SocketException) {
+            // WebView/media clients routinely cancel outstanding requests while
+            // seeking, replacing a source, or closing the player. A broken pipe
+            // is a disconnected HTTP client, not an application-fatal failure.
+            Log.d(TAG, "HTTP client disconnected before response completed")
+        } catch (e: IOException) {
+            // Treat other response-write failures as request-local as well.
+            // In particular, never let an executor worker die from a socket I/O
+            // exception and take down the Android process.
+            Log.w(TAG, "Unable to write HTTP response: ${e.message}")
+        }
     }
 
     companion object {
+        private const val TAG = "LocalHttpServer"
+
         fun sendStreamHeaders(client: Socket, status: Int, contentType: String, length: Long, range: String?) {
             val reason = if (status == 206) "Partial Content" else "OK"
             val header = StringBuilder("HTTP/1.1 $status $reason\r\n")
@@ -201,8 +216,15 @@ class LocalHttpServer(private val context: Context) {
                 .append("Connection: close\r\n")
             if (range != null) header.append("Content-Range: $range\r\n")
             header.append("\r\n")
-            client.getOutputStream().write(header.toString().toByteArray(StandardCharsets.ISO_8859_1))
-            client.getOutputStream().flush()
+            try {
+                val output = client.getOutputStream()
+                output.write(header.toString().toByteArray(StandardCharsets.ISO_8859_1))
+                output.flush()
+            } catch (_: SocketException) {
+                Log.d(TAG, "HTTP stream client disconnected before headers completed")
+            } catch (e: IOException) {
+                Log.w(TAG, "Unable to write HTTP stream headers: ${e.message}")
+            }
         }
     }
 }
