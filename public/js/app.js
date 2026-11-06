@@ -350,6 +350,13 @@
         const result = await parseJsonResponse(response);
         if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
+        // Vidsrc explicitly rejects sandboxed iframe embeds. Keep the restrictive
+        // sandbox for Vidcore, but remove it only for the selected Vidsrc frame.
+        if (result.providerId === 'vidsrc') {
+          externalFrame.removeAttribute('sandbox');
+        } else {
+          externalFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+        }
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
