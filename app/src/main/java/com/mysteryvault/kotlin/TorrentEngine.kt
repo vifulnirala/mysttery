@@ -162,17 +162,13 @@ class TorrentEngine(context: Context) {
         val firstPiece = ((fs.fileOffset(fileIndex) + start) / pieceLength).toInt()
         val lastPiece = ((fs.fileOffset(fileIndex) + end) / pieceLength).toInt()
 
-        torrent.handle.filePriority(fileIndex, Priority.NORMAL)
+        // Prioritize the selected file and stream piece-by-piece. The previous
+        // implementation waited for every piece in the requested HTTP range
+        // before sending the first byte, which made WebView look permanently
+        // stuck on "loading" when peers were slow.
+        torrent.handle.filePriority(fileIndex, Priority.SEVEN)
         for (piece in firstPiece..lastPiece) {
             torrent.handle.setPieceDeadline(piece, 30_000)
-        }
-
-        val deadline = System.currentTimeMillis() + 60_000
-        for (piece in firstPiece..lastPiece) {
-            while (!torrent.handle.havePiece(piece)) {
-                if (System.currentTimeMillis() > deadline) throw IOException("Timed out waiting for torrent data")
-                Thread.sleep(150)
-            }
         }
 
         val contentType = when (file.extension.lowercase()) {
@@ -187,17 +183,36 @@ class TorrentEngine(context: Context) {
         )
 
         RandomAccessFile(file, "r").use { raf ->
-            raf.seek(start)
             val output = client.getOutputStream()
             val buffer = ByteArray(256 * 1024)
-            var remaining = end - start + 1
-            while (remaining > 0) {
-                val read = raf.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                if (read <= 0) break
-                output.write(buffer, 0, read)
-                remaining -= read
+            var cursor = start
+            while (cursor <= end) {
+                val absoluteOffset = fs.fileOffset(fileIndex) + cursor
+                val piece = (absoluteOffset / pieceLength).toInt()
+                torrent.handle.setPieceDeadline(piece, 30_000)
+
+                val pieceDeadline = System.currentTimeMillis() + 30_000
+                while (!torrent.handle.havePiece(piece)) {
+                    if (System.currentTimeMillis() > pieceDeadline) {
+                        throw IOException("Timed out waiting for torrent piece $piece")
+                    }
+                    Thread.sleep(100)
+                }
+
+                val pieceFileStart = maxOf(0L, piece * pieceLength - fs.fileOffset(fileIndex))
+                val pieceFileEnd = minOf(fileSize - 1, pieceFileStart + pieceLength - 1)
+                val chunkEnd = minOf(end, pieceFileEnd)
+                raf.seek(cursor)
+                var remaining = chunkEnd - cursor + 1
+                while (remaining > 0) {
+                    val read = raf.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                    if (read <= 0) throw IOException("Torrent file became unavailable while streaming")
+                    output.write(buffer, 0, read)
+                    remaining -= read
+                    cursor += read
+                }
+                output.flush()
             }
-            output.flush()
         }
     }
 
