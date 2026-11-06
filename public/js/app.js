@@ -50,6 +50,14 @@
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     }
+    async function parseJsonResponse(response) {
+      const text = await response.text();
+      try {
+        return text ? JSON.parse(text) : {};
+      } catch (_) {
+        throw new Error(text ? text.slice(0, 240) : 'Server returned an invalid JSON response.');
+      }
+    }
     function posterUrl(value) {
       return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : POSTER_FALLBACK;
     }
@@ -88,7 +96,7 @@
       try {
         const response = await fetch('/api/library');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const items = await response.json();
+        const items = await parseJsonResponse(response);
         catalogGrid.innerHTML = items.length
           ? items.map((item, index) => cardMarkup(item, index, 'catalog')).join('')
           : '<div class="empty">No curated titles are available right now.</div>';
@@ -128,14 +136,14 @@
         tasks.push((async () => {
           const response = await fetch(`/api/torrent-search?q=${encodeURIComponent(query)}&limit=50`, { signal: searchController.signal });
           if (!response.ok) throw new Error(`Torrent search failed (HTTP ${response.status})`);
-          const data = await response.json();
+          const data = await parseJsonResponse(response);
           searchResults = Array.isArray(data.results) ? data.results : [];
         })());
       }
       if (wantsTmdb) {
         tasks.push((async () => {
           const response = await fetch(`/api/title-search?q=${encodeURIComponent(query)}`, { signal: tmdbController.signal });
-          const data = await response.json();
+          const data = await parseJsonResponse(response);
           if (!response.ok) throw new Error(data.error || 'TMDB search failed.');
           tmdbResults = Array.isArray(data.results) ? data.results : [];
         })());
@@ -226,7 +234,7 @@
       setStatus(`Inspecting available video files for “${title}”…`);
       try {
         const response = await fetch(`/api/torrent-files?source=${encodeURIComponent(source)}`, { signal: selectionController.signal });
-        const data = await response.json();
+        const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(data.error || 'Could not inspect this source.');
         if (!Array.isArray(data.files) || !data.files.length) {
           setStatus('No supported video files (.mp4, .mkv, .webm) were found in this source.', 'error');
@@ -284,18 +292,18 @@
       externalFrame.removeAttribute('src');
       externalFrame.classList.add('hidden');
       video.classList.remove('hidden');
+      activeExternalPayload = null;
       hideModal(playerModal);
       if (closingMode === 'external') {
         setStatus('External player closed.', 'success');
         return;
       }
-      // Server-side endpoint destroys all active torrent sessions, not just the HTTP stream.
-      try {
-        await fetch('/api/stop-stream', { method: 'POST', keepalive: true });
-        setStatus('Player closed. All torrent sessions have been stopped.', 'success');
-      } catch (error) {
-        setStatus('Player closed, but the server could not confirm torrent cleanup. Check the server log.', 'error');
-      }
+      // Do not remove the native torrent handle while the HTTP streaming
+      // worker may still be unwinding a closed WebView socket. Removing the
+      // handle from that worker could race libtorrent and crash the app.
+      // The next torrent selection replaces the previous active torrent, and
+      // Activity.onDestroy() performs final cleanup.
+      setStatus('Playback closed.', 'success');
     }
 
     const externalTypeSelect = document.getElementById('external-media-type');
@@ -339,7 +347,7 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, serverId: requestedServer })
         });
-        const result = await response.json();
+        const result = await parseJsonResponse(response);
         if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
@@ -423,7 +431,7 @@
       episodesContainer.innerHTML = '<div class="empty">Loading episodes…</div>';
       try {
         const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons/${encodeURIComponent(seasonNumber)}/episodes`);
-        const data = await response.json();
+        const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(data.error || 'Could not load this season.');
         episodesContainer.replaceChildren();
         if (!data.episodes?.length) {
@@ -482,7 +490,7 @@
       showModal(episodePickerModal);
       try {
         const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons`);
-        const data = await response.json();
+        const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(data.error || 'Could not load seasons.');
         const seasons = Array.isArray(data.seasons) ? data.seasons : [];
         details.replaceChildren();
