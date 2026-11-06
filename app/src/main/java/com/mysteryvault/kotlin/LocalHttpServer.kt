@@ -53,7 +53,8 @@ class LocalHttpServer(private val context: Context) {
                 val request = readRequest(client.getInputStream()) ?: return
                 route(request, client)
             } catch (t: Throwable) {
-                sendText(client, 500, "text/plain; charset=utf-8", t.message ?: "Internal server error")
+                val message = t.message ?: "Internal server error"
+                sendJson(client, 500, JSONObject().put("error", message))
             }
         }
     }
