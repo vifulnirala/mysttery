@@ -107,7 +107,7 @@ class LocalHttpServer(private val context: Context) {
     private fun route(req: HttpRequest, client: Socket) {
         when {
             req.path == "/" && req.method == "GET" -> serveAsset(client, "public/index.html")
-            req.path == "/api/library" && req.method == "GET" -> sendJson(client, 200, api.library())
+            req.path == "/api/library" && req.method == "GET" -> sendText(client, 200, "application/json; charset=utf-8", api.library().getJSONArray("items").toString())
             req.path == "/api/embed-config" && req.method == "GET" -> sendJson(client, 200, api.embedConfig())
             req.path == "/api/title-search" && req.method == "GET" -> sendJson(client, 200, api.titleSearch(req.query["q"].orEmpty()))
             req.path.matches(Regex("/api/tv/\\d{1,12}/seasons")) && req.method == "GET" -> {
