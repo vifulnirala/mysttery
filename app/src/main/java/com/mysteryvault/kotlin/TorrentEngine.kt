@@ -58,7 +58,7 @@ class TorrentEngine(context: Context) {
         return JSONObject().put("best", ranked.firstOrNull() ?: JSONObject.NULL).put("results", out)
     }
 
-    private fun searchYts(query: String, limit: Int): List<JSONObject> = try {
+    private fun searchYts(query: String, limit: Int): List<JSONObject> {\n        return try {
         val url = URL(
             BuildConfig.YTS_API_BASE + "?query_term=" + URLEncoder.encode(query, "UTF-8") +
                 "&limit=" + limit.coerceIn(1, 50) + "&sort_by=seeds&order_by=desc"
@@ -98,7 +98,7 @@ class TorrentEngine(context: Context) {
         out
     } catch (_: Throwable) { emptyList() }
 
-    private fun searchArchive(query: String): List<JSONObject> = try {
+    private fun searchArchive(query: String): List<JSONObject> {\n        return try {
         val tokens = tokenize(query)
         if (tokens.isEmpty()) return emptyList()
         val clause = tokens.joinToString(" AND ") { """ + it + """ }
