@@ -1,0 +1,74 @@
+name: Build Kotlin Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/android-kotlin-port
+    paths:
+      - "app/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "public/**"
+      - ".github/workflows/build-android-kotlin.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;27.3.13750724"
+
+      - name: Stage web frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets/public
+          cp -a ../public/. app/src/main/assets/public/
+          test -f app/src/main/assets/public/index.html
+          test -f app/src/main/assets/public/js/app.js
+
+      - name: Configure optional TMDB token
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${TMDB_API_READ_ACCESS_TOKEN:-}"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          token = "${TMDB_API_READ_ACCESS_TOKEN:-}".replace("\\", "\\\\").replace('"', '\\\"')
+          s = s.replace('buildConfigField("String", "TMDB_TOKEN", "\"\"")',
+                        'buildConfigField("String", "TMDB_TOKEN", "\"' + token + '\"")')
+          p.write_text(s)
+          PY
+        env:
+          TMDB_API_READ_ACCESS_TOKEN: ${{ secrets.TMDB_API_READ_ACCESS_TOKEN }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compile and package debug APK
+        run: gradle assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mystery-vault-kotlin-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
