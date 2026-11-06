@@ -128,6 +128,9 @@ class LocalHttpServer(private val context: Context) {
             req.path == "/api/stream/sintel-sample" && req.method == "GET" ->
                 torrentEngine.stream(client, TorrentEngine.SINTEL_MAGNET, 0, req.headers["range"])
             req.path == "/api/stop-stream" && req.method == "POST" -> {
+                // TorrentEngine serializes shutdown behind any active stream
+                // request, preventing libtorrent handles from being removed
+                // while a native read/write is in progress.
                 torrentEngine.stopAll()
                 sendJson(client, 200, JSONObject().put("stopped", true).put("torrentSessionsRetained", false))
             }
