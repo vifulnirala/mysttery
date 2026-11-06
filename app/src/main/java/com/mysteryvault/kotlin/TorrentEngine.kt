@@ -97,7 +97,8 @@ class TorrentEngine(context: Context) {
             }
         }
         out
-    } catch (_: Throwable) { emptyList() }
+        } catch (_: Throwable) { emptyList() }
+    }
 
     private fun searchArchive(query: String): List<JSONObject> {
         return try {
@@ -127,7 +128,8 @@ class TorrentEngine(context: Context) {
                 .put("provider", "Internet Archive")
         }
         out
-    } catch (_: Throwable) { emptyList() }
+        } catch (_: Throwable) { emptyList() }
+    }
 
     fun files(source: String): JSONObject {
         require(source.isNotBlank()) { "Missing torrent source" }
