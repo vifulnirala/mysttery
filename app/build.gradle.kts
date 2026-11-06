@@ -1,0 +1,48 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.mysteryvault.kotlin"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.mysteryvault.kotlin"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
+
+        buildConfigField("String", "TMDB_TOKEN", """")
+        buildConfigField("String", "YTS_API_BASE", ""https://yts.lt/api/v2/list_movies.json"")
+        buildConfigField("String", "EMBED_SERVERS", ""vidcore,vidsrc"")
+        buildConfigField("String", "EMBED_VIDCORE_NAME", ""Vidcore"")
+        buildConfigField("String", "EMBED_VIDCORE_BASE_URL", ""https://vidcore.org"")
+        buildConfigField("String", "EMBED_VIDCORE_MOVIE_PATH", ""/embed/movie/{id}"")
+        buildConfigField("String", "EMBED_VIDCORE_TV_PATH", ""/embed/tv/{id}/{season}/{episode}"")
+        buildConfigField("String", "EMBED_VIDSRC_NAME", ""Vidsrc"")
+        buildConfigField("String", "EMBED_VIDSRC_BASE_URL", ""https://vidsrc.mov"")
+        buildConfigField("String", "EMBED_VIDSRC_MOVIE_PATH", ""/embed/movie/{id}"")
+        buildConfigField("String", "EMBED_VIDSRC_TV_PATH", ""/embed/tv/{id}/{season}/{episode}"")
+    }
+
+    buildFeatures { buildConfig = true }
+
+    packaging {
+        jniLibs { useLegacyPackaging = true }
+    }
+
+    ndk { abiFilters += listOf("arm64-v8a") }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+}
+
+dependencies {
+    implementation("com.frostwire:jlibtorrent:2.0.12.9")
+    implementation("com.frostwire:jlibtorrent-android-arm64:2.0.12.9")
+}
