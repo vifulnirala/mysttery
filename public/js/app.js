@@ -171,7 +171,9 @@
       }
     }
     function posterUrl(value) {
-      return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : POSTER_FALLBACK;
+      return typeof value === 'string' &&
+        (/^https?:\/\//i.test(value) || value.startsWith('/api/tmdb-poster/'))
+        ? value : POSTER_FALLBACK;
     }
     function showModal(modal) { modal.classList.add('open'); document.body.style.overflow = 'hidden'; }
     function hideModal(modal) {
