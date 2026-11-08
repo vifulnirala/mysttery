@@ -96,6 +96,7 @@ class ApiService(private val context: Context) {
                 .put("type", "tmdb")
                 .put("mediaType", "tv")
                 .put("tmdbId", id)
+                .put("defaultServerId", "vidsrc")
                 .put("year", year)
                 .put("poster", JSONObject.NULL)
                 .put("posterUrl", if (cachePoster(id)) "/api/tmdb-poster/$id" else JSONObject.NULL))
