@@ -315,4 +315,8 @@ class MainActivity : Activity() {
         webView.destroy()
         super.onDestroy()
     }
+    companion object {
+        private const val FILE_CHOOSER_REQUEST_CODE = 1001
+    }
+
 }
