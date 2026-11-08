@@ -22,7 +22,7 @@
     const episodePickerModal = document.getElementById('episode-picker-modal');
     const episodePickerContent = document.getElementById('episode-picker-content');
     let externalProviders = [];
-    let customExternalProviders = loadCustomExternalProviders();
+    let customExternalProviders = [];
     let activeExternalPayload = null;
     let activeExternalTitle = '';
     let activeExternalServerId = null;
@@ -45,14 +45,13 @@
     let selectionController = null;
     const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="285" fill="#a78bfa" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#aab4ce" font-family="sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
 
-    function loadCustomExternalProviders() {
-      try {
-        const saved = JSON.parse(localStorage.getItem('mystery-vault-custom-servers') || '[]');
-        return Array.isArray(saved) ? saved.filter(item =>
-          item && typeof item.id === 'string' && typeof item.name === 'string' &&
-          typeof item.urlTemplate === 'string' && /^https:\/\//i.test(item.urlTemplate)
-        ) : [];
-      } catch (_) { return []; }
+    async function refreshCustomExternalProviders() {
+      const response = await fetch('/api/custom-servers', { cache: 'no-store' });
+      const data = await parseJsonResponse(response);
+      if (!response.ok) throw new Error(data.error || 'Could not load saved servers.');
+      customExternalProviders = Array.isArray(data.servers) ? data.servers : [];
+      renderImportedServerList();
+      populateExternalServerSelect(activeExternalServerId || '');
     }
     function parseServerConfig(text) {
       const values = {};
@@ -95,13 +94,30 @@
     function renderImportedServerList() {
       const list = document.getElementById('imported-server-list');
       if (!list) return;
-      list.innerHTML = customExternalProviders.length
-        ? '<div class="custom-server-title">Imported servers</div>' +
-          customExternalProviders.map(provider => '<div class="imported-server-row"><span>' + escapeHtml(provider.name) + '</span><span class="imported-server-host">' + escapeHtml(provider.urlTemplate.replace(/\/embed\/movie\/.*$/, '')) + '</span></div>').join('')
-        : '<div class="imported-server-empty">No custom servers imported yet.</div>';
+      const providers = allExternalProviders();
+      if (!providers.length) {
+        list.innerHTML = '<div class="imported-server-empty">No servers are configured.</div>';
+        return;
+      }
+      list.innerHTML = '<div class="custom-server-title">Current servers</div>' +
+        providers.map(provider => {
+          const host = provider.urlTemplate.replace(/\/embed\/movie\/.*$/, '');
+          const removable = provider.custom === true || String(provider.id).startsWith('csv-');
+          return '<div class="imported-server-row"><div class="imported-server-copy"><strong>' +
+            escapeHtml(provider.name) + '</strong><span class="imported-server-host">' + escapeHtml(host) +
+            '</span></div>' + (removable
+              ? '<button class="server-delete-btn" type="button" data-delete-server="' + escapeHtml(provider.id) + '" aria-label="Delete ' + escapeHtml(provider.name) + '">Delete</button>'
+              : '<span class="server-source-label">Built in</span>') + '</div>';
+        }).join('');
     }
-    function saveCustomExternalProviders() {
-      localStorage.setItem('mystery-vault-custom-servers', JSON.stringify(customExternalProviders));
+    async function saveCustomExternalProviders() {
+      const response = await fetch('/api/custom-servers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ servers: customExternalProviders })
+      });
+      const data = await parseJsonResponse(response);
+      if (!response.ok) throw new Error(data.error || 'Could not save server configuration.');
+      customExternalProviders = Array.isArray(data.servers) ? data.servers : customExternalProviders;
       renderImportedServerList();
     }
     function allExternalProviders() {
@@ -488,10 +504,36 @@
       settingsBackdrop.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
       renderImportedServerList();
+      void refreshCustomExternalProviders().catch(error => {
+        serverCsvStatus.textContent = error.message;
+        serverCsvStatus.dataset.kind = 'error';
+      });
     }
     settingsMenuBtn.addEventListener('click', openSettingsMenu);
     settingsMenuClose.addEventListener('click', closeSettingsMenu);
     settingsBackdrop.addEventListener('click', closeSettingsMenu);
+    document.getElementById('imported-server-list').addEventListener('click', async event => {
+      const button = event.target.closest('[data-delete-server]');
+      if (!button) return;
+      const id = button.dataset.deleteServer;
+      const provider = customExternalProviders.find(item => item.id === id);
+      if (!provider) return;
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/custom-servers?id=' + encodeURIComponent(id), { method: 'DELETE' });
+        const data = await parseJsonResponse(response);
+        if (!response.ok) throw new Error(data.error || 'Could not delete server.');
+        customExternalProviders = Array.isArray(data.servers) ? data.servers : [];
+        populateExternalServerSelect(activeExternalServerId || '');
+        renderImportedServerList();
+        serverCsvStatus.textContent = provider.name + ' was deleted from the app configuration.';
+        serverCsvStatus.dataset.kind = 'success';
+      } catch (error) {
+        button.disabled = false;
+        serverCsvStatus.textContent = error.message || 'Could not delete server.';
+        serverCsvStatus.dataset.kind = 'error';
+      }
+    });
 
     serverCsvInput.addEventListener('change', async event => {
       const file = event.target.files?.[0];
@@ -509,9 +551,9 @@
         const byId = new Map(customExternalProviders.map(provider => [provider.id, provider]));
         imported.forEach(provider => byId.set(provider.id, provider));
         customExternalProviders = [...byId.values()];
-        saveCustomExternalProviders();
+        await saveCustomExternalProviders();
         populateExternalServerSelect();
-        serverCsvStatus.textContent = 'Imported ' + imported.length + ' server' + (imported.length === 1 ? '' : 's') + ' successfully.';
+        serverCsvStatus.textContent = 'Saved ' + imported.length + ' server' + (imported.length === 1 ? '' : 's') + ' to the app backend.';
         serverCsvStatus.dataset.kind = 'success';
       } catch (error) {
         serverCsvStatus.textContent = error.message || 'Could not import the CSV file.';
@@ -689,6 +731,7 @@
       const root = document.documentElement;
       const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
       root.dataset.theme = next;
+      localStorage.setItem('mystery-vault-theme', next);
       themeToggle.innerHTML = next === 'dark' ? '☼ <span>Light mode</span>' : '☾ <span>Dark mode</span>';
       document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
     });
@@ -699,4 +742,5 @@
       themeToggle.innerHTML = '☾ <span>Dark mode</span>';
       document.querySelector('meta[name="theme-color"]').content = '#f4f6fc';
     }
+    void refreshCustomExternalProviders().catch(error => console.warn('Could not load saved external servers:', error));
     loadCatalog();
