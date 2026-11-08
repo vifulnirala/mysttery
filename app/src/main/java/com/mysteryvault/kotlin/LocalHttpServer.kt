@@ -116,6 +116,8 @@ class LocalHttpServer(private val context: Context) {
             req.path == "/api/custom-servers" && req.method == "DELETE" -> sendJson(client, 200, deleteCustomServer(req.query["id"].orEmpty()))
             req.path == "/api/title-search" && req.method == "GET" -> sendJson(client, 200, api.titleSearch(req.query["q"].orEmpty()))
             req.path == "/api/discover" && req.method == "GET" -> sendJson(client, 200, api.discoverGenre(req.query["genreId"]?.toIntOrNull() ?: 0))
+            req.path == "/api/trending" && req.method == "GET" -> sendJson(client, 200, api.trending())
+            req.path == "/api/recommendations" && req.method == "GET" -> sendJson(client, 200, api.recommendations(req.query["mediaType"].orEmpty(), req.query["id"].orEmpty()))
             req.path.matches(Regex("/api/tmdb-poster/\\d{1,12}")) && req.method == "GET" -> {
                 val id = req.path.substringAfterLast("/")
                 val poster = api.cachedPoster(id)
