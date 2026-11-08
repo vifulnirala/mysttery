@@ -186,6 +186,44 @@ class ApiService(private val context: Context) {
     }
 
 
+
+    fun trending(): JSONObject {
+        val token = BuildConfig.TMDB_TOKEN
+        if (token.isBlank()) throw IllegalStateException("TMDB is not configured.")
+        val data = getJson("https://api.themoviedb.org/3/trending/all/week?language=en-US", mapOf("Authorization" to "Bearer $token", "accept" to "application/json"))
+        val results = JSONArray(); val today = LocalDate.now().toString(); val source = data.optJSONArray("results") ?: JSONArray()
+        for (i in 0 until minOf(source.length(), 20)) {
+            val item = source.optJSONObject(i) ?: continue; val type = item.optString("media_type")
+            if (type != "movie" && type != "tv") continue
+            val release = if (type == "movie") item.optString("release_date") else item.optString("first_air_date")
+            if (type == "movie" && release.isNotBlank() && release > today) continue
+            results.put(JSONObject().put("tmdbId", item.optString("id")).put("mediaType", type)
+                .put("title", if (type == "movie") item.optString("title", "Untitled") else item.optString("name", "Untitled"))
+                .put("year", release.take(4)).put("overview", item.optString("overview"))
+                .put("posterUrl", if (item.optString("poster_path").isNotBlank()) "https://image.tmdb.org/t/p/w185${item.optString("poster_path")}" else JSONObject.NULL))
+        }
+        return JSONObject().put("results", results)
+    }
+
+    fun recommendations(mediaType: String, id: String): JSONObject {
+        require(mediaType == "movie" || mediaType == "tv") { "Invalid media type." }
+        require(id.matches(Regex("\\d{1,12}"))) { "Invalid TMDB ID." }
+        val token = BuildConfig.TMDB_TOKEN
+        if (token.isBlank()) throw IllegalStateException("TMDB is not configured.")
+        val data = getJson("https://api.themoviedb.org/3/$mediaType/$id/recommendations?language=en-US&page=1", mapOf("Authorization" to "Bearer $token", "accept" to "application/json"))
+        val results = JSONArray(); val today = LocalDate.now().toString(); val source = data.optJSONArray("results") ?: JSONArray()
+        for (i in 0 until minOf(source.length(), 16)) {
+            val item = source.optJSONObject(i) ?: continue
+            val release = if (mediaType == "movie") item.optString("release_date") else item.optString("first_air_date")
+            if (mediaType == "movie" && release.isNotBlank() && release > today) continue
+            results.put(JSONObject().put("tmdbId", item.optString("id")).put("mediaType", mediaType)
+                .put("title", if (mediaType == "movie") item.optString("title", "Untitled") else item.optString("name", "Untitled"))
+                .put("year", release.take(4)).put("overview", item.optString("overview"))
+                .put("posterUrl", if (item.optString("poster_path").isNotBlank()) "https://image.tmdb.org/t/p/w185${item.optString("poster_path")}" else JSONObject.NULL))
+        }
+        return JSONObject().put("results", results)
+    }
+
     fun discoverGenre(genreId: Int): JSONObject {
         require(genreId in 1..9999) { "Invalid genre." }
         val token = BuildConfig.TMDB_TOKEN
