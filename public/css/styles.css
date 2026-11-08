@@ -900,3 +900,10 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
 .vault-watch-btn{width:100%;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--text);font-weight:700}
 .vault-watch-btn.is-saved{border-color:var(--accent-2);color:var(--accent-2)}
 @media(max-width:520px){.vault-native-player-tools{gap:7px;padding:8px}.vault-native-player-tools label{font-size:.7rem}}
+
+.vault-settings-tools{display:grid;gap:9px;margin:22px 0;padding:14px;border:1px solid var(--line);border-radius:15px;background:var(--surface)}
+.vault-settings-tools .custom-server-title{font-weight:800;color:var(--text)}
+.vault-backup-import{display:flex;align-items:center;justify-content:center;gap:8px;border:1px dashed var(--line);border-radius:10px;padding:10px;color:var(--text);font-size:.82rem;font-weight:700}
+.vault-backup-import input{max-width:180px;font-size:.72rem}
+#vault-diagnostics-result{overflow-wrap:anywhere;line-height:1.55}
+.vault-saved-card .poster-wrap img{width:100%;height:100%;object-fit:cover}
