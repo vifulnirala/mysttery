@@ -210,12 +210,12 @@ class LocalHttpServer(private val context: Context) {
 
         fun sendDownloadHeaders(client: Socket, contentType: String, length: Long, fileName: String) {
             val safeName = fileName.replace("\"", "_").replace("\\r", "_").replace("\\n", "_")
-            val header = StringBuilder("HTTP/1.1 200 OK\\r\\n")
-                .append("Content-Type: $contentType\\r\\n")
-                .append("Content-Length: $length\\r\\n")
-                .append("Content-Disposition: attachment; filename=\\\"$\\{safeName}\\\"\\r\\n")
-                .append("Cache-Control: no-store\\r\\n")
-                .append("Connection: close\\r\\n\\r\\n")
+            val header = StringBuilder("HTTP/1.1 200 OK\r\n")
+                .append("Content-Type: $contentType\r\n")
+                .append("Content-Length: $length\r\n")
+                .append("Content-Disposition: attachment; filename=\\\"${safeName}\\\"\r\n")
+                .append("Cache-Control: no-store\r\n")
+                .append("Connection: close\r\n\r\n")
             try {
                 val output = client.getOutputStream()
                 output.write(header.toString().toByteArray(StandardCharsets.ISO_8859_1))
@@ -223,7 +223,7 @@ class LocalHttpServer(private val context: Context) {
             } catch (_: SocketException) {
                 Log.d(TAG, "Download client disconnected before headers completed")
             } catch (e: IOException) {
-                Log.w(TAG, "Unable to write download headers: $\\{e.message}")
+                Log.w(TAG, "Unable to write download headers: ${e.message}")
             }
         }
 
