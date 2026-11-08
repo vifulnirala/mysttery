@@ -147,6 +147,116 @@ const CATALOG = [
     year: 1998,
     poster: 'https://archive.org/services/img/scooby-doo-on-zombie-island-1998_202309',
     magnet: 'magnet:?xt=urn:btih:965855465B8DEB6D982630F4C40DFBE5C3FB38D4&dn=Scooby-Doo+Where+Are+You+1969+S01-S03+1080p+Blu-Ray+H265+10bit+AAC-Zero00&tr=http%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2F47.ip-51-68-199.eu%3A6969%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2780%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2710%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2730%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2920%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fopentracker.i2p.rocks%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce'
+  },
+  {
+    id: 'scooby-tv-926',
+    title: "Scooby-Doo, Where Are You!",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '926',
+    year: 1969,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-1068',
+    title: "The New Scooby-Doo Movies",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '1068',
+    year: 1972,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-6005',
+    title: "Scooby-Doo and Scrappy-Doo",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '6005',
+    year: 1979,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-64016',
+    title: "The New Scooby-Doo Mysteries",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '64016',
+    year: 1984,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-1069',
+    title: "The 13 Ghosts of Scooby-Doo",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '1069',
+    year: 1985,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-7609',
+    title: "A Pup Named Scooby-Doo",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '7609',
+    year: 1988,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-652',
+    title: "What's New, Scooby-Doo?",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '652',
+    year: 2002,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-593',
+    title: "Shaggy & Scooby-Doo Get a Clue!",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '593',
+    year: 2006,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-18123',
+    title: "Scooby-Doo! Mystery Incorporated",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '18123',
+    year: 2010,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-64228',
+    title: "Be Cool, Scooby-Doo!",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '64228',
+    year: 2015,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
+  },
+  {
+    id: 'scooby-tv-88367',
+    title: "Scooby-Doo and Guess Who?",
+    type: 'tmdb',
+    mediaType: 'tv',
+    tmdbId: '88367',
+    year: 2019,
+    poster: 'https://image.tmdb.org/t/p/w500',
+    posterUrl: null
   }
 ];
 
