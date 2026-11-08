@@ -15,7 +15,10 @@
         <div class="brand-mark" aria-hidden="true">✦</div>
         <div><div class="brand-name">MYSTERY VAULT</div><div class="brand-caption">Discover something worth watching</div></div>
       </div>
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">☼ <span>Light mode</span></button>
+      <div class="topbar-actions">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">☼ <span>Light mode</span></button>
+        <button class="menu-btn" id="settings-menu-btn" type="button" aria-label="Open server settings" aria-expanded="false">☰</button>
+      </div>
     </nav>
 
     <section class="hero">
@@ -61,51 +64,45 @@
       <div class="grid" id="catalog-grid"></div>
     </section>
 
-    <section class="section" aria-label="External playback">
-      <div class="embed-panel">
-        <div class="external-config-head">
-          <div>
-            <div class="section-kicker">External players</div>
-            <h2>Use any compatible server</h2>
-            <p class="section-note">Built-in servers can change or go offline. Add your own HTTPS player URL and reuse it from this device.</p>
-          </div>
-        </div>
-        <form id="external-player-form" class="embed-form">
-          <label class="embed-field">Player server
-            <select id="external-start-server-select" class="select-control" aria-label="External player server"></select>
-          </label>
-          <label class="embed-field">Media type
-            <select id="external-media-type" class="select-control"><option value="movie">Movie</option><option value="tv">TV episode</option></select>
-          </label>
-          <label class="embed-field">IMDb / TMDB ID
-            <input id="external-media-id" type="text" required maxlength="80" pattern="[A-Za-z0-9._:-]{1,80}" placeholder="e.g. tt1234567 or 12345" autocomplete="off">
-          </label>
-          <label class="embed-field external-tv-field hidden">Season
-            <input id="external-season" type="number" min="0" max="99" value="1">
-          </label>
-          <label class="embed-field external-tv-field hidden">Episode
-            <input id="external-episode" type="number" min="1" max="999" value="1">
-          </label>
-          <button class="btn btn-primary" type="submit">Play selected title/episode</button>
-        </form>
-
-        <div class="custom-server-editor">
-          <div class="custom-server-title">Add a custom server</div>
-          <p>Use <code>{id}</code> for the movie/TV ID. For TV servers, also use <code>{season}</code> and <code>{episode}</code>.</p>
-          <div class="custom-server-fields">
-            <input id="custom-server-name" type="text" maxlength="60" placeholder="Server name, e.g. My Server" autocomplete="off">
-            <input id="custom-server-url" type="url" maxlength="500" placeholder="https://example.com/embed/movie/{id}" autocomplete="off">
-            <button class="btn btn-secondary" id="custom-server-save" type="button">＋ Save server</button>
-            <button class="btn btn-secondary" id="custom-server-delete" type="button">Delete selected</button>
-          </div>
-          <p class="custom-server-help">Examples: <code>https://example.com/embed/movie/{id}</code> or <code>https://example.com/embed/tv/{id}/{season}/{episode}</code>. Saved servers stay on this device.</p>
-        </div>
-        <p class="embed-status" id="external-provider-status" role="status" aria-live="polite"></p>
-      </div>
-    </section>
     <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </main>
 
+  <div class="settings-backdrop hidden" id="settings-backdrop"></div>
+  <aside class="settings-drawer" id="settings-drawer" aria-label="External server settings" aria-hidden="true">
+    <div class="settings-drawer-head">
+      <div>
+        <div class="section-kicker">Server settings</div>
+        <h2>External players</h2>
+      </div>
+      <button class="icon-btn" id="settings-menu-close" type="button" aria-label="Close server settings">×</button>
+    </div>
+    <div class="settings-drawer-body">
+      <p class="section-note">Upload a CSV containing the external player configuration. The app parses the EMBED_* entries and adds the servers to the player list on this device.</p>
+      <label class="csv-upload">
+        <span class="csv-upload-icon">↑</span>
+        <span>
+          <strong>Upload server CSV</strong>
+          <small>Only .csv files · HTTPS server URLs</small>
+        </span>
+        <input id="server-csv-input" type="file" accept=".csv,text/csv" />
+      </label>
+      <div class="csv-format">
+        <div class="custom-server-title">Expected format</div>
+        <pre>EMBED_SERVERS=vidcore,vidsrc,vsembed
+EMBED_VIDCORE_NAME=Vidcore
+EMBED_VIDCORE_BASE_URL=https://vidcore.org
+EMBED_VIDCORE_MOVIE_PATH_TEMPLATE=/embed/movie/{id}
+EMBED_VIDCORE_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}
+
+EMBED_VIDSRC_NAME=Vidsrc
+EMBED_VIDSRC_BASE_URL=https://vidsrc.mov
+EMBED_VIDSRC_MOVIE_PATH_TEMPLATE=/embed/movie/{id}
+EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
+      </div>
+      <p class="embed-status" id="server-csv-status" role="status" aria-live="polite"></p>
+      <div class="imported-server-list" id="imported-server-list"></div>
+    </div>
+  </aside>
   <div class="modal" id="file-modal" role="dialog" aria-modal="true" aria-labelledby="modal-torrent-title">
     <div class="modal-panel">
       <div class="modal-head"><div><h2 id="modal-torrent-title">Choose a video file</h2><p>Select the video file you want to stream from this source.</p></div><button class="icon-btn" id="file-close" type="button" aria-label="Close file picker">×</button></div>
