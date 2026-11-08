@@ -743,3 +743,50 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
     font-size: .82rem;
   }
 }
+
+/* TV player navigation dropdowns and coordinated series-picker entrance */
+.external-episode-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.external-episode-control > label {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 750;
+}
+.external-episode-control .select-control {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 34px 9px 11px;
+  color: var(--text);
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+#player-episode-status { grid-column: 1 / -1; min-height: 1em; }
+.episode-picker-panel .episode-picker-content {
+  animation: picker-content-in .24s ease-out both;
+}
+.episode-picker-panel .episode-picker-details {
+  animation: picker-content-in .24s ease-out both;
+}
+@keyframes picker-content-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 600px) {
+  .external-episode-control {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .external-episode-control > label { align-self: end; }
+  .external-episode-control .select-control { grid-row: auto; }
+  .external-episode-control #player-episode-apply { grid-column: 1 / -1; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .episode-picker-panel .episode-picker-content,
+  .episode-picker-panel .episode-picker-details { animation: none; }
+}
