@@ -489,3 +489,37 @@ button, input, select { -webkit-tap-highlight-color: transparent; }
   .topbar .theme-toggle { padding: 8px 9px; font-size: .76rem; }
   .menu-btn { width: 42px; }
 }
+
+
+/* Smooth result reveal and low-jank interactions */
+.result-toolbar {
+  width: 100%;
+  margin: 2px 0 18px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 8px 28px rgba(0,0,0,.06);
+  animation: toolbar-in .32s cubic-bezier(.2,.8,.2,1) both;
+}
+.result-toolbar .filter-field { background: transparent; box-shadow: none; border: 0; padding: 2px 4px 4px; }
+.result-toolbar .filter-field .select-control { min-width: 150px; }
+.card { animation-delay: var(--card-delay, 0ms); will-change: transform, opacity; }
+.grid { contain: layout paint; }
+.section:not(.hidden) { animation: section-in .36s cubic-bezier(.2,.8,.2,1) both; }
+.empty { animation: fade-in .25s ease both; }
+@keyframes toolbar-in {
+  from { opacity: 0; transform: translateY(-7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes section-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+button, .btn, .select-control, .menu-btn, .theme-toggle, .icon-btn, .file-item, .episode-choice {
+  transition-timing-function: cubic-bezier(.2,.8,.2,1);
+}
+@media (max-width: 760px) {
+  .result-toolbar { margin-bottom: 14px; padding: 8px; }
+  .result-toolbar .filter-field { padding: 2px; }
+}
