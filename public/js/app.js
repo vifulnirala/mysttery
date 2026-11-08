@@ -41,7 +41,7 @@
     let customExternalProviders = [];
     let activeExternalPayload = null;
     let activeExternalTitle = '';
-    let activeExternalServerId = null;
+    let activeExternalServerId = localStorage.getItem("mysteryVault.defaultServer") || null;
     let activeTvMetadata = null;
     let seriesPickerRequestId = 0;
     const playerTip = document.getElementById('player-tip');
@@ -462,6 +462,7 @@
           if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         }
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
+        localStorage.setItem("mysteryVault.defaultServer", result.providerId);
         // Use the user's last sandbox choice across episode/server reloads.
         // If they have never changed it, sandbox Vidsrc by default.
         const savedSandboxChoice = localStorage.getItem('mysteryVault.playerSandboxEnabled');
@@ -664,6 +665,15 @@
       searchTorrents();
     });
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
+    const savedPageSize = localStorage.getItem("mysteryVault.pageSize");
+    if (savedPageSize && [...pageSizeSelect.options].some(option => option.value === savedPageSize)) pageSizeSelect.value = savedPageSize;
+    const savedSourceFilter = localStorage.getItem("mysteryVault.sourceFilter");
+    if (savedSourceFilter && [...resultSourceFilter.options].some(option => option.value === savedSourceFilter)) resultSourceFilter.value = savedSourceFilter;
+    const savedQualityFilter = localStorage.getItem("mysteryVault.qualityFilter");
+    if (savedQualityFilter && [...qualityFilter.options].some(option => option.value === savedQualityFilter)) qualityFilter.value = savedQualityFilter;
+    pageSizeSelect.addEventListener("change", () => localStorage.setItem("mysteryVault.pageSize", pageSizeSelect.value));
+    resultSourceFilter.addEventListener("change", () => localStorage.setItem("mysteryVault.sourceFilter", resultSourceFilter.value));
+    qualityFilter.addEventListener("change", () => localStorage.setItem("mysteryVault.qualityFilter", qualityFilter.value));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
     resultSourceFilter.addEventListener('change', applyResultFilters);
     qualityFilter.addEventListener('change', applyResultFilters);
