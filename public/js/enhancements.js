@@ -26,6 +26,46 @@
  function renderSearchHistory(){if(!searchHistory)return;searchHistory.replaceChildren();read(SEARCH).forEach(q=>{const o=document.createElement('option');o.value=q;searchHistory.append(o)})}
  document.getElementById('search-form')?.addEventListener('submit',()=>{const q=searchInput.value.trim();if(q.length>1){write(SEARCH,[q,...read(SEARCH).filter(x=>x.toLowerCase()!==q.toLowerCase())].slice(0,12));renderSearchHistory()}},true);
  renderSearchHistory();
+
+ function addSelectPopover(selectId, icon, mode) {
+   const select=document.getElementById(selectId); if(!select||select.dataset.popoverReady)return;
+   select.dataset.popoverReady='1';
+   const host=document.createElement('div');host.className='vault-select-popover';
+   const trigger=document.createElement('button');trigger.type='button';trigger.className='vault-select-trigger';
+   trigger.setAttribute('aria-label',select.getAttribute('aria-label')||selectId);trigger.title=select.getAttribute('aria-label')||selectId;
+   const menu=document.createElement('div');menu.className='vault-select-menu';menu.setAttribute('role','listbox');
+   host.append(trigger,menu);select.parentElement.append(host);
+   const labelFor=option=>{
+     if(mode==='season'){const n=Number(option.value);return n===0?'Specials':'S'+String(n).padStart(2,'0')}
+     if(mode==='episode'){const n=Number(option.value);return 'E'+String(n).padStart(2,'0')+(option.textContent?' · '+option.textContent:'')}
+     return option.textContent||option.value;
+   };
+   const update=()=>{
+     const current=select.selectedOptions?.[0];
+     trigger.textContent=mode==='server'?icon:(current?labelFor(current).split(' · ')[0]:icon);
+     menu.replaceChildren();
+     Array.from(select.options).forEach(option=>{
+       const item=document.createElement('button');item.type='button';item.className='vault-select-option';
+       item.textContent=labelFor(option);item.setAttribute('role','option');item.setAttribute('aria-selected',String(option.selected));
+       item.addEventListener('click',()=>{select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));host.classList.remove('open');update()});
+       menu.append(item);
+     });
+     trigger.disabled=!select.options.length||select.disabled;
+   };
+   trigger.addEventListener('click',()=>{
+     document.querySelectorAll('.vault-select-popover.open').forEach(x=>{if(x!==host)x.classList.remove('open')});
+     host.classList.toggle('open');
+   });
+   const observer=new MutationObserver(update);observer.observe(select,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
+   select.addEventListener('change',update);update();
+ }
+ addSelectPopover('external-server-select','▤','server');
+ addSelectPopover('player-season','S01','season');
+ addSelectPopover('player-episode','E01','episode');
+ document.addEventListener('click',event=>{
+   if(!event.target.closest('.vault-select-popover'))document.querySelectorAll('.vault-select-popover.open').forEach(x=>x.classList.remove('open'));
+ });
+
  const exportButton=document.getElementById('vault-export-backup'),importInput=document.getElementById('vault-import-backup'),diagButton=document.getElementById('vault-diagnostics'),diag=document.getElementById('vault-diagnostics-result');
  exportButton?.addEventListener('click',()=>{const payload={format:'mystery-vault-backup-v1',createdAt:new Date().toISOString(),watchlist:read(W),history:read(H),searchHistory:read(SEARCH)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='mystery-vault-backup.json';a.click();URL.revokeObjectURL(url)});
  importInput?.addEventListener('change',async()=>{const file=importInput.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(data.format!=='mystery-vault-backup-v1')throw new Error('This is not a Mystery Vault backup.');if(Array.isArray(data.watchlist))write(W,data.watchlist.slice(0,100));if(Array.isArray(data.history))write(H,data.history.slice(0,40));if(Array.isArray(data.searchHistory))write(SEARCH,data.searchHistory.slice(0,12));renderWatch();renderContinue();renderSearchHistory();syncButtons();diag.textContent='Backup restored successfully.'}catch(error){diag.textContent=error.message||'Could not import backup.'}finally{importInput.value=''}});
