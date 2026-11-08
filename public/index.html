@@ -136,10 +136,10 @@ EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
 
         <div class="external-episode-control hidden" id="external-episode-control">
           <label for="player-season">Season</label>
-          <input id="player-season" class="select-control" type="number" min="0" max="99" value="1" inputmode="numeric">
+          <select id="player-season" class="select-control"></select>
           <label for="player-episode">Episode</label>
-          <input id="player-episode" class="select-control" type="number" min="1" max="999" value="1" inputmode="numeric">
-          <button class="btn btn-secondary" id="player-episode-apply" type="button">Go to episode</button>
+          <select id="player-episode" class="select-control"></select>
+          <button class="btn btn-secondary" id="player-episode-apply" type="button">Play selection</button>
           <span id="player-episode-status" role="status" aria-live="polite"></span>
         </div>
       </div>
