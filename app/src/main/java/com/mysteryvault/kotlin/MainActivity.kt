@@ -63,10 +63,12 @@ class MainActivity : Activity() {
             }
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    // Keep the app shell on its loopback origin. The embedded player
-                    // remains free to load inside its iframe, but cannot navigate the
-                    // whole app to an arbitrary ad/redirect landing page.
-                    return request.isForMainFrame && request.url.host != "127.0.0.1"
+                    val host = request.url.host?.lowercase(Locale.ROOT) ?: return true
+                    // Block known ad-network navigations inside the player iframe too,
+                    // not just top-level redirects. Popup windows are disabled separately.
+                    if (isKnownAdvertisingHost(host)) return true
+                    // Keep the app shell on its loopback origin.
+                    return request.isForMainFrame && host != "127.0.0.1"
                 }
 
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
@@ -171,11 +173,18 @@ class MainActivity : Activity() {
 
     private fun isKnownAdvertisingHost(host: String): Boolean {
         val blocked = listOf(
+            // Google and programmatic advertising
             "doubleclick.net", "googlesyndication.com", "googleadservices.com",
-            "adservice.google.com", "adnxs.com", "popads.net", "popcash.net",
-            "exoclick.com", "trafficjunky.com", "adsterra.com", "propellerads.com",
-            "juicyads.com", "hilltopads.net", "bidvertiser.com", "taboola.com",
-            "outbrain.com", " Monetag.com".trim().lowercase(Locale.ROOT)
+            "adservice.google.com", "adnxs.com", "appnexus.com", "criteo.com",
+            "rubiconproject.com", "pubmatic.com", "openx.net", "casalemedia.com",
+            "smartadserver.com", "adform.net", "sharethrough.com", "lijit.com",
+            // Pop-under, redirect and video-ad networks commonly used by embeds
+            "popads.net", "popcash.net", "exoclick.com", "trafficjunky.com",
+            "adsterra.com", "propellerads.com", "juicyads.com", "hilltopads.net",
+            "bidvertiser.com", "adskeeper.com", "ad-maven.com", "jads.co",
+            "trafficstars.com", "onclickads.net", "onclickalgo.com", "onclckmn.com",
+            "exdynsrv.com", "tsyndicate.com", "adtng.com", "bidgear.com",
+            "taboola.com", "outbrain.com", "mgid.com", "monetag.com"
         )
         return blocked.any { host == it || host.endsWith("." + it) }
     }
