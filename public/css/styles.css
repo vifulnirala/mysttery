@@ -99,6 +99,22 @@
     .embed-field input, .embed-field select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface-solid); color: var(--text); }
     .embed-form .btn { min-height: 44px; }
     .embed-status { min-height: 20px; color: var(--muted); font-size: .85rem; margin-top: 12px; }
+    .external-config-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .custom-server-editor { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-2); }
+    .custom-server-title { font-weight: 800; font-size: .9rem; }
+    .custom-server-editor p { color: var(--muted); font-size: .78rem; line-height: 1.5; margin: 7px 0 0; }
+    .custom-server-editor code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent-2); }
+    .custom-server-fields { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(260px, 1.6fr) auto auto; gap: 9px; margin-top: 12px; }
+    .custom-server-fields input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface-solid); color: var(--text); }
+    .custom-server-fields .btn { min-height: 44px; white-space: nowrap; }
+    @media (max-width: 820px) {
+      .custom-server-fields { grid-template-columns: 1fr 1fr; }
+      .custom-server-fields input:first-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 560px) {
+      .custom-server-fields { grid-template-columns: 1fr; }
+      .custom-server-fields input:first-child { grid-column: auto; }
+    }
     .title-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 16px; }
     .title-search-row input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface-solid); color: var(--text); }
     .title-search-results { display: grid; gap: 8px; margin-top: 12px; }
