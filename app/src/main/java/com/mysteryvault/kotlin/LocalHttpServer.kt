@@ -18,7 +18,7 @@ private data class HttpRequest(
 
 class LocalHttpServer(private val context: Context) {
     private val executor = Executors.newCachedThreadPool()
-    private val api = ApiService()
+    private val api = ApiService(context)
     private val torrentEngine = TorrentEngine(context)
     @Volatile private var running = false
     private var socket: ServerSocket? = null
@@ -115,6 +115,12 @@ class LocalHttpServer(private val context: Context) {
             req.path == "/api/custom-servers" && req.method == "POST" -> sendJson(client, 200, appendCustomServers(req.body))
             req.path == "/api/custom-servers" && req.method == "DELETE" -> sendJson(client, 200, deleteCustomServer(req.query["id"].orEmpty()))
             req.path == "/api/title-search" && req.method == "GET" -> sendJson(client, 200, api.titleSearch(req.query["q"].orEmpty()))
+            req.path.matches(Regex("/api/tmdb-poster/\\d{1,12}")) && req.method == "GET" -> {
+                val id = req.path.substringAfterLast("/")
+                val poster = api.cachedPoster(id)
+                if (poster != null) sendBytes(client, 200, "image/jpeg", poster.readBytes())
+                else sendText(client, 404, "text/plain; charset=utf-8", "Poster not cached")
+            }
             req.path.matches(Regex("/api/tv/\\d{1,12}/seasons")) && req.method == "GET" -> {
                 val id = req.path.substringAfter("/api/tv/").substringBefore("/seasons")
                 sendJson(client, 200, api.seasons(id))
