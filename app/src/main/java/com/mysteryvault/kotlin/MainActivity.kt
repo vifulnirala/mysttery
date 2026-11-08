@@ -9,6 +9,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.view.View
 import android.view.WindowManager
@@ -35,13 +37,12 @@ class MainActivity : Activity() {
     private var fullscreenView: View? = null
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
+    private var backExitPending = false
+    private val backExitHandler = Handler(Looper.getMainLooper())
+    private val clearBackExitPending = Runnable { backExitPending = false }
 
     private val backCallback = android.window.OnBackInvokedCallback {
-        if (fullscreenView != null) {
-            exitFullscreen()
-        } else {
-            finish()
-        }
+        handleBackNavigation()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -303,16 +304,34 @@ class MainActivity : Activity() {
         callback.onReceiveValue(result)
     }
 
+    private fun handleBackNavigation() {
+        if (fullscreenView != null) {
+            exitFullscreen()
+            return
+        }
+
+        if (backExitPending) {
+            backExitHandler.removeCallbacks(clearBackExitPending)
+            backExitPending = false
+            finish()
+            return
+        }
+
+        backExitPending = true
+        Toast.makeText(this, "Press back again to exit the app.", Toast.LENGTH_SHORT).show()
+        backExitHandler.postDelayed(clearBackExitPending, BACK_EXIT_WINDOW_MS)
+    }
+
     @Deprecated("Deprecated in Android API 33")
     override fun onBackPressed() {
-        if (fullscreenView != null) { exitFullscreen(); return }
-        super.onBackPressed()
+        handleBackNavigation()
     }
 
     override fun onDestroy() {
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.unregisterOnBackInvokedCallback(backCallback)
         }
+        backExitHandler.removeCallbacks(clearBackExitPending)
         exitFullscreen()
         server?.stop()
         server = null
@@ -321,6 +340,7 @@ class MainActivity : Activity() {
     }
     companion object {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
+        private const val BACK_EXIT_WINDOW_MS = 2000L
     }
 
 }
