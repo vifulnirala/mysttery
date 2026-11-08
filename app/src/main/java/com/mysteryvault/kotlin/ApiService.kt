@@ -185,6 +185,35 @@ class ApiService(private val context: Context) {
         return JSONObject().put("results", out)
     }
 
+
+    fun discoverGenre(genreId: Int): JSONObject {
+        require(genreId in 1..9999) { "Invalid genre." }
+        val token = BuildConfig.TMDB_TOKEN
+        if (token.isBlank()) throw IllegalStateException("TMDB discovery is not configured.")
+        fun discover(mediaType: String): JSONArray {
+            val data = getJson("https://api.themoviedb.org/3/discover/$mediaType?with_genres=$genreId&sort_by=popularity.desc&include_adult=false&language=en-US&page=1",
+                mapOf("Authorization" to "Bearer $token", "accept" to "application/json"))
+            return data.optJSONArray("results") ?: JSONArray()
+        }
+        val today = LocalDate.now().toString()
+        val results = mutableListOf<Pair<Double, JSONObject>>()
+        fun add(source: JSONArray, mediaType: String) {
+            for (i in 0 until minOf(source.length(), 12)) {
+                val item = source.optJSONObject(i) ?: continue
+                val release = if (mediaType == "movie") item.optString("release_date") else item.optString("first_air_date")
+                if (mediaType == "movie" && release.isNotBlank() && release > today) continue
+                val title = if (mediaType == "movie") item.optString("title", item.optString("original_title", "Untitled")) else item.optString("name", item.optString("original_name", "Untitled"))
+                val result = JSONObject().put("tmdbId", item.optString("id")).put("mediaType", mediaType).put("title", title)
+                    .put("year", release.take(4)).put("overview", item.optString("overview"))
+                    .put("posterUrl", if (item.optString("poster_path").isNotBlank()) "https://image.tmdb.org/t/p/w185${item.optString("poster_path")}" else JSONObject.NULL)
+                results += item.optDouble("popularity", 0.0) to result
+            }
+        }
+        add(discover("movie"), "movie"); add(discover("tv"), "tv"); results.sortByDescending { it.first }
+        val output = JSONArray(); results.take(20).forEach { output.put(it.second) }
+        return JSONObject().put("results", output)
+    }
+
     fun seasons(id: String): JSONObject {
         val token = BuildConfig.TMDB_TOKEN
         if (token.isBlank()) throw IllegalStateException("TMDB is not configured.")
