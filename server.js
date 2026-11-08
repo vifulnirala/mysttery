@@ -155,7 +155,7 @@ const CATALOG = [
     mediaType: 'tv',
     tmdbId: '926',
     year: 1969,
-    poster: 'https://image.tmdb.org/t/p/w500',
+    poster: null,
     posterUrl: null
   },
   {
@@ -199,15 +199,6 @@ const CATALOG = [
     posterUrl: null
   },
   {
-    id: 'scooby-tv-7609',
-    title: "A Pup Named Scooby-Doo",
-    type: 'tmdb',
-    mediaType: 'tv',
-    tmdbId: '7609',
-    year: 1988,
-    poster: 'https://image.tmdb.org/t/p/w500',
-    posterUrl: null
-  },
   {
     id: 'scooby-tv-652',
     title: "What's New, Scooby-Doo?",
