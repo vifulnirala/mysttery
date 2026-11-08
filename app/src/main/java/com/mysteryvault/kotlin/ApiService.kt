@@ -31,12 +31,41 @@ class ApiService {
         throw last ?: IllegalStateException("Request failed")
     }
 
-    fun library(): JSONObject = JSONObject().put("items", JSONArray().apply {
-        put(JSONObject().put("id", "sintel-sample").put("title", "Test Stream (Open-Source Sintel)")
+    fun library(): JSONObject {
+        val items = JSONArray()
+        items.put(JSONObject().put("id", "sintel-sample").put("title", "Test Stream (Open-Source Sintel)")
             .put("type", "test").put("year", 2010)
             .put("poster", "https://images.metahub.space/poster/medium/tt1727587/img")
             .put("magnet", TorrentEngine.SINTEL_MAGNET))
-    })
+
+        // Curated TMDB TV entries are included in the Android app's own API.
+        // The web server has a separate catalogue, so keeping these here is
+        // necessary for the standalone Kotlin build.
+        val scoobyShows = listOf(
+            Triple("926", "Scooby-Doo, Where Are You!", 1969),
+            Triple("1068", "The New Scooby-Doo Movies", 1972),
+            Triple("6005", "Scooby-Doo and Scrappy-Doo", 1979),
+            Triple("64016", "The New Scooby-Doo Mysteries", 1984),
+            Triple("1069", "The 13 Ghosts of Scooby-Doo", 1985),
+            Triple("652", "What's New, Scooby-Doo?", 2002),
+            Triple("593", "Shaggy & Scooby-Doo Get a Clue!", 2006),
+            Triple("18123", "Scooby-Doo! Mystery Incorporated", 2010),
+            Triple("64228", "Be Cool, Scooby-Doo!", 2015),
+            Triple("88367", "Scooby-Doo and Guess Who?", 2019)
+        )
+        scoobyShows.forEach { (id, title, year) ->
+            items.put(JSONObject()
+                .put("id", "scooby-tv-$id")
+                .put("title", title)
+                .put("type", "tmdb")
+                .put("mediaType", "tv")
+                .put("tmdbId", id)
+                .put("year", year)
+                .put("poster", JSONObject.NULL)
+                .put("posterUrl", JSONObject.NULL))
+        }
+        return JSONObject().put("items", items)
+    }
 
     fun embedConfig(): JSONObject = JSONObject().put("enabled", true)
         .put("providerName", BuildConfig.EMBED_VIDCORE_NAME)
