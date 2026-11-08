@@ -32,8 +32,9 @@
 
     <section id="search-results-section" class="section hidden" aria-labelledby="results-title">
       <div class="section-head">
-        <div><div class="section-kicker">Search results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note">YTS results are shown first.</p></div>
-        <div class="result-controls">
+        <div><div class="section-kicker">Search results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note"></p></div>
+      </div>
+      <div class="result-toolbar result-controls">
           <label class="filter-field"><span>Source</span>
             <select id="result-source-filter" class="select-control" aria-label="Filter results by source">
               <option value="all">All sources</option><option value="search">YTS torrents</option><option value="tmdb">TMDB titles</option>
@@ -57,12 +58,11 @@
 
     <section class="section" aria-labelledby="catalog-title">
       <div class="section-head">
-        <div><div class="section-kicker">Hand-picked</div><h2 id="catalog-title">Curated library</h2><p class="section-note">Quick picks to test the streaming setup.</p></div>
+        <div><div class="section-kicker">Hand-picked</div><h2 id="catalog-title">Curated library</h2></div>
       </div>
       <div class="grid" id="catalog-grid"></div>
     </section>
 
-    <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </main>
 
   <div class="settings-backdrop hidden" id="settings-backdrop"></div>
@@ -121,7 +121,7 @@ EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
       <div class="modal-head player-head">
         <div>
           <h2 id="now-playing">Now playing</h2>
-          <p>Playback is streamed while the player is open.</p>
+
         </div>
         <button class="icon-btn" id="player-close" type="button" aria-label="Close video player">×</button>
       </div>
@@ -155,7 +155,7 @@ EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
         title="External video player"></iframe>
 
       <div class="player-foot">
-        <span id="player-tip">Tip: use a smaller 720p release with healthy seed availability for faster starts.</span>
+        <span id="player-tip"></span>
         <div class="player-actions">
           <button class="btn btn-download hidden" id="torrent-download" type="button">↓ Download</button>
           <button class="btn btn-secondary" id="player-close-bottom" type="button">Close player</button>
