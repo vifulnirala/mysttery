@@ -154,6 +154,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '926',
+    defaultServerId: 'vidsrc',
     year: 1969,
     poster: null,
     posterUrl: null
@@ -164,6 +165,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '1068',
+    defaultServerId: 'vidsrc',
     year: 1972,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -174,6 +176,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '6005',
+    defaultServerId: 'vidsrc',
     year: 1979,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -184,6 +187,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '64016',
+    defaultServerId: 'vidsrc',
     year: 1984,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -194,6 +198,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '1069',
+    defaultServerId: 'vidsrc',
     year: 1985,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -205,6 +210,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '652',
+    defaultServerId: 'vidsrc',
     year: 2002,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -215,6 +221,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '593',
+    defaultServerId: 'vidsrc',
     year: 2006,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -225,6 +232,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '18123',
+    defaultServerId: 'vidsrc',
     year: 2010,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -235,6 +243,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '64228',
+    defaultServerId: 'vidsrc',
     year: 2015,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
@@ -245,6 +254,7 @@ const CATALOG = [
     type: 'tmdb',
     mediaType: 'tv',
     tmdbId: '88367',
+    defaultServerId: 'vidsrc',
     year: 2019,
     poster: 'https://image.tmdb.org/t/p/w500',
     posterUrl: null
