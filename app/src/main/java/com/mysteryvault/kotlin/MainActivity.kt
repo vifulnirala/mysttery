@@ -2,6 +2,7 @@ package com.mysteryvault.kotlin
 
 import android.app.Activity
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
@@ -13,6 +14,7 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.ValueCallback
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -31,6 +33,7 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var server: LocalHttpServer? = null
     private var fullscreenView: View? = null
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
 
     private val backCallback = android.window.OnBackInvokedCallback {
@@ -78,6 +81,27 @@ class MainActivity : Activity() {
                 }
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    webView: WebView,
+                    filePathCallback: ValueCallback<Array<Uri>>,
+                    fileChooserParams: FileChooserParams
+                ): Boolean {
+                    fileChooserCallback?.onReceiveValue(null)
+                    fileChooserCallback = filePathCallback
+                    return try {
+                        val intent = fileChooserParams.createIntent().apply {
+                            type = "text/csv"
+                            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/csv", "text/plain", "application/csv"))
+                        }
+                        startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
+                        true
+                    } catch (_: Throwable) {
+                        fileChooserCallback?.onReceiveValue(null)
+                        fileChooserCallback = null
+                        false
+                    }
+                }
+
                 override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message): Boolean {
                     // Do not create ad tabs or popup WebViews.
                     return false
@@ -260,6 +284,19 @@ class MainActivity : Activity() {
             output.write(buffer, 0, read)
         }
         output.flush()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != FILE_CHOOSER_REQUEST_CODE) return
+        val callback = fileChooserCallback ?: return
+        fileChooserCallback = null
+        val result = if (resultCode == RESULT_OK && data != null) {
+            WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+        } else {
+            null
+        }
+        callback.onReceiveValue(result)
     }
 
     @Deprecated("Deprecated in Android API 33")
