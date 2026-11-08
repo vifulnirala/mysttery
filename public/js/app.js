@@ -11,6 +11,7 @@
     const nowPlaying = document.getElementById('now-playing');
     const video = document.getElementById('video-element');
     const externalFrame = document.getElementById('external-player-frame');
+    const playerSandboxToggle = document.getElementById('player-sandbox-toggle');
     const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
@@ -453,9 +454,9 @@
           if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         }
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
-        // Do not impose an iframe sandbox on third-party players. Several
-        // providers reject sandboxed embedding, including custom servers.
-        externalFrame.removeAttribute('sandbox');
+        // Vidsrc is sandboxed by default; the player toggle can override this.
+        playerSandboxToggle.checked = String(provider.id || '').toLowerCase().includes('vidsrc');
+        applyPlayerSandbox();
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
@@ -469,6 +470,15 @@
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
+
+    function applyPlayerSandbox() {
+      if (playerSandboxToggle.checked) {
+        externalFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+      } else {
+        externalFrame.removeAttribute('sandbox');
+      }
+    }
+    playerSandboxToggle.addEventListener('change', applyPlayerSandbox);
 
     externalFrame.addEventListener('load', () => {
       if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
@@ -647,7 +657,6 @@
     document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
     episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
-    document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
     document.getElementById('torrent-download').addEventListener('click', () => {
       if (!activeTorrentDownload) return;
       const { source, fileIndex, fileName } = activeTorrentDownload;
