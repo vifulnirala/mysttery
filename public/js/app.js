@@ -104,9 +104,6 @@
       localStorage.setItem('mystery-vault-custom-servers', JSON.stringify(customExternalProviders));
       renderImportedServerList();
     }
-    function customProviderUrl(provider, payload) {
-      return providerUrl(provider, payload);
-    }
     function allExternalProviders() {
       return [...externalProviders, ...customExternalProviders];
     }
@@ -403,7 +400,7 @@
       const requestedServer = serverId || activeExternalServerId || externalServerSelect.value || providers[0]?.id || '';
       const provider = providers.find(item => item.id === requestedServer);
       if (!provider) {
-        externalStatus.textContent = 'Select an external server or add a custom server URL below.';
+        statusBanner.textContent = 'Select an external server or add a custom server URL below.';
         return;
       }
       externalStatus.textContent = 'Preparing external player…';
