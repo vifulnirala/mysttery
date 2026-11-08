@@ -184,19 +184,14 @@
     }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
-      const poster = escapeHtml(posterUrl(type === 'tmdb' ? item.posterUrl : item.poster));
-      const isTmdb = type === 'tmdb';
-      const provider = type === 'catalog' ? 'Curated' : isTmdb ? 'TMDB' : (item.provider || 'Torrent');
-      const metaLeft = type === 'catalog'
-        ? escapeHtml(item.year || '')
-        : isTmdb
-          ? `${escapeHtml(item.year || 'Year unknown')} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'}`
-          : `Seeds: ${Number(item.seeders || 0).toLocaleString()}`;
-      const metaRight = type === 'catalog'
-        ? 'Quick pick'
-        : isTmdb
-          ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
-          : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
+      const isTmdb = type === 'tmdb' || Boolean(item.tmdbId && item.mediaType);
+      const poster = escapeHtml(posterUrl(isTmdb ? (item.posterUrl || item.poster) : item.poster));
+      const provider = type === 'catalog' ? (isTmdb ? 'Scooby-Doo' : 'Curated') : isTmdb ? 'TMDB' : (item.provider || 'Torrent');
+      const metaLeft = isTmdb
+        ? `${escapeHtml(item.year || 'Year unknown')} · ${item.mediaType === 'movie' ? 'Movie' : 'TV show'}`
+        : type === 'catalog' ? escapeHtml(item.year || '') : `Seeds: ${Number(item.seeders || 0).toLocaleString()}`;
+      const metaRight = isTmdb ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
+        : type === 'catalog' ? 'Quick pick' : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
       const animationDelay = `${Math.min(index, 12) * 35}ms`;
       return `<article class="card" style="--card-delay:${animationDelay}" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
         <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
@@ -204,7 +199,6 @@
         <div class="card-info"><div class="card-title">${title}</div><div class="meta-row"><span>${metaLeft}</span><span class="meta-tag">${metaRight}</span></div></div>
       </article>`;
     }
-
     async function loadCatalog() {
       try {
         const response = await fetch('/api/library');
@@ -708,8 +702,8 @@
       if (!card) return;
       const index = Number(card.dataset.index);
       const type = card.dataset.cardType;
-      if (type === 'tmdb') {
-        const item = tmdbResults[index];
+      if (type === 'tmdb' || (type === 'catalog' && catalogGrid._items?.[index]?.tmdbId)) {
+        const item = type === 'tmdb' ? tmdbResults[index] : catalogGrid._items[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
           void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
@@ -720,7 +714,7 @@
       }
       const items = type === 'catalog' ? catalogGrid._items : searchResults;
       const item = items && items[index];
-      if (item) handleTorrentSelection(type === 'catalog' ? item.magnet : item.source, item.title);
+      if (item?.magnet || item?.source) handleTorrentSelection(type === 'catalog' ? item.magnet : item.source, item.title);
     }
     document.addEventListener('click', handleCardActivation);
     document.addEventListener('keydown', event => {
