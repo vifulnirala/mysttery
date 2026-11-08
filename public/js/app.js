@@ -484,7 +484,7 @@
     });
     async function fetchPlayerSeasonEpisodes(seasonNumber) {
       if (!activeTvMetadata?.showId) return [];
-      const response = await fetch(\`/api/tv/\${encodeURIComponent(activeTvMetadata.showId)}/seasons/\${encodeURIComponent(seasonNumber)}/episodes\`);
+      const response = await fetch(`/api/tv/${encodeURIComponent(activeTvMetadata.showId)}/seasons/${encodeURIComponent(seasonNumber)}/episodes`);
       const data = await parseJsonResponse(response);
       if (!response.ok) throw new Error(data.error || 'Could not load episodes for this season.');
       return Array.isArray(data.episodes) ? data.episodes : [];
@@ -495,7 +495,7 @@
       episodes.forEach(episode => {
         const option = document.createElement('option');
         option.value = String(episode.episodeNumber);
-        option.textContent = \`E\${String(episode.episodeNumber).padStart(2, '0')} · \${episode.name || 'Untitled episode'}\`;
+        option.textContent = `E${String(episode.episodeNumber).padStart(2, '0')} · ${episode.name || 'Untitled episode'}`;
         playerEpisodeInput.append(option);
       });
       if (!episodes.some(episode => Number(episode.episodeNumber) === Number(selectedEpisode)) && episodes.length) playerEpisodeInput.value = String(episodes[0].episodeNumber);
@@ -510,8 +510,8 @@
         const option = document.createElement('option');
         option.value = String(season.seasonNumber);
         option.textContent = season.seasonNumber === 0
-          ? \`Specials · \${season.name || 'Specials'}\`
-          : \`Season \${season.seasonNumber} · \${season.name || \`Season \${season.seasonNumber}\`}\`;
+          ? `Specials · ${season.name || 'Specials'}`
+          : `Season ${season.seasonNumber} · ${season.name || `Season ${season.seasonNumber}`}`;
         playerSeasonInput.append(option);
       });
       if (seasons.length) playerSeasonInput.value = String(payload.season ?? seasons[0].seasonNumber);
@@ -545,8 +545,8 @@
         playerEpisodeStatus.textContent = 'Choose a valid season and episode.';
         return;
       }
-      const seasonName = activeTvMetadata?.seasons?.find(item => Number(item.seasonNumber) === season)?.name || \`Season \${season}\`;
-      const episodeName = activeTvMetadata?.episodes?.find(item => Number(item.episodeNumber) === episode)?.name || \`Episode \${episode}\`;
+      const seasonName = activeTvMetadata?.seasons?.find(item => Number(item.seasonNumber) === season)?.name || `Season ${season}`;
+      const episodeName = activeTvMetadata?.episodes?.find(item => Number(item.episodeNumber) === episode)?.name || `Episode ${episode}`;
       playerEpisodeStatus.textContent = 'Loading selected episode…';
       await playExternalPlayer({ ...activeExternalPayload, season, episode },
         activeExternalTitle.split(' · S')[0] + ' · ' + seasonName + ' · E' + String(episode).padStart(2, '0') + ' ' + episodeName,
@@ -669,7 +669,7 @@
     });
     async function loadTmdbSeasonEpisodes(card, item, seasonNumber, episodesContainer) {
       episodesContainer.innerHTML = '<div class="empty">Loading episodes…</div>';
-      const response = await fetch(\`/api/tv/\${encodeURIComponent(item.tmdbId)}/seasons/\${encodeURIComponent(seasonNumber)}/episodes\`);
+      const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons/${encodeURIComponent(seasonNumber)}/episodes`);
       const data = await parseJsonResponse(response);
       if (!response.ok) throw new Error(data.error || 'Could not load this season.');
       const seasonEpisodes = Array.isArray(data.episodes) ? data.episodes : [];
@@ -684,7 +684,7 @@
         button.className = 'episode-choice';
         const number = document.createElement('span');
         number.className = 'episode-number';
-        number.textContent = \`E\${String(episode.episodeNumber).padStart(2, '0')}\`;
+        number.textContent = `E${String(episode.episodeNumber).padStart(2, '0')}`;
         const copy = document.createElement('span');
         copy.className = 'episode-copy';
         const name = document.createElement('strong');
@@ -706,7 +706,7 @@
           hideModal(episodePickerModal);
           await playExternalPlayer({
             mediaType: 'tv', id: item.tmdbId, season, episode: episode.episodeNumber
-          }, \`\${item.title} · S\${season}E\${episode.episodeNumber} · \${episode.name || ''}\`,
+          }, `${item.title} · S${season}E${episode.episodeNumber} · ${episode.name || ''}`,
           item.defaultServerId || '', {
             showId: item.tmdbId, seasons: item._tmdbSeasons || [],
             episodes: seasonEpisodes, seasonNumber: season
@@ -720,9 +720,9 @@
     async function expandTmdbShow(card, item) {
       const requestId = ++seriesPickerRequestId;
       document.getElementById('episode-picker-title').textContent = item.title || 'Choose an episode';
-      setStatus(\`Opening \${item.title || 'series'}…\`);
+      setStatus(`Opening ${item.title || 'series'}…`);
       try {
-        const response = await fetch(\`/api/tv/\${encodeURIComponent(item.tmdbId)}/seasons\`);
+        const response = await fetch(`/api/tv/${encodeURIComponent(item.tmdbId)}/seasons`);
         const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(data.error || 'Could not load seasons.');
         const seasons = Array.isArray(data.seasons) ? data.seasons : [];
@@ -745,7 +745,7 @@
         seasons.forEach(season => {
           const option = document.createElement('option');
           option.value = season.seasonNumber;
-          option.textContent = \`\${season.name || \`Season \${season.seasonNumber}\`} · \${season.episodeCount} episodes\`;
+          option.textContent = `${season.name || `Season ${season.seasonNumber}`} · ${season.episodeCount} episodes`;
           select.append(option);
         });
         const episodes = document.createElement('div');
@@ -756,7 +756,7 @@
         select.addEventListener('change', async event => {
           event.stopPropagation();
           try { await loadSelected(); }
-          catch (error) { episodes.innerHTML = \`<div class="empty">\${escapeHtml(error.message || 'Could not load episodes.')}</div>\`; }
+          catch (error) { episodes.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Could not load episodes.')}</div>`; }
         });
         await loadSelected();
         if (requestId !== seriesPickerRequestId) return;
@@ -767,7 +767,7 @@
         if (requestId !== seriesPickerRequestId) return;
         const details = document.createElement('div');
         details.className = 'tmdb-series-details episode-picker-details';
-        details.innerHTML = \`<div class="section-note">\${escapeHtml(error.message || 'Could not load seasons.')}</div>\`;
+        details.innerHTML = `<div class="section-note">${escapeHtml(error.message || 'Could not load seasons.')}</div>`;
         episodePickerContent.replaceChildren(details);
         showModal(episodePickerModal);
         setStatus('');
