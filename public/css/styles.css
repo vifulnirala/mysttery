@@ -790,3 +790,96 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
   .episode-picker-panel .episode-picker-content,
   .episode-picker-panel .episode-picker-details { animation: none; }
 }
+
+/* Compact external-player controls, sandbox switch and short-screen scrolling */
+.external-episode-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+}
+.external-episode-control .select-control {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  height: 38px;
+  padding: 6px 30px 6px 10px !important;
+  font-size: .82rem;
+  border-radius: 10px !important;
+  background-position: calc(100% - 15px) 16px, calc(100% - 10px) 16px;
+}
+.external-episode-control .player-episode-play {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 13px;
+  border-radius: 10px;
+  font-size: .8rem;
+}
+#player-episode-status { grid-column: 1 / -1; min-height: 0; }
+.player-sandbox-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 7px;
+  margin: 0 12px 9px;
+  padding: 5px 9px;
+  color: #aab4ce;
+  font-size: .76rem;
+  user-select: none;
+}
+.player-sandbox-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #69c9ff;
+}
+#player-modal {
+  align-items: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#player-modal .modal-panel {
+  flex: 0 0 auto;
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  margin: auto 0;
+}
+#external-player-frame {
+  flex: 0 0 auto;
+  max-height: calc(100dvh - 220px);
+  min-height: 180px;
+  touch-action: pan-y;
+}
+#video-element {
+  flex: 0 0 auto;
+  max-height: calc(100dvh - 220px);
+}
+@media (max-width: 640px) {
+  .external-episode-control { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; padding: 8px 10px; gap: 6px; }
+  .external-episode-control .player-episode-play { padding-inline: 10px; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  #player-modal { padding: 5px max(8px, env(safe-area-inset-left)) 5px max(8px, env(safe-area-inset-right)); }
+  #player-modal .modal-panel {
+    width: min(1100px, 100%);
+    max-height: calc(100dvh - 10px);
+    margin: 0 auto;
+    border-radius: 14px;
+  }
+  #player-modal .modal-head { padding: 7px 12px 5px; }
+  #player-modal .modal-head h2 { font-size: .95rem; }
+  #external-player-frame, #video-element { max-height: calc(100dvh - 170px); min-height: 140px; }
+  .external-server-control { padding: 6px 10px; }
+  .external-episode-control { padding: 6px 10px; }
+  .player-sandbox-toggle { margin-bottom: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #player-modal .modal-panel { scroll-behavior: auto; }
+}
