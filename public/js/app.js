@@ -14,6 +14,7 @@
     const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
+    const externalStartServerSelect = document.getElementById('external-start-server-select');
     const externalServerStatus = document.getElementById('external-server-status');
     const externalEpisodeControl = document.getElementById('external-episode-control');
     const playerSeasonInput = document.getElementById('player-season');
@@ -22,6 +23,7 @@
     const episodePickerModal = document.getElementById('episode-picker-modal');
     const episodePickerContent = document.getElementById('episode-picker-content');
     let externalProviders = [];
+    let customExternalProviders = loadCustomExternalProviders();
     let activeExternalPayload = null;
     let activeExternalTitle = '';
     let activeExternalServerId = null;
@@ -43,6 +45,46 @@
     let tmdbController = null;
     let selectionController = null;
     const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="285" fill="#a78bfa" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#aab4ce" font-family="sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
+
+    function loadCustomExternalProviders() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('mystery-vault-custom-servers') || '[]');
+        return Array.isArray(saved) ? saved.filter(item =>
+          item && typeof item.id === 'string' && typeof item.name === 'string' &&
+          typeof item.urlTemplate === 'string' && /^https:\/\//i.test(item.urlTemplate)
+        ) : [];
+      } catch (_) { return []; }
+    }
+    function saveCustomExternalProviders() {
+      localStorage.setItem('mystery-vault-custom-servers', JSON.stringify(customExternalProviders));
+    }
+    function customProviderUrl(provider, payload) {
+      return provider.urlTemplate
+        .replaceAll('{id}', encodeURIComponent(payload.id))
+        .replaceAll('{season}', encodeURIComponent(String(payload.season ?? 1)))
+        .replaceAll('{episode}', encodeURIComponent(String(payload.episode ?? 1)));
+    }
+    function allExternalProviders() {
+      return [...externalProviders, ...customExternalProviders];
+    }
+    function populateExternalServerSelect(selectedId = '') {
+      const providers = allExternalProviders();
+      [externalServerSelect, externalStartServerSelect].forEach(select => {
+        if (!select) return;
+        select.replaceChildren();
+        providers.forEach(provider => {
+          const option = document.createElement('option');
+          option.value = provider.id;
+          option.textContent = provider.name;
+          select.append(option);
+        });
+        if (selectedId && providers.some(provider => provider.id === selectedId)) {
+          select.value = selectedId;
+        } else if (providers.length) {
+          select.value = providers[0].id;
+        }
+      });
+    }
 
     function setStatus(message, kind = '') {
       statusBanner.textContent = message;
@@ -329,14 +371,19 @@
       })
       .then(config => {
         externalProviders = Array.isArray(config.providers) ? config.providers : [];
-        externalStatus.textContent = externalProviders.length
-          ? 'Configured servers: ' + externalProviders.map(provider => provider.name).join(', ') + '.'
-          : 'No valid external servers found. Check EMBED_SERVERS and each EMBED_<ID>_* setting.';
+        populateExternalServerSelect(config.defaultProviderId || externalProviders[0]?.id || '');
+        const names = allExternalProviders().map(provider => provider.name);
+        externalStatus.textContent = names.length
+          ? 'Available servers: ' + names.join(', ') + '.'
+          : 'No external servers configured. Add your own server URL below.';
         return externalProviders;
       })
       .catch(error => {
-        externalStatus.textContent = error.message || 'Could not load player server configuration.';
         externalProviders = [];
+        populateExternalServerSelect();
+        externalStatus.textContent = allExternalProviders().length
+          ? 'Built-in player configuration unavailable; your saved custom servers are still available.'
+          : (error.message || 'Could not load player server configuration.');
         return externalProviders;
       });
 
@@ -346,38 +393,46 @@
       activeTorrentDownload = null;
       document.getElementById('torrent-download').classList.add('hidden');
       await externalConfigPromise;
-      const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
+      const providers = allExternalProviders();
+      const requestedServer = serverId || activeExternalServerId || externalStartServerSelect?.value || externalServerSelect.value || providers[0]?.id || '';
+      const provider = providers.find(item => item.id === requestedServer);
+      if (!provider) {
+        externalStatus.textContent = 'Select an external server or add a custom server URL below.';
+        return;
+      }
       externalStatus.textContent = 'Preparing external player…';
       externalPlayerControls.classList.add('hidden'); externalServerStatus.textContent = ''; playerEpisodeStatus.textContent = '';
       try {
-        const response = await fetch('/api/external-player', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, serverId: requestedServer })
-        });
-        const result = await parseJsonResponse(response);
-        if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
-        currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
-        // Vidsrc explicitly rejects sandboxed iframe embeds. Keep the restrictive
-        // sandbox for Vidcore, but remove it only for the selected Vidsrc frame.
-        if (result.providerId === 'vidsrc') {
-          externalFrame.removeAttribute('sandbox');
+        let result;
+        if (provider.custom) {
+          result = {
+            url: customProviderUrl(provider, payload),
+            providerId: provider.id,
+            providerName: provider.name,
+            mediaType: payload.mediaType
+          };
         } else {
-          externalFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+          const response = await fetch('/api/external-player', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, serverId: provider.id })
+          });
+          result = await parseJsonResponse(response);
+          if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         }
+        currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
+        // Do not impose an iframe sandbox on third-party players. Several
+        // providers reject sandboxed embedding, including custom servers.
+        externalFrame.removeAttribute('sandbox');
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
-        if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
-        externalServerSelect.replaceChildren();
-        externalProviders.forEach(provider => { const option = document.createElement('option'); option.value = provider.id; option.textContent = provider.name; externalServerSelect.append(option); });
-        externalServerSelect.value = result.providerId;
+        populateExternalServerSelect(result.providerId);
         const isTv = payload.mediaType === 'tv';
         externalEpisodeControl.classList.toggle('hidden', !isTv);
         playerSeasonInput.value = String(payload.season ?? 1);
         playerEpisodeInput.value = String(payload.episode ?? 1);
         showModal(playerModal);
-        // Set src only after opening the modal so a fast iframe load cannot beat the load handler.
         externalFrame.src = result.url;
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
@@ -386,7 +441,7 @@
     externalFrame.addEventListener('load', () => {
       if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
         externalPlayerControls.classList.remove('hidden');
-        externalServerControl.classList.toggle('hidden', externalProviders.length < 2);
+        externalServerControl.classList.toggle('hidden', allExternalProviders().length < 2);
       }
     });
     externalServerSelect.addEventListener('change', async () => {
@@ -417,7 +472,32 @@
         season: document.getElementById('external-season').value,
         episode: document.getElementById('external-episode').value
       };
-      await playExternalPlayer(payload);
+      await playExternalPlayer(payload, '', externalStartServerSelect?.value || externalServerSelect.value);
+    });
+
+    document.getElementById('custom-server-save').addEventListener('click', () => {
+      const name = document.getElementById('custom-server-name').value.trim();
+      const urlTemplate = document.getElementById('custom-server-url').value.trim();
+      if (!name) { externalStatus.textContent = 'Enter a name for the custom server.'; return; }
+      if (!/^https:\/\//i.test(urlTemplate)) { externalStatus.textContent = 'Custom server URL must start with https://'; return; }
+      if (!urlTemplate.includes('{id}')) { externalStatus.textContent = 'The URL must contain {id}. Add {season} and {episode} for TV URLs.'; return; }
+      const id = 'custom-' + Date.now().toString(36);
+      customExternalProviders.push({ id, name, urlTemplate, custom: true });
+      saveCustomExternalProviders();
+      populateExternalServerSelect(id);
+      document.getElementById('custom-server-name').value = '';
+      document.getElementById('custom-server-url').value = '';
+      externalStatus.textContent = `Saved custom server “${name}”. Select it above to use it.`;
+    });
+
+    document.getElementById('custom-server-delete').addEventListener('click', () => {
+      const selected = externalStartServerSelect?.value || externalServerSelect.value;
+      const provider = customExternalProviders.find(item => item.id === selected);
+      if (!provider) { externalStatus.textContent = 'Select one of your custom servers first.'; return; }
+      customExternalProviders = customExternalProviders.filter(item => item.id !== selected);
+      saveCustomExternalProviders();
+      populateExternalServerSelect();
+      externalStatus.textContent = `Removed custom server “${provider.name}”.`;
     });
 
     document.getElementById('search-form').addEventListener('submit', event => {
