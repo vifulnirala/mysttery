@@ -145,15 +145,31 @@ class TorrentEngine(context: Context) {
         val torrent = ensureTorrent(source)
         val fs = torrent.info.files()
         val files = JSONArray()
+        var firstPlayableVideo = -1
         for (i in 0 until fs.numFiles()) {
             val name = fs.fileName(i)
             if (isVideo(name) && !name.lowercase().contains("sample")) {
+                if (firstPlayableVideo < 0) firstPlayableVideo = i
                 files.put(
                     JSONObject().put("index", i).put("name", name).put("path", name)
                         .put("sizeMB", fs.fileSize(i) / 1048576)
                 )
             }
         }
+
+        // Start warming the beginning of the first real video as soon as
+        // metadata/file selection completes. This overlaps peer discovery
+        // with the UI file-picker time and reduces time-to-first-frame.
+        if (firstPlayableVideo >= 0) {
+            torrent.handle.filePriority(firstPlayableVideo, Priority.SEVEN)
+            val pieceLength = fs.pieceLength().toLong()
+            val firstPiece = (fs.fileOffset(firstPlayableVideo) / pieceLength).toInt()
+            val lastPiece = ((fs.fileOffset(firstPlayableVideo) + fs.fileSize(firstPlayableVideo) - 1) / pieceLength).toInt()
+            for (piece in firstPiece..minOf(lastPiece, firstPiece + 12)) {
+                torrent.handle.setPieceDeadline(piece, 12_000)
+            }
+        }
+
         return JSONObject().put("torrentName", torrent.info.name()).put("files", files)
     }
 
