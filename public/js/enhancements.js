@@ -38,6 +38,23 @@
  }
  loadTrending();
 
+ const genreFeeds=[
+   {id:9648,name:'Mystery',grid:document.getElementById('genre-mystery-grid')},
+   {id:10749,name:'Romance',grid:document.getElementById('genre-romance-grid')},
+   {id:27,name:'Horror',grid:document.getElementById('genre-horror-grid')},
+   {id:16,name:'Animation',grid:document.getElementById('genre-animation-grid')},
+   {id:35,name:'Comedy',grid:document.getElementById('genre-comedy-grid')}
+ ];
+ async function loadGenreFeed(feed){
+   try{
+     const response=await fetch('/api/discover?genreId='+feed.id,{cache:'no-store'});
+     const data=await response.json();if(!response.ok)throw new Error(data.error||'Unavailable');
+     renderTmdbShelf(feed.grid,Array.isArray(data.results)?data.results:[], 'No '+feed.name.toLowerCase()+' titles found.');
+   }catch{renderTmdbShelf(feed.grid,[],'Could not load '+feed.name.toLowerCase()+' titles.')}
+ }
+ Promise.all(genreFeeds.map(loadGenreFeed));
+
+
  function renderWatch(){const items=read(W);watch.replaceChildren();if(!items.length){watch.innerHTML='<div class="empty">Your watchlist is waiting for its first mystery.</div>';return}items.forEach(item=>{const card=document.createElement('article');card.className='card';const img=document.createElement('img');img.src=item.posterUrl||item.poster||'';img.alt='';img.loading='lazy';const wrap=document.createElement('div');wrap.className='poster-wrap';wrap.append(img);const info=document.createElement('div');info.className='card-info';const title=document.createElement('div');title.className='card-title';title.textContent=item.title||'Saved title';const open=document.createElement('button');open.className='vault-watch-btn';open.textContent='▶ Open';open.onclick=()=>window.MysteryVault?.openItem(item);const remove=document.createElement('button');remove.className='vault-watch-btn';remove.textContent='Remove';remove.onclick=()=>{write(W,read(W).filter(x=>key(x)!==key(item)));renderWatch();syncButtons();loadRecommendations()};info.append(title,open,remove);card.append(wrap,info);watch.append(card)})}
  function syncButtons(root=document){const saved=new Set(read(W).map(key));root.querySelectorAll('.card[data-card-type]').forEach(card=>{const info=card.querySelector('.card-info'),item=get(card);if(!info||!item)return;let b=info.querySelector('.vault-watch-btn[data-watch]');if(!b){b=document.createElement('button');b.type='button';b.className='vault-watch-btn';b.dataset.watch='1';info.append(b)}const yes=saved.has(key(item));b.classList.toggle('is-saved',yes);const label=yes?'♥ Saved':'♡ Watchlist';if(b.textContent!==label)b.textContent=label})}
  document.addEventListener('click',e=>{const b=e.target.closest('.vault-watch-btn[data-watch]');if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();const item=get(b.closest('.card'));if(!item)return;const a=read(W),exists=a.some(x=>key(x)===key(item));write(W,exists?a.filter(x=>key(x)!==key(item)):[item,...a].slice(0,100));syncButtons();renderWatch();loadRecommendations()},true);
@@ -66,7 +83,6 @@
    }else if(Math.abs(dx)<18&&Math.abs(dy)<18){const now=Date.now();if(now-lastTap<320){const delta=p.clientX<r.left+r.width/2?-10:10;video.currentTime=Math.max(0,Math.min(video.duration||Infinity,video.currentTime+delta));gestureHint.textContent=delta>0?'+10 seconds':'−10 seconds';lastTap=0}else lastTap=now}
    start=null
  },{passive:true});
- document.querySelectorAll('[data-discover-genre]').forEach(b=>b.addEventListener('click',()=>window.MysteryVault?.discoverGenre?.(b.dataset.discoverGenre,b.dataset.genreName||'Discover')));
  const cardObserver=new MutationObserver(records=>{let addedCards=false;for(const record of records){for(const node of record.addedNodes){if(node.nodeType!==1)continue;if(node.matches?.('.card[data-card-type]')||node.querySelector?.('.card[data-card-type]')){addedCards=true;break}}if(addedCards)break}if(addedCards)syncButtons()});cardObserver.observe(document.body,{childList:true,subtree:true});renderWatch();renderContinue();syncButtons();loadRecommendations();
  const searchInput=document.getElementById('search'),searchHistory=document.getElementById('search-history-options');
  const SEARCH='mysteryVault.searchHistory.v1';
