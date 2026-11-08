@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:label="Mystery Vault"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true">
