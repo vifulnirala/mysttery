@@ -660,3 +660,86 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
 @media (prefers-reduced-motion: reduce) {
   body::before, body::after, .hero::after { animation: none; }
 }
+
+
+/* Compact, overflow-safe TV episode cards on narrow Android WebViews */
+.episode-picker-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.episode-picker-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.episode-picker-details .episode-list {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+.episode-picker-details .episode-choice {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 40px;
+  grid-template-rows: auto;
+  align-items: center;
+  justify-items: stretch;
+  width: 100%;
+  height: auto !important;
+  min-height: 88px;
+  max-height: none;
+  overflow: hidden;
+  white-space: normal;
+}
+.episode-picker-details .episode-number {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  align-self: center;
+  margin: 0 auto;
+  flex: none;
+}
+.episode-picker-details .episode-copy {
+  min-width: 0;
+  overflow: hidden;
+}
+.episode-picker-details .episode-name,
+.episode-picker-details .episode-overview {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+.episode-picker-details .episode-name {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.episode-picker-details .episode-overview {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+@media (max-width: 640px) {
+  .episode-picker-panel { max-height: 90dvh; }
+  .episode-picker-content { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .episode-picker-details .episode-choice {
+    grid-template-columns: 48px minmax(0, 1fr) 34px;
+    min-height: 78px;
+    gap: 9px;
+    padding: 10px;
+  }
+  .episode-picker-details .episode-number {
+    width: 42px;
+    height: 42px;
+    font-size: .82rem;
+  }
+}
