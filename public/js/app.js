@@ -22,6 +22,21 @@
     const episodePickerModal = document.getElementById('episode-picker-modal');
     const episodePickerContent = document.getElementById('episode-picker-content');
     let externalProviders = [];
+    const externalStatus = statusBanner;
+    const externalConfigPromise = fetch('/api/embed-config', { cache: 'no-store' })
+      .then(response => parseJsonResponse(response).then(data => {
+        if (!response.ok) throw new Error(data.error || 'Could not load built-in player servers.');
+        externalProviders = (Array.isArray(data.providers) ? data.providers : []).map(provider => ({
+          ...provider, custom: false, source: 'built-in'
+        }));
+        populateExternalServerSelect(data.defaultProviderId || '');
+        renderImportedServerList();
+        return data;
+      }))
+      .catch(error => {
+        console.warn('Could not load built-in player servers:', error);
+        return {};
+      });
     let customExternalProviders = [];
     let activeExternalPayload = null;
     let activeExternalTitle = '';
@@ -101,7 +116,7 @@
       }
       list.innerHTML = '<div class="custom-server-title">Current servers</div>' +
         providers.map(provider => {
-          const host = provider.urlTemplate.replace(/\/embed\/movie\/.*$/, '');
+          const host = provider.urlTemplate ? provider.urlTemplate.replace(/\/embed\/movie\/.*$/, '') : 'Configured in app';
           const removable = provider.custom === true || String(provider.id).startsWith('csv-');
           return '<div class="imported-server-row"><div class="imported-server-copy"><strong>' +
             escapeHtml(provider.name) + '</strong><span class="imported-server-host">' + escapeHtml(host) +
@@ -742,5 +757,7 @@
       themeToggle.innerHTML = '☾ <span>Dark mode</span>';
       document.querySelector('meta[name="theme-color"]').content = '#f4f6fc';
     }
-    void refreshCustomExternalProviders().catch(error => console.warn('Could not load saved external servers:', error));
+    void Promise.all([externalConfigPromise, refreshCustomExternalProviders()])
+      .then(() => { renderImportedServerList(); populateExternalServerSelect(); })
+      .catch(error => console.warn('Could not load saved external servers:', error));
     loadCatalog();
