@@ -394,41 +394,6 @@
       setStatus('Playback closed.', 'success');
     }
 
-    const externalTypeSelect = document.getElementById('external-media-type');
-    const externalStatus = document.getElementById('external-provider-status');
-    const externalTvFields = [...document.querySelectorAll('.external-tv-field')];
-    function updateExternalTypeFields() {
-      const isTv = externalTypeSelect.value === 'tv';
-      externalTvFields.forEach(field => field.classList.toggle('hidden', !isTv));
-      document.getElementById('external-season').required = isTv;
-      document.getElementById('external-episode').required = isTv;
-    }
-    externalTypeSelect.addEventListener('change', updateExternalTypeFields);
-    updateExternalTypeFields();
-    const externalConfigPromise = fetch('/api/embed-config')
-      .then(response => {
-        if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
-        return response.json();
-      })
-      .then(config => {
-        externalProviders = Array.isArray(config.providers) ? config.providers : [];
-        populateExternalServerSelect(config.defaultProviderId || externalProviders[0]?.id || '');
-        const names = allExternalProviders().map(provider => provider.name);
-        externalStatus.textContent = names.length
-          ? 'Available servers: ' + names.join(', ') + '.'
-          : 'No external servers configured. Add your own server URL below.';
-        return externalProviders;
-      })
-      .catch(error => {
-        externalProviders = [];
-        populateExternalServerSelect();
-        externalStatus.textContent = allExternalProviders().length
-          ? 'Built-in player configuration unavailable; your saved custom servers are still available.'
-          : (error.message || 'Could not load player server configuration.');
-        return externalProviders;
-      });
-
-
     async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
       activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
       activeTorrentDownload = null;
@@ -699,9 +664,6 @@
         const item = tmdbResults[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
-          document.getElementById('external-media-id').value = item.tmdbId;
-          externalTypeSelect.value = 'movie';
-          updateExternalTypeFields();
           void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
         } else {
           void expandTmdbShow(card, item);
