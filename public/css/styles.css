@@ -31,22 +31,22 @@
     .brand-mark { width: 44px; height: 44px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 15px; color: #fff; background: linear-gradient(135deg, #8b5cf6, #22d3ee); box-shadow: 0 8px 28px rgba(139,92,246,.28); font-size: 22px; }
     .brand-name { font-weight: 800; letter-spacing: -.04em; font-size: clamp(1rem, 2vw, 1.2rem); }
     .brand-caption { color: var(--muted); font-size: .78rem; margin-top: 2px; }
-    .topbar-actions { display: flex; align-items: center; gap: 9px; }
+    
     .menu-btn { width: 46px; height: 44px; border: 1px solid var(--line); border-radius: 13px; color: var(--text); background: var(--surface); font-size: 1.25rem; line-height: 1; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
     .menu-btn:hover { transform: translateY(-1px); border-color: var(--accent); background: var(--surface-2); }
     .settings-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(3,6,16,.58); backdrop-filter: blur(4px); }
-    .settings-drawer { position: fixed; z-index: 41; top: 0; right: 0; width: min(430px, 92vw); height: 100dvh; transform: translateX(105%); transition: transform .25s ease; border-left: 1px solid var(--line); background: var(--surface-solid); box-shadow: -25px 0 80px rgba(0,0,0,.3); display: flex; flex-direction: column; }
+    .settings-drawer { position: fixed; z-index: 41; top: 0; left: 0; right: auto; width: min(430px, 92vw); height: 100dvh; transform: translateX(-105%); transition: transform .25s ease; border-right: 1px solid var(--line); background: var(--surface-solid); box-shadow: -25px 0 80px rgba(0,0,0,.3); display: flex; flex-direction: column; }
     .settings-drawer.open { transform: translateX(0); }
     .settings-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: max(18px, env(safe-area-inset-top)) 18px 15px; border-bottom: 1px solid var(--line); }
     .settings-drawer-head h2 { font-size: 1.25rem; }
     .settings-drawer-body { overflow-y: auto; padding: 18px; }
-    .csv-upload { display: flex; align-items: center; gap: 13px; margin-top: 18px; padding: 16px; border: 1px dashed var(--accent); border-radius: 16px; background: var(--surface-2); cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
+    .csv-upload { position: relative; display: flex; align-items: center; gap: 13px; margin-top: 18px; padding: 16px; border: 1px dashed var(--accent); border-radius: 16px; background: var(--surface-2); cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
     .csv-upload:hover { transform: translateY(-1px); border-color: var(--accent-2); }
     .csv-upload-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; color: var(--accent-ink); background: linear-gradient(135deg, var(--accent), var(--accent-2)); font-weight: 900; font-size: 1.2rem; }
     .csv-upload strong, .csv-upload small { display: block; }
     .csv-upload strong { font-size: .9rem; }
     .csv-upload small { color: var(--muted); margin-top: 3px; font-size: .72rem; }
-    .csv-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .csv-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
     .csv-format { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
     .csv-format pre { margin: 10px 0 0; max-height: 210px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: var(--muted); font: .68rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
     .imported-server-list { margin-top: 18px; display: grid; gap: 7px; }
@@ -469,4 +469,23 @@ button, input, select { -webkit-tap-highlight-color: transparent; }
   #player-modal .modal-head { padding:10px 14px; }
   #video-element, #external-player-frame { max-height:calc(100dvh - 106px); height:auto; }
   #player-modal .player-foot { padding:8px 12px; }
+}
+
+/* Header controls and manageable server list. */
+.topbar { display: grid; grid-template-columns: 46px minmax(0,1fr) auto; align-items: center; }
+.topbar .brand { justify-self: center; }
+.topbar .theme-toggle { justify-self: end; white-space: nowrap; }
+.imported-server-row { gap: 12px; }
+.imported-server-copy { display: grid; gap: 4px; min-width: 0; }
+.imported-server-copy strong { font-size: .82rem; }
+.server-delete-btn { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; border: 1px solid rgba(244,63,94,.35); border-radius: 10px; color: #fb7185; background: rgba(244,63,94,.08); font: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; }
+.server-delete-btn:hover { background: rgba(244,63,94,.16); }
+.server-delete-btn:disabled { opacity: .5; cursor: wait; }
+.server-source-label { flex: 0 0 auto; color: var(--muted); font-size: .68rem; }
+@media (max-width: 420px) {
+  .topbar { grid-template-columns: 42px minmax(0,1fr) auto; gap: 7px; }
+  .topbar .brand { justify-self: start; gap: 8px; }
+  .topbar .brand-caption { display: none; }
+  .topbar .theme-toggle { padding: 8px 9px; font-size: .76rem; }
+  .menu-btn { width: 42px; }
 }
