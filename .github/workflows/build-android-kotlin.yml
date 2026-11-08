@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/android-kotlin-port
+      - improved_mobile_app
     paths:
       - "app/**"
       - "build.gradle.kts"
@@ -39,6 +40,11 @@ jobs:
           cp -a public/. app/src/main/assets/public/
           test -f app/src/main/assets/public/index.html
           test -f app/src/main/assets/public/js/app.js
+
+      - name: Validate frontend JavaScript
+        run: |
+          node --check public/js/app.js
+          node --check public/js/enhancements.js
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
