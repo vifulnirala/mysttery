@@ -81,7 +81,7 @@
    const trigger=document.createElement('button');trigger.type='button';trigger.className='vault-select-trigger';
    trigger.setAttribute('aria-label',select.getAttribute('aria-label')||selectId);trigger.title=select.getAttribute('aria-label')||selectId;
    const menu=document.createElement('div');menu.className='vault-select-menu';menu.setAttribute('role','listbox');
-   host.append(trigger,menu);select.parentElement.append(host);
+   host.append(trigger,menu);select.after(host);
    const labelFor=option=>{
      if(mode==='season'){const n=Number(option.value);return n===0?'Specials':'S'+String(n).padStart(2,'0')}
      if(mode==='episode'){const n=Number(option.value);return 'E'+String(n).padStart(2,'0')+(option.textContent?' · '+option.textContent:'')}
