@@ -454,8 +454,12 @@
           if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         }
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
-        // Vidsrc is sandboxed by default; the player toggle can override this.
-        playerSandboxToggle.checked = String(provider.id || '').toLowerCase().includes('vidsrc');
+        // Use the user's last sandbox choice across episode/server reloads.
+        // If they have never changed it, sandbox Vidsrc by default.
+        const savedSandboxChoice = localStorage.getItem('mysteryVault.playerSandboxEnabled');
+        playerSandboxToggle.checked = savedSandboxChoice === null
+          ? String(provider.id || '').toLowerCase().includes('vidsrc')
+          : savedSandboxChoice === 'true';
         applyPlayerSandbox();
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
@@ -478,7 +482,10 @@
         externalFrame.removeAttribute('sandbox');
       }
     }
-    playerSandboxToggle.addEventListener('change', applyPlayerSandbox);
+    playerSandboxToggle.addEventListener('change', () => {
+      localStorage.setItem('mysteryVault.playerSandboxEnabled', String(playerSandboxToggle.checked));
+      applyPlayerSandbox();
+    });
 
     externalFrame.addEventListener('load', () => {
       if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
