@@ -324,3 +324,109 @@
   .external-episode-control input { width:70px; }
   #player-episode-status { flex-basis:100%; }
 }
+
+/* Modern Android/mobile polish */
+:root { --control-radius: 16px; }
+html { -webkit-tap-highlight-color: transparent; }
+body { overscroll-behavior-y: none; }
+button, input, select { -webkit-tap-highlight-color: transparent; }
+.select-control,
+.embed-field input,
+.embed-field select,
+.title-search-row input {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: var(--control-radius) !important;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+.select-control {
+  position: relative;
+  padding-right: 42px !important;
+  background-color: var(--surface-solid);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 20px, calc(100% - 14px) 20px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.select-control:focus {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.filter-field {
+  padding: 7px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 8px 28px rgba(0,0,0,.06);
+}
+.filter-field > span { padding-inline: 4px; letter-spacing: .03em; }
+.filter-field .select-control { min-width: 150px; background-color: var(--surface-solid); }
+.btn {
+  border-radius: 16px;
+  min-height: 46px;
+  font-weight: 750;
+  transition: transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, border-color .2s ease, filter .2s ease;
+}
+.btn:active, .theme-toggle:active, .icon-btn:active { transform: scale(.97); }
+.btn-primary { box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 22%, transparent); }
+.card, .embed-panel, .modal-panel, .episode-picker-details {
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease, border-color .25s ease, background .25s ease;
+}
+.card:hover { transform: translateY(-6px) scale(1.005); }
+.modal { background: color-mix(in srgb, #030610 76%, transparent); }
+.modal.open .modal-panel { animation: modern-panel-in .34s cubic-bezier(.2,.8,.2,1) both; }
+#player-modal .modal-panel {
+  overflow: hidden;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 0 0, rgba(139,92,246,.12), transparent 32%),
+    radial-gradient(circle at 100% 0, rgba(34,211,238,.08), transparent 30%),
+    #060914;
+  box-shadow: 0 40px 120px rgba(0,0,0,.62);
+}
+.player-head { background: linear-gradient(180deg, rgba(18,25,45,.98), rgba(6,9,20,.96)); }
+#video-element, #external-player-frame { border-radius: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.player-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.btn-download {
+  color: #071018;
+  background: linear-gradient(120deg, #67e8f9, #a78bfa);
+  border: 0;
+  box-shadow: 0 8px 26px rgba(103,232,249,.16);
+}
+.external-server-control, .external-episode-control { backdrop-filter: blur(16px); }
+.external-server-control select, .external-episode-control input {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 14px !important;
+}
+.episode-choice { border-radius: 16px; }
+.episode-choice:active { transform: scale(.99); }
+@keyframes modern-panel-in {
+  from { opacity:0; transform:translateY(18px) scale(.975); filter:blur(2px); }
+  to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
+}
+@media (max-width:760px) {
+  .result-controls { grid-template-columns:1fr 1fr; gap:9px; }
+  .filter-field { min-width:0; }
+  .filter-field .select-control { min-width:0; width:100%; }
+  .player-actions { width:100%; }
+  .player-actions .btn { flex:1 1 0; }
+}
+@media (max-width:420px) {
+  .result-controls { grid-template-columns:1fr; }
+  .filter-field:last-child { grid-column:auto; }
+  .filter-field .select-control { min-height:48px; }
+}
+@media (orientation:landscape) and (max-height:560px) {
+  .modal { padding:0; }
+  #player-modal .modal-panel {
+    width:100vw; max-width:none; max-height:100dvh; height:100dvh; border-radius:0;
+  }
+  #player-modal .modal-head { padding:10px 14px; }
+  #video-element, #external-player-frame { max-height:calc(100dvh - 106px); height:auto; }
+  #player-modal .player-foot { padding:8px 12px; }
+}
