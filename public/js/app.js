@@ -14,7 +14,6 @@
     const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
-    const externalStartServerSelect = document.getElementById('external-start-server-select');
     const externalServerStatus = document.getElementById('external-server-status');
     const externalEpisodeControl = document.getElementById('external-episode-control');
     const playerSeasonInput = document.getElementById('player-season');
@@ -55,35 +54,77 @@
         ) : [];
       } catch (_) { return []; }
     }
-    function saveCustomExternalProviders() {
-      localStorage.setItem('mystery-vault-custom-servers', JSON.stringify(customExternalProviders));
+    function parseServerConfig(text) {
+      const values = {};
+      text.replace(/^\uFEFF/, '').split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const equals = trimmed.indexOf('=');
+        if (equals < 1) return;
+        const key = trimmed.slice(0, equals).trim();
+        let value = trimmed.slice(equals + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+        values[key] = value;
+      });
+      const ids = String(values.EMBED_SERVERS || '').split(',').map(id => id.trim().toLowerCase()).filter(Boolean);
+      const providers = [];
+      const seen = new Set();
+      ids.forEach(id => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        const prefix = 'EMBED_' + id.toUpperCase();
+        const name = String(values[prefix + '_NAME'] || id).trim();
+        const baseUrl = String(values[prefix + '_BASE_URL'] || '').trim().replace(/\/+$/, '');
+        const moviePath = String(values[prefix + '_MOVIE_PATH_TEMPLATE'] || '').trim();
+        const tvPath = String(values[prefix + '_TV_PATH_TEMPLATE'] || '').trim();
+        if (!name || !/^https:\/\//i.test(baseUrl) || !moviePath || !tvPath) return;
+        const joinUrl = path => /^https:\/\//i.test(path) ? path : baseUrl + '/' + path.replace(/^\/+/, '');
+        const movieTemplate = joinUrl(moviePath);
+        const tvTemplate = joinUrl(tvPath);
+        if (!/^https:\/\//i.test(movieTemplate) || !/^https:\/\//i.test(tvTemplate)) return;
+        providers.push({ id: 'csv-' + id, name, urlTemplate: movieTemplate, tvUrlTemplate: tvTemplate, custom: true, source: 'csv' });
+      });
+      return providers;
     }
-    function customProviderUrl(provider, payload) {
-      return provider.urlTemplate
-        .replaceAll('{id}', encodeURIComponent(payload.id))
+    function providerUrl(provider, payload) {
+      const template = payload.mediaType === 'tv' && provider.tvUrlTemplate ? provider.tvUrlTemplate : provider.urlTemplate;
+      return template.replaceAll('{id}', encodeURIComponent(payload.id))
         .replaceAll('{season}', encodeURIComponent(String(payload.season ?? 1)))
         .replaceAll('{episode}', encodeURIComponent(String(payload.episode ?? 1)));
+    }
+    function renderImportedServerList() {
+      const list = document.getElementById('imported-server-list');
+      if (!list) return;
+      list.innerHTML = customExternalProviders.length
+        ? '<div class="custom-server-title">Imported servers</div>' +
+          customExternalProviders.map(provider => '<div class="imported-server-row"><span>' + escapeHtml(provider.name) + '</span><span class="imported-server-host">' + escapeHtml(provider.urlTemplate.replace(/\/embed\/movie\/.*$/, '')) + '</span></div>').join('')
+        : '<div class="imported-server-empty">No custom servers imported yet.</div>';
+    }
+    function saveCustomExternalProviders() {
+      localStorage.setItem('mystery-vault-custom-servers', JSON.stringify(customExternalProviders));
+      renderImportedServerList();
+    }
+    function customProviderUrl(provider, payload) {
+      return providerUrl(provider, payload);
     }
     function allExternalProviders() {
       return [...externalProviders, ...customExternalProviders];
     }
     function populateExternalServerSelect(selectedId = '') {
       const providers = allExternalProviders();
-      [externalServerSelect, externalStartServerSelect].forEach(select => {
-        if (!select) return;
-        select.replaceChildren();
-        providers.forEach(provider => {
-          const option = document.createElement('option');
-          option.value = provider.id;
-          option.textContent = provider.name;
-          select.append(option);
-        });
-        if (selectedId && providers.some(provider => provider.id === selectedId)) {
-          select.value = selectedId;
-        } else if (providers.length) {
-          select.value = providers[0].id;
-        }
+      if (!externalServerSelect) return;
+      externalServerSelect.replaceChildren();
+      providers.forEach(provider => {
+        const option = document.createElement('option');
+        option.value = provider.id;
+        option.textContent = provider.name;
+        externalServerSelect.append(option);
       });
+      if (selectedId && providers.some(provider => provider.id === selectedId)) {
+        externalServerSelect.value = selectedId;
+      } else if (providers.length) {
+        externalServerSelect.value = providers[0].id;
+      }
     }
 
     function setStatus(message, kind = '') {
@@ -394,7 +435,7 @@
       document.getElementById('torrent-download').classList.add('hidden');
       await externalConfigPromise;
       const providers = allExternalProviders();
-      const requestedServer = serverId || activeExternalServerId || externalStartServerSelect?.value || externalServerSelect.value || providers[0]?.id || '';
+      const requestedServer = serverId || activeExternalServerId || externalServerSelect.value || providers[0]?.id || '';
       const provider = providers.find(item => item.id === requestedServer);
       if (!provider) {
         externalStatus.textContent = 'Select an external server or add a custom server URL below.';
@@ -406,7 +447,7 @@
         let result;
         if (provider.custom) {
           result = {
-            url: customProviderUrl(provider, payload),
+            url: providerUrl(provider, payload),
             providerId: provider.id,
             providerName: provider.name,
             mediaType: payload.mediaType
@@ -464,40 +505,58 @@
       playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
     });
 
-    document.getElementById('external-player-form').addEventListener('submit', async event => {
-      event.preventDefault();
-      const payload = {
-        mediaType: externalTypeSelect.value,
-        id: document.getElementById('external-media-id').value.trim(),
-        season: document.getElementById('external-season').value,
-        episode: document.getElementById('external-episode').value
-      };
-      await playExternalPlayer(payload, '', externalStartServerSelect?.value || externalServerSelect.value);
-    });
+    const settingsMenuBtn = document.getElementById('settings-menu-btn');
+    const settingsMenuClose = document.getElementById('settings-menu-close');
+    const settingsDrawer = document.getElementById('settings-drawer');
+    const settingsBackdrop = document.getElementById('settings-backdrop');
+    const serverCsvInput = document.getElementById('server-csv-input');
+    const serverCsvStatus = document.getElementById('server-csv-status');
 
-    document.getElementById('custom-server-save').addEventListener('click', () => {
-      const name = document.getElementById('custom-server-name').value.trim();
-      const urlTemplate = document.getElementById('custom-server-url').value.trim();
-      if (!name) { externalStatus.textContent = 'Enter a name for the custom server.'; return; }
-      if (!/^https:\/\//i.test(urlTemplate)) { externalStatus.textContent = 'Custom server URL must start with https://'; return; }
-      if (!urlTemplate.includes('{id}')) { externalStatus.textContent = 'The URL must contain {id}. Add {season} and {episode} for TV URLs.'; return; }
-      const id = 'custom-' + Date.now().toString(36);
-      customExternalProviders.push({ id, name, urlTemplate, custom: true });
-      saveCustomExternalProviders();
-      populateExternalServerSelect(id);
-      document.getElementById('custom-server-name').value = '';
-      document.getElementById('custom-server-url').value = '';
-      externalStatus.textContent = `Saved custom server “${name}”. Select it above to use it.`;
-    });
+    function closeSettingsMenu() {
+      settingsDrawer.classList.remove('open');
+      settingsDrawer.setAttribute('aria-hidden', 'true');
+      settingsMenuBtn.setAttribute('aria-expanded', 'false');
+      settingsBackdrop.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+    function openSettingsMenu() {
+      settingsDrawer.classList.add('open');
+      settingsDrawer.setAttribute('aria-hidden', 'false');
+      settingsMenuBtn.setAttribute('aria-expanded', 'true');
+      settingsBackdrop.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      renderImportedServerList();
+    }
+    settingsMenuBtn.addEventListener('click', openSettingsMenu);
+    settingsMenuClose.addEventListener('click', closeSettingsMenu);
+    settingsBackdrop.addEventListener('click', closeSettingsMenu);
 
-    document.getElementById('custom-server-delete').addEventListener('click', () => {
-      const selected = externalStartServerSelect?.value || externalServerSelect.value;
-      const provider = customExternalProviders.find(item => item.id === selected);
-      if (!provider) { externalStatus.textContent = 'Select one of your custom servers first.'; return; }
-      customExternalProviders = customExternalProviders.filter(item => item.id !== selected);
-      saveCustomExternalProviders();
-      populateExternalServerSelect();
-      externalStatus.textContent = `Removed custom server “${provider.name}”.`;
+    serverCsvInput.addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      if (!/\.csv$/i.test(file.name)) {
+        serverCsvStatus.textContent = 'Please select a .csv file.';
+        serverCsvStatus.dataset.kind = 'error';
+        return;
+      }
+      try {
+        serverCsvStatus.textContent = 'Reading server configuration…';
+        const fileText = await file.text();
+        const imported = parseServerConfig(fileText);
+        if (!imported.length) throw new Error('No valid EMBED_* server definitions were found in this CSV.');
+        const byId = new Map(customExternalProviders.map(provider => [provider.id, provider]));
+        imported.forEach(provider => byId.set(provider.id, provider));
+        customExternalProviders = [...byId.values()];
+        saveCustomExternalProviders();
+        populateExternalServerSelect();
+        serverCsvStatus.textContent = 'Imported ' + imported.length + ' server' + (imported.length === 1 ? '' : 's') + ' successfully.';
+        serverCsvStatus.dataset.kind = 'success';
+      } catch (error) {
+        serverCsvStatus.textContent = error.message || 'Could not import the CSV file.';
+        serverCsvStatus.dataset.kind = 'error';
+      } finally {
+        serverCsvInput.value = '';
+      }
     });
 
     document.getElementById('search-form').addEventListener('submit', event => {
