@@ -135,18 +135,19 @@ EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
         </div>
 
         <div class="external-episode-control hidden" id="external-episode-control">
-          <label for="player-season">Season</label>
-          <select id="player-season" class="select-control"></select>
-          <label for="player-episode">Episode</label>
-          <select id="player-episode" class="select-control"></select>
-          <button class="btn btn-secondary" id="player-episode-apply" type="button">Play selection</button>
+          <select id="player-season" class="select-control" aria-label="Season"></select>
+          <select id="player-episode" class="select-control" aria-label="Episode"></select>
+          <button class="btn btn-secondary player-episode-play" id="player-episode-apply" type="button">Play</button>
           <span id="player-episode-status" role="status" aria-live="polite"></span>
         </div>
+        <label class="player-sandbox-toggle" for="player-sandbox-toggle">
+          <input id="player-sandbox-toggle" type="checkbox">
+          <span>Sandbox player</span>
+        </label>
       </div>
 
       <iframe
         id="external-player-frame"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen; presentation"
         allowfullscreen
         referrerpolicy="strict-origin-when-cross-origin"
@@ -157,7 +158,6 @@ EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
         <span id="player-tip"></span>
         <div class="player-actions">
           <button class="btn btn-download hidden" id="torrent-download" type="button">↓ Download</button>
-          <button class="btn btn-secondary" id="player-close-bottom" type="button">Close player</button>
         </div>
       </div>
     </div>
