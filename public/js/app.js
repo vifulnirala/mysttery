@@ -437,7 +437,7 @@
       const { source, fileIndex, fileName } = activeTorrentDownload;
       const url = '/api/download-file?source=' + encodeURIComponent(source) + '&fileIndex=' + encodeURIComponent(fileIndex);
       if (window.Android && typeof window.Android.downloadTorrent === 'function') {
-        window.Android.downloadTorrent(url, fileName);
+        window.Android.downloadTorrent(location.origin + url, fileName);
         setStatus('Download started in the background.', 'success');
       } else {
         window.open(url, '_blank');
