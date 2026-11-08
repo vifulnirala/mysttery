@@ -592,11 +592,6 @@
           button.title = episode.overview || episode.name || '';
           button.addEventListener('click', async clickEvent => {
             clickEvent.stopPropagation();
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = 'tv';
-            updateExternalTypeFields();
-            document.getElementById('external-season').value = seasonNumber;
-            document.getElementById('external-episode').value = episode.episodeNumber;
             hideModal(episodePickerModal);
             await playExternalPlayer({
               mediaType: 'tv', id: item.tmdbId,
