@@ -111,6 +111,9 @@ class LocalHttpServer(private val context: Context) {
             req.path == "/" && req.method == "GET" -> serveAsset(client, "public/index.html")
             req.path == "/api/library" && req.method == "GET" -> sendText(client, 200, "application/json; charset=utf-8", api.library().getJSONArray("items").toString())
             req.path == "/api/embed-config" && req.method == "GET" -> sendJson(client, 200, api.embedConfig())
+            req.path == "/api/custom-servers" && req.method == "GET" -> sendJson(client, 200, readCustomServers())
+            req.path == "/api/custom-servers" && req.method == "POST" -> sendJson(client, 200, appendCustomServers(req.body))
+            req.path == "/api/custom-servers" && req.method == "DELETE" -> sendJson(client, 200, deleteCustomServer(req.query["id"].orEmpty()))
             req.path == "/api/title-search" && req.method == "GET" -> sendJson(client, 200, api.titleSearch(req.query["q"].orEmpty()))
             req.path.matches(Regex("/api/tv/\\d{1,12}/seasons")) && req.method == "GET" -> {
                 val id = req.path.substringAfter("/api/tv/").substringBefore("/seasons")
@@ -140,6 +143,72 @@ class LocalHttpServer(private val context: Context) {
             req.path == "/api/external-player" && req.method == "POST" ->
                 sendJson(client, 200, api.externalPlayer(req.body))
             else -> serveAssetOr404(client, req.path)
+        }
+    }
+
+    // App-private persistent storage: packaged assets are read-only.
+    private val customServersFile: File
+        get() = File(context.filesDir, "external-servers.json")
+
+    private fun readCustomServers(): JSONObject {
+        val servers = try {
+            if (customServersFile.exists()) org.json.JSONArray(customServersFile.readText(StandardCharsets.UTF_8))
+            else org.json.JSONArray()
+        } catch (_: Throwable) { org.json.JSONArray() }
+        return JSONObject().put("servers", servers)
+    }
+
+    private fun appendCustomServers(body: String): JSONObject {
+        val incoming = JSONObject(body).optJSONArray("servers")
+            ?: throw IllegalArgumentException("Missing servers array")
+        val merged = linkedMapOf<String, JSONObject>()
+        val existing = readCustomServers().optJSONArray("servers") ?: org.json.JSONArray()
+        for (i in 0 until existing.length()) {
+            val item = existing.optJSONObject(i) ?: continue
+            val id = item.optString("id")
+            if (id.isNotBlank()) merged[id] = item
+        }
+        for (i in 0 until incoming.length()) {
+            val item = incoming.optJSONObject(i) ?: continue
+            val id = item.optString("id").lowercase()
+            val name = item.optString("name").trim()
+            val movie = item.optString("urlTemplate").trim()
+            val tv = item.optString("tvUrlTemplate").trim()
+            if (!id.matches(Regex("[a-z0-9_-]{1,48}")) || name.isBlank() ||
+                !movie.startsWith("https://", true) || !tv.startsWith("https://", true)) continue
+            merged[id] = JSONObject().put("id", id).put("name", name)
+                .put("urlTemplate", movie).put("tvUrlTemplate", tv)
+                .put("custom", true).put("source", "csv")
+        }
+        val result = org.json.JSONArray()
+        merged.values.forEach { result.put(it) }
+        persistCustomServers(result)
+        return JSONObject().put("servers", result)
+    }
+
+    private fun deleteCustomServer(id: String): JSONObject {
+        if (id.isBlank()) throw IllegalArgumentException("Missing server id")
+        val current = readCustomServers().optJSONArray("servers") ?: org.json.JSONArray()
+        val result = org.json.JSONArray()
+        var deleted = false
+        for (i in 0 until current.length()) {
+            val item = current.optJSONObject(i) ?: continue
+            if (item.optString("id") == id) deleted = true else result.put(item)
+        }
+        if (!deleted) throw IllegalArgumentException("Custom server not found")
+        persistCustomServers(result)
+        return JSONObject().put("servers", result).put("deleted", id)
+    }
+
+    private fun persistCustomServers(servers: org.json.JSONArray) {
+        val temporary = File(context.filesDir, "external-servers.json.tmp")
+        temporary.writeText(servers.toString(2), StandardCharsets.UTF_8)
+        if (customServersFile.exists() && !customServersFile.delete()) {
+            throw IOException("Could not replace the server configuration file")
+        }
+        if (!temporary.renameTo(customServersFile)) {
+            temporary.delete()
+            throw IOException("Could not save the server configuration file")
         }
     }
 
