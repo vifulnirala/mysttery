@@ -204,6 +204,11 @@
         <div class="card-info"><div class="card-title">${title}</div><div class="meta-row"><span>${metaLeft}</span><span class="meta-tag">${metaRight}</span></div></div>
       </article>`;
     }
+    window.MysteryVault = {
+      openItem(item) { if (!item) return; if (item.mediaType === "movie" && item.tmdbId) void playExternalPlayer({mediaType:"movie",id:item.tmdbId},item.title); else if (item.mediaType === "tv" && item.tmdbId) void expandTmdbShow(document.createElement("div"),item); else if (item.magnet || item.source) void handleTorrentSelection(item.magnet || item.source,item.title); },
+      getCatalogItem(type,index) { return type === "catalog" ? catalogGrid._items?.[index] : type === "tmdb" ? tmdbResults[index] : searchResults[index]; },
+      playFile: (source,index,name,resumeAt) => playFile(source,index,name,resumeAt)
+    };
     async function loadCatalog() {
       try {
         const response = await fetch('/api/library');
@@ -371,7 +376,7 @@
       }
     }
 
-    function playFile(source, fileIndex, fileName) {
+    function playFile(source, fileIndex, fileName, resumeAt = 0) {
       hideModal(fileModal);
       activeTorrentDownload = { source, fileIndex, fileName: fileName || 'video-file' };
       currentPlaybackMode = 'torrent';
@@ -388,6 +393,8 @@
       video.removeAttribute('src');
       video.load();
       video.src = `/api/stream-file?source=${encodeURIComponent(source)}&fileIndex=${encodeURIComponent(fileIndex)}`;
+      video.addEventListener("loadedmetadata", function restorePosition() { video.removeEventListener("loadedmetadata", restorePosition); if (Number(resumeAt) > 5 && Number(resumeAt) < video.duration - 10) video.currentTime = Number(resumeAt); });
+      window.dispatchEvent(new CustomEvent("mysteryvault:play", {detail:{kind:"torrent",source,fileIndex,fileName}}));
       document.getElementById('torrent-download').classList.remove('hidden');
       showModal(playerModal);
       const playPromise = video.play();
@@ -424,6 +431,7 @@
       if (tvMetadata !== undefined) activeTvMetadata = tvMetadata;
       if (payload.mediaType !== 'tv') activeTvMetadata = null;
       activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+      window.dispatchEvent(new CustomEvent("mysteryvault:play", {detail:{kind:"external",payload:{...payload},title:displayTitle}}));
       activeTorrentDownload = null;
       document.getElementById('torrent-download').classList.add('hidden');
       await externalConfigPromise;
