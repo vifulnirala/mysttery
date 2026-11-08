@@ -24,7 +24,7 @@
       <h1><span class="gradient-text">Find it. Get lost in it.</span></h1>
       <p class="hero-copy">A little mystery, a little mischief, and a whole lot of blue-hour vibes. Search the vault and find something worth getting lost in.</p>
       <form class="search-panel" id="search-form" role="search">
-        <input type="search" id="search" autocomplete="off" placeholder="Search movies, TV shows, or torrents…" aria-label="Search movies, TV shows, or torrents">
+        <input type="search" id="search" list="search-history-options" autocomplete="off" placeholder="Search movies, TV shows, or torrents…" aria-label="Search movies, TV shows, or torrents"><datalist id="search-history-options"></datalist>
         <button class="btn btn-primary" type="submit">🔎 &nbsp; Investigate</button>
       </form>
       <div id="status-banner" class="status" role="status" aria-live="polite"></div>
@@ -100,6 +100,7 @@ EMBED_VIDSRC_MOVIE_PATH_TEMPLATE=/embed/movie/{id}
 EMBED_VIDSRC_TV_PATH_TEMPLATE=/embed/tv/{id}/{season}/{episode}</pre>
       </div>
       <p class="embed-status" id="server-csv-status" role="status" aria-live="polite"></p>
+      <div class="vault-settings-tools"><div class="custom-server-title">Your app data</div><button class="vault-tool-btn" id="vault-export-backup" type="button">Export watchlist & history</button><label class="vault-backup-import">Import backup <input id="vault-import-backup" type="file" accept="application/json,.json"></label><button class="vault-tool-btn" id="vault-diagnostics" type="button">Run diagnostics</button><p id="vault-diagnostics-result" class="section-note" role="status"></p></div>
       <div class="imported-server-list" id="imported-server-list"></div>
     </div>
   </aside>
