@@ -25,7 +25,7 @@ class LocalHttpServer(private val context: Context) {
 
     fun start(): Int {
         torrentEngine.start()
-        socket = ServerSocket(0, 32, InetAddress.getByName("127.0.0.1"))
+        socket = ServerSocket(18765, 32, InetAddress.getByName("127.0.0.1"))
         running = true
         executor.execute {
             while (running) {
