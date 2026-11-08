@@ -932,3 +932,5 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
 .settings-drawer .csv-upload-icon{width:34px;height:34px}
 .settings-drawer .imported-server-list{margin-top:12px}
 .settings-drawer .custom-server-title{display:none}
+
+.vault-native-player-tools #vault-playback-speed{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;min-width:1px!important;padding:0!important}
