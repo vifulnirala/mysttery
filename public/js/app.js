@@ -343,6 +343,8 @@
 
     async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
       activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+      activeTorrentDownload = null;
+      document.getElementById('torrent-download').classList.add('hidden');
       await externalConfigPromise;
       const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
       externalStatus.textContent = 'Preparing external player…';
