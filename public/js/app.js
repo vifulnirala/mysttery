@@ -205,7 +205,7 @@
       </article>`;
     }
     window.MysteryVault = {
-      openItem(item) { if (!item) return; if (item.mediaType === "movie" && item.tmdbId) void playExternalPlayer({mediaType:"movie",id:item.tmdbId},item.title); else if (item.mediaType === "tv" && item.tmdbId) void expandTmdbShow(document.createElement("div"),item); else if (item.magnet || item.source) void handleTorrentSelection(item.magnet || item.source,item.title); },
+      openItem(item) { if (!item) return; if (item.mediaType === "movie" && item.tmdbId) void playExternalPlayer({mediaType:"movie",id:item.tmdbId},item.title); else if (item.mediaType === "tv" && item.tmdbId) { if (item.season != null && item.episode != null) void playExternalPlayer({mediaType:"tv",id:item.tmdbId,season:item.season,episode:item.episode},item.title); else void expandTmdbShow(document.createElement("div"),item); } else if (item.magnet || item.source) void handleTorrentSelection(item.magnet || item.source,item.title); },
       getCatalogItem(type,index) { return type === "catalog" ? catalogGrid._items?.[index] : type === "tmdb" ? tmdbResults[index] : searchResults[index]; },
       playFile: (source,index,name,resumeAt) => playFile(source,index,name,resumeAt)
     };
@@ -290,6 +290,25 @@
         setStatus('');
       }
     }
+
+
+    async function discoverGenre(genreId, genreName) {
+      searchController?.abort(); tmdbController?.abort();
+      searchResults=[]; tmdbResults=[]; unifiedResults=[]; filteredResults=[];
+      torrentGrid.innerHTML=''; loadMoreButton.classList.add('hidden'); searchSection.classList.add('hidden');
+      setStatus(`Finding ${genreName.toLowerCase()} movies and shows…`);
+      try {
+        const response=await fetch(`/api/discover?genreId=${encodeURIComponent(genreId)}`,{cache:'no-store'});
+        const data=await parseJsonResponse(response); if(!response.ok) throw new Error(data.error||'Could not load this genre.');
+        tmdbResults=Array.isArray(data.results)?data.results:[]; unifiedResults=tmdbResults.map((_,index)=>({type:'tmdb',index}));
+        resultSourceFilter.value='tmdb'; populateQualityFilter(); applyResultFilters();
+        document.getElementById('results-title').textContent=`${genreName} picks`;
+        document.getElementById('results-note').textContent=`Popular ${genreName.toLowerCase()} movies and TV shows`;
+        searchSection.classList.remove('hidden'); setStatus(tmdbResults.length?'':`No ${genreName.toLowerCase()} titles found.`);
+        window.scrollTo({top:0,behavior:'smooth'});
+      } catch(error) { setStatus(error.message||'Could not load this genre.','error'); }
+    }
+    window.MysteryVault.discoverGenre = discoverGenre;
 
     function qualityKey(item) {
       const text = String(item.quality || item.resolution || '').toLowerCase();
