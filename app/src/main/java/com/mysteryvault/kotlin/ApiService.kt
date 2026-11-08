@@ -1,13 +1,49 @@
 package com.mysteryvault.kotlin
 
 import android.net.Uri
+import android.content.Context
+import java.io.File
+import java.io.FileOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
 
-class ApiService {
+class ApiService(private val context: Context) {
+    private val posterDirectory = File(context.filesDir, "tmdb-posters").apply { mkdirs() }
+
+    private fun cachePoster(id: String): Boolean {
+        val cached = File(posterDirectory, "$id.jpg")
+        if (cached.exists() && cached.length() > 0) return true
+        return try {
+            val token = BuildConfig.TMDB_TOKEN
+            if (token.isBlank()) return false
+            val details = getJson(
+                "https://api.themoviedb.org/3/tv/$id?language=en-US",
+                mapOf("Authorization" to "Bearer $token", "accept" to "application/json")
+            )
+            val posterPath = details.optString("poster_path").takeIf { it.isNotBlank() && it != "null" } ?: return false
+            val imageUrl = URL("https://image.tmdb.org/t/p/w500$posterPath")
+            val connection = imageUrl.openConnection() as HttpURLConnection
+            connection.connectTimeout = 12_000
+            connection.readTimeout = 15_000
+            connection.instanceFollowRedirects = true
+            val code = connection.responseCode
+            if (code !in 200..299) { connection.disconnect(); return false }
+            val temporary = File(posterDirectory, "$id.jpg.tmp")
+            connection.inputStream.use { input -> FileOutputStream(temporary).use { output -> input.copyTo(output) } }
+            connection.disconnect()
+            if (temporary.length() <= 0) { temporary.delete(); return false }
+            if (cached.exists()) cached.delete()
+            temporary.renameTo(cached)
+        } catch (_: Throwable) { false }
+    }
+
+    fun cachedPoster(id: String): File? {
+        if (!id.matches(Regex("\\d{1,12}"))) return null
+        return File(posterDirectory, "$id.jpg").takeIf { it.exists() && it.length() > 0 }
+    }
     private fun getJson(url: String, headers: Map<String, String> = emptyMap(), timeout: Int = 10_000): JSONObject {
         var last: Throwable? = null
         repeat(4) { attempt ->
@@ -62,7 +98,7 @@ class ApiService {
                 .put("tmdbId", id)
                 .put("year", year)
                 .put("poster", JSONObject.NULL)
-                .put("posterUrl", JSONObject.NULL))
+                .put("posterUrl", if (cachePoster(id)) "/api/tmdb-poster/$id" else JSONObject.NULL))
         }
         return JSONObject().put("items", items)
     }
