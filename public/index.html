@@ -63,7 +63,17 @@
 
     <section class="section" aria-label="External playback">
       <div class="embed-panel">
+        <div class="external-config-head">
+          <div>
+            <div class="section-kicker">External players</div>
+            <h2>Use any compatible server</h2>
+            <p class="section-note">Built-in servers can change or go offline. Add your own HTTPS player URL and reuse it from this device.</p>
+          </div>
+        </div>
         <form id="external-player-form" class="embed-form">
+          <label class="embed-field">Player server
+            <select id="external-start-server-select" class="select-control" aria-label="External player server"></select>
+          </label>
           <label class="embed-field">Media type
             <select id="external-media-type" class="select-control"><option value="movie">Movie</option><option value="tv">TV episode</option></select>
           </label>
@@ -78,6 +88,18 @@
           </label>
           <button class="btn btn-primary" type="submit">Play selected title/episode</button>
         </form>
+
+        <div class="custom-server-editor">
+          <div class="custom-server-title">Add a custom server</div>
+          <p>Use <code>{id}</code> for the movie/TV ID. For TV servers, also use <code>{season}</code> and <code>{episode}</code>.</p>
+          <div class="custom-server-fields">
+            <input id="custom-server-name" type="text" maxlength="60" placeholder="Server name, e.g. My Server" autocomplete="off">
+            <input id="custom-server-url" type="url" maxlength="500" placeholder="https://example.com/embed/movie/{id}" autocomplete="off">
+            <button class="btn btn-secondary" id="custom-server-save" type="button">＋ Save server</button>
+            <button class="btn btn-secondary" id="custom-server-delete" type="button">Delete selected</button>
+          </div>
+          <p class="custom-server-help">Examples: <code>https://example.com/embed/movie/{id}</code> or <code>https://example.com/embed/tv/{id}/{season}/{episode}</code>. Saved servers stay on this device.</p>
+        </div>
         <p class="embed-status" id="external-provider-status" role="status" aria-live="polite"></p>
       </div>
     </section>
