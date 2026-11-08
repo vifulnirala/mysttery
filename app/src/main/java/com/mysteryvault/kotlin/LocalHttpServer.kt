@@ -126,6 +126,8 @@ class LocalHttpServer(private val context: Context) {
                 sendJson(client, 200, torrentEngine.files(req.query["source"].orEmpty()))
             req.path == "/api/stream-file" && req.method == "GET" ->
                 torrentEngine.stream(client, req.query["source"].orEmpty(), req.query["fileIndex"]?.toIntOrNull() ?: -1, req.headers["range"])
+            req.path == "/api/download-file" && req.method == "GET" ->
+                torrentEngine.download(client, req.query["source"].orEmpty(), req.query["fileIndex"]?.toIntOrNull() ?: -1)
             req.path == "/api/stream/sintel-sample" && req.method == "GET" ->
                 torrentEngine.stream(client, TorrentEngine.SINTEL_MAGNET, 0, req.headers["range"])
             req.path == "/api/stop-stream" && req.method == "POST" -> {
@@ -205,6 +207,25 @@ class LocalHttpServer(private val context: Context) {
 
     companion object {
         private const val TAG = "LocalHttpServer"
+
+        fun sendDownloadHeaders(client: Socket, contentType: String, length: Long, fileName: String) {
+            val safeName = fileName.replace("\"", "_").replace("\\r", "_").replace("\\n", "_")
+            val header = StringBuilder("HTTP/1.1 200 OK\\r\\n")
+                .append("Content-Type: $contentType\\r\\n")
+                .append("Content-Length: $length\\r\\n")
+                .append("Content-Disposition: attachment; filename=\\\"$\\{safeName}\\\"\\r\\n")
+                .append("Cache-Control: no-store\\r\\n")
+                .append("Connection: close\\r\\n\\r\\n")
+            try {
+                val output = client.getOutputStream()
+                output.write(header.toString().toByteArray(StandardCharsets.ISO_8859_1))
+                output.flush()
+            } catch (_: SocketException) {
+                Log.d(TAG, "Download client disconnected before headers completed")
+            } catch (e: IOException) {
+                Log.w(TAG, "Unable to write download headers: $\\{e.message}")
+            }
+        }
 
         fun sendStreamHeaders(client: Socket, status: Int, contentType: String, length: Long, range: String?) {
             val reason = if (status == 206) "Partial Content" else "OK"
