@@ -27,6 +27,7 @@
     let activeExternalServerId = null;
     const playerTip = document.getElementById('player-tip');
     let currentPlaybackMode = 'torrent';
+    let activeTorrentDownload = null;
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
     const resultSourceFilter = document.getElementById('result-source-filter');
@@ -263,6 +264,7 @@
 
     function playFile(source, fileIndex, fileName) {
       hideModal(fileModal);
+      activeTorrentDownload = { source, fileIndex, fileName: fileName || 'video-file' };
       currentPlaybackMode = 'torrent';
       externalFrame.removeAttribute('src');
       externalFrame.classList.add('hidden');
@@ -277,6 +279,7 @@
       video.removeAttribute('src');
       video.load();
       video.src = `/api/stream-file?source=${encodeURIComponent(source)}&fileIndex=${encodeURIComponent(fileIndex)}`;
+      document.getElementById('torrent-download').classList.remove('hidden');
       showModal(playerModal);
       const playPromise = video.play();
       if (playPromise && typeof playPromise.catch === 'function') {
@@ -286,6 +289,8 @@
 
     async function closePlayer() {
       const closingMode = currentPlaybackMode;
+      activeTorrentDownload = null;
+      document.getElementById('torrent-download').classList.add('hidden');
       video.pause();
       video.removeAttribute('src');
       video.load();
@@ -427,6 +432,18 @@
     episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
     document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
+    document.getElementById('torrent-download').addEventListener('click', () => {
+      if (!activeTorrentDownload) return;
+      const { source, fileIndex, fileName } = activeTorrentDownload;
+      const url = '/api/download-file?source=' + encodeURIComponent(source) + '&fileIndex=' + encodeURIComponent(fileIndex);
+      if (window.Android && typeof window.Android.downloadTorrent === 'function') {
+        window.Android.downloadTorrent(url, fileName);
+        setStatus('Download started in the background.', 'success');
+      } else {
+        window.open(url, '_blank');
+        setStatus('Preparing download…', 'success');
+      }
+    });
     fileListContainer.addEventListener('click', event => {
       const button = event.target.closest('[data-file-index]');
       if (!button) return;
@@ -581,4 +598,10 @@
       document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
     });
 
+    const savedTheme = localStorage.getItem('mystery-vault-theme');
+    if (savedTheme === 'light') {
+      document.documentElement.dataset.theme = 'light';
+      themeToggle.innerHTML = '☾ <span>Dark mode</span>';
+      document.querySelector('meta[name="theme-color"]').content = '#f4f6fc';
+    }
     loadCatalog();
