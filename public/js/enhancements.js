@@ -59,6 +59,7 @@
    const observer=new MutationObserver(update);observer.observe(select,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
    select.addEventListener('change',update);update();
  }
+ addSelectPopover('vault-playback-speed','1×','speed');
  addSelectPopover('external-server-select','▤','server');
  addSelectPopover('player-season','S01','season');
  addSelectPopover('player-episode','E01','episode');
