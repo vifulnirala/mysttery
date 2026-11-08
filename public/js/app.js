@@ -197,7 +197,8 @@
         : isTmdb
           ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
           : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
-      return `<article class="card" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
+      const animationDelay = `${Math.min(index, 12) * 35}ms`;
+      return `<article class="card" style="--card-delay:${animationDelay}" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
         <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
           <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span></div>
         <div class="card-info"><div class="card-title">${title}</div><div class="meta-row"><span>${metaLeft}</span><span class="meta-tag">${metaRight}</span></div></div>
@@ -235,9 +236,9 @@
       tmdbController?.abort();
       searchController = wantsTorrents ? new AbortController() : null;
       tmdbController = wantsTmdb ? new AbortController() : null;
-      searchSection.classList.remove('hidden');
+      searchSection.classList.add('hidden');
       loadMoreButton.classList.add('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching torrent sources and TMDB…</div>';
+      torrentGrid.innerHTML = '';
       searchResults = [];
       tmdbResults = [];
       unifiedResults = [];
@@ -274,18 +275,16 @@
       ];
       populateQualityFilter();
       applyResultFilters();
+      searchSection.classList.remove('hidden');
 
       if (!unifiedResults.length) {
         torrentGrid.innerHTML = `<div class="empty">${escapeHtml(errors[0] || 'No matching results found.')}</div>`;
       }
-      const summary = [
-        wantsTorrents ? `${searchResults.length} torrent${searchResults.length === 1 ? '' : 's'}` : null,
-        wantsTmdb ? `${tmdbResults.length} TMDB title${tmdbResults.length === 1 ? '' : 's'}` : null
-      ].filter(Boolean).join(' and ');
-      setStatus(errors.length
-        ? `Search partially completed: ${errors.join(' · ')}`
-        : `Search complete for “${query}”: ${summary}. Upcoming movies are excluded from TMDB results.`,
-        errors.length ? 'error' : 'success');
+      if (errors.length) {
+        setStatus(`Some results could not be loaded: ${errors.join(' · ')}`, 'error');
+      } else {
+        setStatus('');
+      }
     }
 
     function qualityKey(item) {
@@ -384,7 +383,7 @@
       externalServerStatus.textContent = '';
       activeExternalPayload = null;
       video.classList.remove('hidden');
-      playerTip.textContent = 'Tip: use a smaller 720p release with healthy seed availability for faster starts.';
+      playerTip.textContent = '';
       nowPlaying.textContent = fileName ? `Streaming · ${fileName}` : 'Now playing';
       video.pause();
       video.removeAttribute('src');
