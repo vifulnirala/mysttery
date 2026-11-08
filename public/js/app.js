@@ -535,9 +535,7 @@
       seasons.forEach(season => {
         const option = document.createElement('option');
         option.value = String(season.seasonNumber);
-        option.textContent = season.seasonNumber === 0
-          ? `Specials · ${season.name || 'Specials'}`
-          : `Season ${season.seasonNumber} · ${season.name || `Season ${season.seasonNumber}`}`;
+        option.textContent = season.seasonNumber === 0 ? 'Specials' : `S${String(season.seasonNumber).padStart(2, '0')}`;
         playerSeasonInput.append(option);
       });
       if (seasons.length) playerSeasonInput.value = String(payload.season ?? seasons[0].seasonNumber);
@@ -779,7 +777,7 @@
         seasons.forEach(season => {
           const option = document.createElement('option');
           option.value = season.seasonNumber;
-          option.textContent = `${season.name || `Season ${season.seasonNumber}`} · ${season.episodeCount} episodes`;
+          option.textContent = `${season.seasonNumber === 0 ? 'Specials' : `S${String(season.seasonNumber).padStart(2, '0')}`} · ${season.episodeCount} episodes`;
           select.append(option);
         });
         const episodes = document.createElement('div');
