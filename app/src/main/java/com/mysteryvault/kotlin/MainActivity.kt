@@ -89,9 +89,13 @@ class MainActivity : Activity() {
                     fileChooserCallback?.onReceiveValue(null)
                     fileChooserCallback = filePathCallback
                     return try {
-                        val intent = fileChooserParams.createIntent().apply {
-                            type = "text/csv"
-                            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/csv", "text/plain", "application/csv"))
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            // Do not MIME-filter the Android DocumentsUI. Many file
+                            // providers report .csv files as application/octet-stream
+                            // or another generic MIME type, which makes valid CSV files
+                            // appear greyed out. The web layer validates the .csv extension.
+                            type = "*/*"
                         }
                         startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
                         true
