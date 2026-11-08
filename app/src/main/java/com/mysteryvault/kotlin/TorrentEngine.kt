@@ -3,6 +3,7 @@ package com.mysteryvault.kotlin
 import android.content.Context
 import com.frostwire.jlibtorrent.Priority
 import com.frostwire.jlibtorrent.SessionManager
+import com.frostwire.jlibtorrent.SettingsPack
 import com.frostwire.jlibtorrent.TorrentHandle
 import com.frostwire.jlibtorrent.TorrentInfo
 import com.frostwire.jlibtorrent.TorrentFlags
@@ -23,7 +24,17 @@ class TorrentEngine(context: Context) {
     private val active = ConcurrentHashMap<String, ActiveTorrent>()
 
     fun start() {
-        if (!session.isRunning) session.start()
+        if (!session.isRunning) {
+            session.start()
+            val settings = SettingsPack()
+            settings.setEnableDht(true)
+            settings.setEnableLsd(true)
+            settings.connectionsLimit(250)
+            settings.activeDownloads(1)
+            settings.activeSeeds(1)
+            settings.activeTrackerLimit(100)
+            session.applySettings(settings)
+        }
     }
 
     @Synchronized
@@ -69,12 +80,7 @@ class TorrentEngine(context: Context) {
         val data = getJson(url)
         if (data.optString("status") != "ok") return emptyList()
         val movies = data.optJSONObject("data")?.optJSONArray("movies") ?: return emptyList()
-        val trackers = listOf(
-            "udp://tracker.opentrackr.org:1337/announce",
-            "udp://open.stealth.si:80/announce",
-            "udp://tracker.torrent.eu.org:451/announce",
-            "udp://tracker.openbittorrent.com:6969/announce"
-        )
+        val trackers = FAST_TRACKERS
         val out = mutableListOf<JSONObject>()
         for (i in 0 until movies.length()) {
             val movie = movies.getJSONObject(i)
@@ -174,9 +180,9 @@ class TorrentEngine(context: Context) {
         // Do not enqueue deadlines for the entire HTTP range up front.
         // A browser can request a very large range; prioritize a small
         // playback window and advance deadlines as each piece is consumed.
-        val initialWindowEnd = minOf(lastPiece, firstPiece + 8)
+        val initialWindowEnd = minOf(lastPiece, firstPiece + 12)
         for (piece in firstPiece..initialWindowEnd) {
-            torrent.handle.setPieceDeadline(piece, 15_000)
+            torrent.handle.setPieceDeadline(piece, 12_000)
         }
 
         val contentType = when (file.extension.lowercase()) {
@@ -200,7 +206,7 @@ class TorrentEngine(context: Context) {
             val absoluteOffset = fs.fileOffset(fileIndex) + cursor
             val piece = (absoluteOffset / pieceLength).toInt()
             torrent.handle.setPieceDeadline(piece, 15_000)
-            if (piece + 8 <= lastPiece) torrent.handle.setPieceDeadline(piece + 8, 30_000)
+            if (piece + 12 <= lastPiece) torrent.handle.setPieceDeadline(piece + 12, 25_000)
 
             val pieceDeadline = System.currentTimeMillis() + 90_000
             while (!torrent.handle.havePiece(piece)) {
@@ -231,17 +237,82 @@ class TorrentEngine(context: Context) {
         }
     }
 
+    fun download(client: java.net.Socket, source: String, fileIndex: Int) {
+        require(source.isNotBlank() && fileIndex >= 0) { "Missing source or fileIndex parameter" }
+        val torrent = ensureTorrent(source)
+        val fs = torrent.info.files()
+        require(fileIndex < fs.numFiles()) { "File index not found in torrent" }
+
+        val fileSize = fs.fileSize(fileIndex)
+        val file = File(fs.filePath(fileIndex, torrent.handle.savePath()))
+        val pieceLength = fs.pieceLength().toLong()
+        val firstPiece = (fs.fileOffset(fileIndex) / pieceLength).toInt()
+        val lastPiece = ((fs.fileOffset(fileIndex) + fileSize - 1) / pieceLength).toInt()
+
+        torrent.handle.filePriority(fileIndex, Priority.SEVEN)
+        for (piece in firstPiece..minOf(lastPiece, firstPiece + 12)) {
+            torrent.handle.setPieceDeadline(piece, 12_000)
+        }
+
+        val contentType = when (file.extension.lowercase()) {
+            "webm" -> "video/webm"
+            "mkv" -> "video/x-matroska"
+            else -> "video/mp4"
+        }
+        LocalHttpServer.sendDownloadHeaders(client, contentType, fileSize, file.name)
+
+        val output = client.getOutputStream()
+        val buffer = ByteArray(128 * 1024)
+        var cursor = 0L
+
+        while (cursor < fileSize) {
+            val absoluteOffset = fs.fileOffset(fileIndex) + cursor
+            val piece = (absoluteOffset / pieceLength).toInt()
+            torrent.handle.setPieceDeadline(piece, 12_000)
+            if (piece + 12 <= lastPiece) torrent.handle.setPieceDeadline(piece + 12, 25_000)
+
+            val pieceDeadline = System.currentTimeMillis() + 120_000
+            while (!torrent.handle.havePiece(piece)) {
+                if (client.isClosed || client.isOutputShutdown) return
+                if (System.currentTimeMillis() > pieceDeadline) {
+                    throw IOException("Timed out waiting for torrent piece $piece. Check seed availability.")
+                }
+                Thread.sleep(150)
+            }
+
+            val pieceFileStart = maxOf(0L, piece * pieceLength - fs.fileOffset(fileIndex))
+            val pieceFileEnd = minOf(fileSize - 1, pieceFileStart + pieceLength - 1)
+            val chunkEnd = pieceFileEnd
+
+            RandomAccessFile(file, "r").use { raf ->
+                raf.seek(cursor)
+                var remaining = chunkEnd - cursor + 1
+                while (remaining > 0) {
+                    val read = raf.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                    if (read <= 0) throw IOException("Torrent piece $piece is marked complete but its data is not readable yet")
+                    output.write(buffer, 0, read)
+                    remaining -= read
+                    cursor += read
+                }
+            }
+            output.flush()
+        }
+    }
+
     private fun ensureTorrent(source: String): ActiveTorrent {
         active[source]?.let { if (it.handle.isValid()) return it }
         stopAll()
 
         val metadata = if (source.startsWith("magnet:?", true)) {
-            session.fetchMagnet(source, 45, temp) ?: throw IOException("Could not resolve torrent metadata")
+            session.fetchMagnet(withFastTrackers(source), 45, temp) ?: throw IOException("Could not resolve torrent metadata")
         } else {
             downloadBytes(source)
         }
 
         val info = TorrentInfo.bdecode(metadata)
+        FAST_TRACKERS.forEach { tracker ->
+            try { info.addTracker(tracker, 0) } catch (_: Throwable) {}
+        }
         val hash = info.infoHashV1()?.toHex() ?: info.infoHashV2()?.toHex() ?: System.currentTimeMillis().toString()
         val saveDir = File(root, hash).apply { mkdirs() }
         // Streaming needs pieces in playback order. The default download()
@@ -341,7 +412,30 @@ class TorrentEngine(context: Context) {
         val saveDir: File
     )
 
+    private fun withFastTrackers(source: String): String {
+        if (!source.startsWith("magnet:?", true)) return source
+        val existing = source.lowercase()
+        val additions = FAST_TRACKERS.filter { tracker ->
+            !existing.contains(tracker.lowercase()) &&
+                !existing.contains(URLEncoder.encode(tracker, "UTF-8").lowercase())
+        }
+        return source + additions.joinToString("") { "&tr=" + URLEncoder.encode(it, "UTF-8") }
+    }
+
     companion object {
+        private val FAST_TRACKERS = listOf(
+            "udp://tracker.opentrackr.org:1337/announce",
+            "udp://tracker.torrent.eu.org:451/announce",
+            "udp://exodus.desync.com:6969/announce",
+            "udp://tracker.qu.ax:6969/announce",
+            "udp://tracker.dler.org:6969/announce",
+            "udp://tracker.fnix.net:6969/announce",
+            "udp://tracker.theoks.net:6969/announce",
+            "udp://explodie.org:6969/announce",
+            "udp://tracker.filemail.com:6969/announce",
+            "http://tracker.renfei.net:8080/announce"
+        )
+
         const val SINTEL_MAGNET = "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fsintel.torrent"
     }
 }
