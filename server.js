@@ -991,6 +991,39 @@ app.get('/api/discover', async (req, res) => {
   } catch (error) { console.error('TMDB genre discovery error:', error.message); res.status(502).json({ error: 'Could not load this genre from TMDB. Try again in a moment.' }); }
 });
 
+
+app.get('/api/trending', async (_req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  try {
+    const response = await fetchWithLogarithmicBackoff('https://api.themoviedb.org/3/trending/all/week?language=en-US', { headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' }, timeoutMs: 10000 }, 'TMDB trending');
+    if (!response.ok) throw new Error(`TMDB trending failed: HTTP ${response.status}`);
+    const data = await response.json(), today = new Date().toISOString().slice(0,10);
+    const results = (Array.isArray(data.results)?data.results:[]).filter(item => ['movie','tv'].includes(item.media_type) && (item.media_type!=='movie'||!item.release_date||item.release_date<=today)).slice(0,20).map(item=>({
+      tmdbId:String(item.id),mediaType:item.media_type,title:String(item.media_type==='movie'?(item.title||item.original_title||'Untitled'):(item.name||item.original_name||'Untitled')),
+      year:String((item.media_type==='movie'?item.release_date:item.first_air_date)||'').slice(0,4),overview:String(item.overview||''),
+      posterUrl:item.poster_path?`https://image.tmdb.org/t/p/w185${item.poster_path}`:null
+    }));
+    res.json({results});
+  } catch(error){console.error('TMDB trending error:',error.message);res.status(502).json({error:'Could not load trending titles.'});}
+});
+app.get('/api/recommendations', async (req, res) => {
+  const mediaType=String(req.query.mediaType||''), id=String(req.query.id||'');
+  if(!['movie','tv'].includes(mediaType)||!/^\d{1,12}$/.test(id))return res.status(400).json({error:'Invalid recommendation seed.'});
+  if(!TMDB_API_READ_ACCESS_TOKEN)return res.status(503).json({error:'TMDB is not configured.'});
+  try{
+    const url=`https://api.themoviedb.org/3/${mediaType}/${id}/recommendations?language=en-US&page=1`;
+    const response=await fetchWithLogarithmicBackoff(url,{headers:{Authorization:`Bearer ${TMDB_API_READ_ACCESS_TOKEN}`,accept:'application/json'},timeoutMs:10000},'TMDB recommendations');
+    if(!response.ok)throw new Error(`TMDB recommendations failed: HTTP ${response.status}`);
+    const data=await response.json(),today=new Date().toISOString().slice(0,10);
+    const results=(Array.isArray(data.results)?data.results:[]).filter(item=>mediaType!=='movie'||!item.release_date||item.release_date<=today).slice(0,16).map(item=>({
+      tmdbId:String(item.id),mediaType,title:String(mediaType==='movie'?(item.title||item.original_title||'Untitled'):(item.name||item.original_name||'Untitled')),
+      year:String((mediaType==='movie'?item.release_date:item.first_air_date)||'').slice(0,4),overview:String(item.overview||''),
+      posterUrl:item.poster_path?`https://image.tmdb.org/t/p/w185${item.poster_path}`:null
+    }));
+    res.json({results});
+  }catch(error){console.error('TMDB recommendations error:',error.message);res.status(502).json({error:'Could not load recommendations.'});}
+});
+
 // Fetch the season list for a TMDB TV series.
 app.get('/api/tv/:id/seasons', async (req, res) => {
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
