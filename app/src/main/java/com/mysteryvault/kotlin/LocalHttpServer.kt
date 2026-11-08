@@ -213,7 +213,7 @@ class LocalHttpServer(private val context: Context) {
             val header = StringBuilder("HTTP/1.1 200 OK\r\n")
                 .append("Content-Type: $contentType\r\n")
                 .append("Content-Length: $length\r\n")
-                .append("Content-Disposition: attachment; filename=\\\"${safeName}\\\"\r\n")
+                .append("Content-Disposition: attachment; filename=\"${safeName}\"\r\n")
                 .append("Cache-Control: no-store\r\n")
                 .append("Connection: close\r\n\r\n")
             try {
