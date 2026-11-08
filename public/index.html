@@ -11,7 +11,7 @@
 <body>
   <main class="shell">
     <nav class="topbar" aria-label="Main navigation">
-      <button class="menu-btn" id="settings-menu-btn" type="button" aria-label="Open server settings" aria-expanded="false">☰</button>
+      <button class="menu-btn" id="settings-menu-btn" type="button" aria-label="Open server settings" aria-expanded="false"><span aria-hidden="true">☰</span></button>
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">🐾</div>
         <div><div class="brand-name">MYSTERY VAULT</div><div class="brand-caption">Blue-hour mysteries & midnight stories</div></div>
@@ -55,17 +55,22 @@
       <div class="load-more-wrap"><button class="btn btn-secondary hidden" id="load-more" type="button">Load more results ↓</button></div>
     </section>
 
-    <section class="section" aria-labelledby="catalog-title">
+    <section class="section" id="curated-section" aria-labelledby="catalog-title">
       <div class="section-head">
         <div><div class="section-kicker">📖 Midnight shelf</div><h2 id="catalog-title">Things worth getting lost in</h2><p class="section-note">Mysteries, monsters, midnight stories, and birthday-night picks.</p></div>
       </div>
-      <div class="grid" id="catalog-grid"></div>
+      <div class="grid feed-row" id="catalog-grid"></div>
     </section>
-    <section class="section" id="trending-section"><div class="section-head"><div><div class="section-kicker">↗ Popular right now</div><h2>Trending this week</h2></div></div><div class="grid" id="trending-grid"></div></section>
-    <section class="section" id="recommendations-section"><div class="section-head"><div><div class="section-kicker">✦ Picked from your watchlist</div><h2>Recommended for you</h2></div></div><div class="grid" id="recommendations-grid"></div></section>
-    <section class="section" id="continue-section"><div class="section-head"><div><div class="section-kicker">▶ Pick up where you left off</div><h2>Continue watching</h2></div></div><div class="grid" id="continue-grid"></div></section>
-    <section class="section" id="watchlist-section"><div class="section-head"><div><div class="section-kicker">♡ Saved for later</div><h2>My watchlist</h2></div></div><div class="grid" id="watchlist-grid"></div></section>
-    <section class="section" id="discover-section"><div class="section-head"><div><div class="section-kicker">✦ Explore the vault</div><h2>Discover</h2></div></div><div class="vault-discovery-chips"><button class="vault-chip" data-discover-genre="9648" data-genre-name="Mystery">Mystery 🔎</button><button class="vault-chip" data-discover-genre="10749" data-genre-name="Romance">Romance ♡</button><button class="vault-chip" data-discover-genre="27" data-genre-name="Horror">Spooky 👻</button><button class="vault-chip" data-discover-genre="16" data-genre-name="Animation">Animation 🐾</button><button class="vault-chip" data-discover-genre="35" data-genre-name="Comedy">Comedy ✨</button></div></section>
+    <section class="section" id="trending-section"><div class="section-head"><div><div class="section-kicker">↗ Popular right now</div><h2>Trending this week</h2></div></div><div class="grid feed-row" id="trending-grid"></div></section>
+    <section class="section genre-feed-section" id="genre-mystery-section" data-genre-id="9648"><div class="section-head"><div><div class="section-kicker">🔎 Mystery</div><h2>Mystery</h2></div></div><div class="grid feed-row" id="genre-mystery-grid"><div class="empty">Loading mystery picks…</div></div></section>
+    <section class="section genre-feed-section" id="genre-romance-section" data-genre-id="10749"><div class="section-head"><div><div class="section-kicker">♡ Romance</div><h2>Romance</h2></div></div><div class="grid feed-row" id="genre-romance-grid"><div class="empty">Loading romance picks…</div></div></section>
+    <section class="section genre-feed-section" id="genre-horror-section" data-genre-id="27"><div class="section-head"><div><div class="section-kicker">👻 Horror</div><h2>Horror</h2></div></div><div class="grid feed-row" id="genre-horror-grid"><div class="empty">Loading horror picks…</div></div></section>
+    <section class="section genre-feed-section" id="genre-animation-section" data-genre-id="16"><div class="section-head"><div><div class="section-kicker">🐾 Animation</div><h2>Animation</h2></div></div><div class="grid feed-row" id="genre-animation-grid"><div class="empty">Loading animation picks…</div></div></section>
+    <section class="section genre-feed-section" id="genre-comedy-section" data-genre-id="35"><div class="section-head"><div><div class="section-kicker">✨ Comedy</div><h2>Comedy</h2></div></div><div class="grid feed-row" id="genre-comedy-grid"><div class="empty">Loading comedy picks…</div></div></section>
+    <section class="section" id="recommendations-section"><div class="section-head"><div><div class="section-kicker">✦ Picked from your watchlist</div><h2>Recommended for you</h2></div></div><div class="grid" id="recommendations-grid" class="feed-row"></div></section>
+    <section class="section" id="continue-section"><div class="section-head"><div><div class="section-kicker">▶ Pick up where you left off</div><h2>Continue watching</h2></div></div><div class="grid" id="continue-grid" class="feed-row"></div></section>
+    <section class="section" id="watchlist-section"><div class="section-head"><div><div class="section-kicker">♡ Saved for later</div><h2>My watchlist</h2></div></div><div class="grid" id="watchlist-grid" class="feed-row"></div></section>
+    
 
   </main>
 
