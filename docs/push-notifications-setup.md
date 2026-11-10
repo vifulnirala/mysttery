@@ -6,13 +6,14 @@ The Android client uses Firebase Anonymous Authentication for per-installation i
 
 - The Worker accepts only HTTPS POST requests to seven explicit /v1 routes. There is no admin route, debug route, arbitrary database query, or browser-facing management endpoint.
 - Every request must carry a Firebase ID token. The Worker verifies its RS256 signature against Google's published Firebase Secure Token keys and checks the Firebase project audience, issuer, subject, issue time and auth time. The UID is taken only from the verified token, never from request JSON.
-- The service-account JSON and AES encryption key are stored only as Cloudflare Worker secrets. They are never placed in the repository, Android APK, frontend JavaScript, or GitHub Actions. The Android app receives only a Firebase client ID token and its FCM registration token.
+- The service-account JSON and AES encryption key are stored only as Cloudflare Worker secrets. They are never placed in the repository, Android APK, frontend JavaScript, or GitHub Actions. The Android app sends its Firebase ID token and FCM registration token to the Worker over HTTPS; neither is a server credential.
 - The service account should have only the Firebase Cloud Messaging permission cloudmessaging.messages.create, preferably through a custom IAM role. Do not grant Owner, Editor, Firebase Admin, or service-agent roles.
 - FCM registration tokens are AES-256-GCM encrypted before they are stored in D1 and are never returned to a client. The encryption key exists only as a Cloudflare Worker secret. API responses do not include credentials or raw provider errors.
 - Pairing codes are 12 random hexadecimal characters, SHA-256 hashed before storage, expire after 10 minutes, and are consumed with a conditional single-use database update. Pairing attempts are rate-limited per authenticated UID and per hashed Cloudflare client IP; raw IP addresses are not persisted.
 - The Android WebView uses an origin-restricted WebMessageListener. Only the exact loopback app-shell origin and main frame can invoke native operations. The old globally exposed addJavascriptInterface bridges are removed.
 - Notification and unlink operations check that the caller is a member of the requested link. SQL statements are parameterized.
 - Responses are marked no-store; errors are sanitized; request bodies are size-limited.
+- Anonymous Authentication proves a Firebase installation identity, not that the caller is an untampered official app. UID and hashed-IP limits constrain abuse; before public distribution, add Firebase App Check with Play Integrity and enforce its token verification in the Worker.
 - Firebase Firestore rules are no longer involved because this implementation does not use Firestore.
 
 No software change can prove the absence of every possible backdoor. Review the Worker source and deployed Worker version, keep Cloudflare account MFA enabled, restrict account access, and rotate the service-account key if it is ever exposed. If the AES token-encryption key is rotated, existing encrypted FCM tokens must be cleared and devices must reopen the app to register fresh tokens.
