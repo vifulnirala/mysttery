@@ -61,7 +61,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         webView = WebView(this).apply {
-            setBackgroundColor(Color.rgb(6, 9, 20))
+            setBackgroundColor(SPLASH_BACKGROUND_COLOR)
             setOnApplyWindowInsetsListener { view, insets ->
                 val topInset = if (fullscreenView == null) {
                     if (Build.VERSION.SDK_INT >= 30) {
@@ -251,10 +251,12 @@ class MainActivity : Activity() {
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
+            // Paint the transparent parts of each PNG with the exact splash background.
+            canvas.drawColor(SPLASH_BACKGROUND_COLOR)
             val bitmap = frames[frame]
             source.set(0, 0, bitmap.width, bitmap.height)
-            // Roughly 10% of the previous animation's displayed dimensions.
-            val scale = minOf(width * 0.082f / bitmap.width, height * 0.048f / bitmap.height)
+            // 2.5x the previous displayed size, preserving the frame's aspect ratio.
+            val scale = minOf(width * 0.205f / bitmap.width, height * 0.12f / bitmap.height)
             val drawWidth = bitmap.width * scale
             val drawHeight = bitmap.height * scale
             val left = (width - drawWidth) / 2f
@@ -453,6 +455,7 @@ class MainActivity : Activity() {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
         private const val BACK_EXIT_WINDOW_MS = 2000L
         private const val SPLASH_MIN_DURATION_MS = 3500L
+        private val SPLASH_BACKGROUND_COLOR = Color.rgb(6, 9, 20)
         private const val SPLASH_FRAME_COUNT = 4
         private const val SPLASH_FRAME_INTERVAL_MS = 100L
     }
