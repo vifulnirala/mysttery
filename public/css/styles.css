@@ -1187,3 +1187,6 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
   .external-episode-control{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto!important;gap:6px!important;padding:8px!important}
   .external-episode-control .player-sandbox-toggle{padding:4px 6px!important;font-size:.72rem!important}
 }
+
+/* Preserve the hidden state for movie playback; only series need episode selectors. */
+.external-episode-control.hidden{display:none!important}
