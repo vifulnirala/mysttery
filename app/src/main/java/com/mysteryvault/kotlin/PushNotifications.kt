@@ -50,7 +50,10 @@ object PushNotifications {
     }
 
     fun call(context: Context, functionName: String, data: Map<String, Any> = emptyMap()): Task<Any> {
-        return ensureRegistered(context).continueWithTask {
+        return ensureRegistered(context).continueWithTask { registration ->
+            if (!registration.isSuccessful) {
+                throw registration.exception ?: IllegalStateException("This installation could not register with Firebase.")
+            }
             FirebaseFunctions.getInstance(FUNCTIONS_REGION).getHttpsCallable(functionName).call(data)
         }.continueWith { result ->
             if (!result.isSuccessful) throw result.exception ?: IllegalStateException("Firebase request failed.")
