@@ -602,7 +602,9 @@
     const settingsDrawer = document.getElementById('settings-drawer');
     const settingsBackdrop = document.getElementById('settings-backdrop');
     const serverCsvInput = document.getElementById('server-csv-input');
+    const serverCsvImportButton = document.getElementById('server-csv-import-button');
     const serverCsvStatus = document.getElementById('server-csv-status');
+    serverCsvImportButton?.addEventListener('click', () => serverCsvInput?.click());
 
     function closeSettingsMenu() {
       settingsDrawer.classList.remove('open');
