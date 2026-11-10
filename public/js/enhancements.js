@@ -180,7 +180,6 @@
    select.addEventListener('change',update);update();
  }
  addSelectPopover('vault-playback-speed','1×','speed');
- addSelectPopover('external-server-select','▤','server');
  addSelectPopover('player-season','S01','season');
  addSelectPopover('player-episode','E01','episode');
  document.addEventListener('click',event=>{
