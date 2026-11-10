@@ -5,6 +5,12 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -33,6 +39,12 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
+    private lateinit var rootContainer: FrameLayout
+    private var splashView: ScoobySplashView? = null
+    private val splashHandler = Handler(Looper.getMainLooper())
+    private val splashStartedAt = android.os.SystemClock.elapsedRealtime()
+    private var pageLoaded = false
+    private val hideSplashRunnable = Runnable { maybeHideSplash() }
     private var server: LocalHttpServer? = null
     private var fullscreenView: View? = null
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
@@ -62,6 +74,14 @@ class MainActivity : Activity() {
                 insets
             }
             webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+                    if (url.startsWith("http://127.0.0.1:")) {
+                        pageLoaded = true
+                        scheduleSplashDismissal()
+                    }
+                }
+
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                     val host = request.url.host?.lowercase(Locale.ROOT) ?: return true
                     // Block known ad-network navigations inside the player iframe too,
@@ -147,7 +167,18 @@ class MainActivity : Activity() {
             settings.setSupportZoom(false)
             addJavascriptInterface(DownloadBridge(), "Android")
         }
-        setContentView(webView)
+        rootContainer = FrameLayout(this).apply {
+            addView(webView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
+        }
+        splashView = ScoobySplashView(this)
+        rootContainer.addView(splashView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(rootContainer)
 
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
@@ -169,6 +200,74 @@ class MainActivity : Activity() {
                 ) }
             }
         }.start()
+    }
+
+
+    private fun scheduleSplashDismissal() {
+        val remaining = (SPLASH_MIN_DURATION_MS -
+            (android.os.SystemClock.elapsedRealtime() - splashStartedAt)).coerceAtLeast(0L)
+        splashHandler.removeCallbacks(hideSplashRunnable)
+        splashHandler.postDelayed(hideSplashRunnable, remaining)
+    }
+
+    private fun maybeHideSplash() {
+        if (!pageLoaded) return
+        val elapsed = android.os.SystemClock.elapsedRealtime() - splashStartedAt
+        if (elapsed < SPLASH_MIN_DURATION_MS) {
+            splashHandler.postDelayed(hideSplashRunnable, SPLASH_MIN_DURATION_MS - elapsed)
+            return
+        }
+        val overlay = splashView ?: return
+        rootContainer.removeView(overlay)
+        overlay.stop()
+        splashView = null
+    }
+
+    private inner class ScoobySplashView(context: android.content.Context) : View(context) {
+        private val sprite: Bitmap = assets.open("scooby_running.png").use {
+            BitmapFactory.decodeStream(it)
+        } ?: throw IllegalStateException("Could not decode Scooby sprite sheet")
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        private val source = Rect()
+        private val destination = RectF()
+        private val frameWidth = sprite.width / SPRITE_COLUMNS
+        private val frameHeight = sprite.height / SPRITE_ROWS
+        private var frame = 0
+        private var running = true
+        private val frameTicker = object : Runnable {
+            override fun run() {
+                if (!running) return
+                frame = (frame + 1) % SPRITE_FRAME_COUNT
+                invalidate()
+                splashHandler.postDelayed(this, SPRITE_FRAME_INTERVAL_MS)
+            }
+        }
+
+        init {
+            setBackgroundColor(Color.rgb(6, 9, 20))
+            splashHandler.postDelayed(frameTicker, SPRITE_FRAME_INTERVAL_MS)
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val column = frame % SPRITE_COLUMNS
+            val row = frame / SPRITE_COLUMNS
+            source.set(column * frameWidth, row * frameHeight,
+                (column + 1) * frameWidth, (row + 1) * frameHeight)
+            val scale = minOf(width * 0.82f / frameWidth, height * 0.48f / frameHeight)
+            val drawWidth = frameWidth * scale
+            val drawHeight = frameHeight * scale
+            val left = (width - drawWidth) / 2f
+            val top = (height - drawHeight) / 2f
+            destination.set(left, top, left + drawWidth, top + drawHeight)
+            canvas.drawBitmap(sprite, source, destination, paint)
+        }
+
+        fun stop() {
+            running = false
+            splashHandler.removeCallbacks(frameTicker)
+            sprite.recycle()
+        }
     }
 
     private fun isKnownAdvertisingHost(host: String): Boolean {
@@ -321,6 +420,9 @@ class MainActivity : Activity() {
 
         if (backExitPending) {
             backExitHandler.removeCallbacks(clearBackExitPending)
+        splashHandler.removeCallbacks(hideSplashRunnable)
+        splashView?.stop()
+        splashView = null
             backExitPending = false
             finish()
             return
@@ -350,6 +452,11 @@ class MainActivity : Activity() {
     companion object {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
         private const val BACK_EXIT_WINDOW_MS = 2000L
+        private const val SPLASH_MIN_DURATION_MS = 3500L
+        private const val SPRITE_COLUMNS = 4
+        private const val SPRITE_ROWS = 2
+        private const val SPRITE_FRAME_COUNT = SPRITE_COLUMNS * SPRITE_ROWS
+        private const val SPRITE_FRAME_INTERVAL_MS = 100L
     }
 
 }
