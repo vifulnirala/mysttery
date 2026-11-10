@@ -1265,3 +1265,12 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
   #external-player-controls .player-sandbox-toggle { padding: 5px; font-size: .62rem; }
   #external-player-controls #external-server-trigger { width: 36px; min-width: 36px; height: 36px; }
 }
+
+#external-player-controls { position: relative; z-index: 5; pointer-events: auto; }
+#external-player-controls .player-sandbox-toggle,
+#external-player-controls .player-sandbox-toggle input,
+#external-player-controls .vault-server-trigger { position: relative; z-index: 6; pointer-events: auto; }
+#external-player-controls:has(.external-episode-control.hidden) {
+  grid-template-columns: auto auto;
+  justify-content: start;
+}
