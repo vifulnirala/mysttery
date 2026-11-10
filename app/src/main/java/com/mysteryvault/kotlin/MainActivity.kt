@@ -420,9 +420,6 @@ class MainActivity : Activity() {
 
         if (backExitPending) {
             backExitHandler.removeCallbacks(clearBackExitPending)
-        splashHandler.removeCallbacks(hideSplashRunnable)
-        splashView?.stop()
-        splashView = null
             backExitPending = false
             finish()
             return
@@ -443,6 +440,9 @@ class MainActivity : Activity() {
             onBackInvokedDispatcher.unregisterOnBackInvokedCallback(backCallback)
         }
         backExitHandler.removeCallbacks(clearBackExitPending)
+        splashHandler.removeCallbacks(hideSplashRunnable)
+        splashView?.stop()
+        splashView = null
         exitFullscreen()
         server?.stop()
         server = null
