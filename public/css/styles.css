@@ -1540,3 +1540,27 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
   }
   #external-player-controls .player-sandbox-toggle .sandbox-icon { font-size: .82rem; }
 }
+
+
+/* Restore native server select interaction; an older popover rule hid/disabled it. */
+#external-player-controls #external-server-select {
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: 42px !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  max-width: 100% !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  z-index: 2 !important;
+  cursor: pointer !important;
+  clip: auto !important;
+  clip-path: none !important;
+  transform: none !important;
+}
+#external-player-controls > .external-server-control {
+  pointer-events: auto !important;
+}
