@@ -611,7 +611,7 @@
       }
     });
 
-    document.getElementById('player-episode-apply').addEventListener('click', async () => {
+    async function playSelectedExternalEpisode() {
       if (!activeExternalPayload || activeExternalPayload.mediaType !== 'tv') return;
       const season = Number(playerSeasonInput.value);
       const episode = Number(playerEpisodeInput.value);
@@ -622,11 +622,16 @@
       const seasonName = activeTvMetadata?.seasons?.find(item => Number(item.seasonNumber) === season)?.name || `Season ${season}`;
       const episodeName = activeTvMetadata?.episodes?.find(item => Number(item.episodeNumber) === episode)?.name || `Episode ${episode}`;
       playerEpisodeStatus.textContent = 'Loading selected episode…';
-      await playExternalPlayer({ ...activeExternalPayload, season, episode },
-        activeExternalTitle.split(' · S')[0] + ' · ' + seasonName + ' · E' + String(episode).padStart(2, '0') + ' ' + episodeName,
-        activeExternalServerId || '');
-      playerEpisodeStatus.textContent = 'Selected ' + seasonName + ' · E' + String(episode).padStart(2, '0') + ' ' + episodeName + '.';
-    });
+      try {
+        await playExternalPlayer({ ...activeExternalPayload, season, episode },
+          activeExternalTitle.split(' · S')[0] + ' · ' + seasonName + ' · E' + String(episode).padStart(2, '0') + ' ' + episodeName,
+          activeExternalServerId || '');
+      } catch (error) {
+        playerEpisodeStatus.textContent = error.message || 'Could not open the selected episode.';
+      }
+    }
+
+    playerEpisodeInput.addEventListener('change', playSelectedExternalEpisode);
 
     const settingsMenuBtn = document.getElementById('settings-menu-btn');
     const settingsMenuClose = document.getElementById('settings-menu-close');
