@@ -521,6 +521,11 @@
         externalEpisodeControl.classList.toggle('hidden', !isTv);
         if (isTv) populateTvPlayerSelectors(payload, activeTvMetadata);
         showModal(playerModal);
+        // Show the external-player controls immediately. Do not wait for the
+        // provider iframe's load event: sandboxed providers can fail/deny
+        // their frame load while the controls must still remain usable.
+        externalPlayerControls.classList.remove('hidden');
+        externalServerControl.classList.toggle('hidden', allExternalProviders().length < 2);
         externalFrame.src = result.url;
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
