@@ -16,7 +16,7 @@ This feature is independent of the Render-hosted web application. The Android ap
 
 Cloud Functions deployment requires the Firebase **Blaze** billing plan. Functions use the default Google-managed service identity; do not create or commit a service-account JSON key.
 
-Install Node.js 20 and the Firebase CLI, then run from the repository root:
+Install Node.js 22 and the Firebase CLI, then run from the repository root:
 
 ```bash
 npm install -g firebase-tools
