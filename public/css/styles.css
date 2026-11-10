@@ -1564,3 +1564,12 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
 #external-player-controls > .external-server-control {
   pointer-events: auto !important;
 }
+
+
+/* Private device pairing panel, separate from the player UI. */
+.push-devices-panel{margin:22px 0;padding:16px;border:1px solid var(--border,rgba(148,163,184,.2));border-radius:16px;background:rgba(100,116,139,.06)}
+.push-devices-panel h3{margin:0 0 6px;font-size:1rem}.push-actions,.push-pairing-block{display:grid;gap:9px;margin-top:12px}.push-actions{grid-template-columns:1fr 1fr}
+.push-code-output{display:grid;justify-items:center;gap:10px;padding:14px;border-radius:12px;background:rgba(100,116,139,.1)}.push-code-output strong{font-size:1.5rem;letter-spacing:.18em}
+.push-code-output img{width:180px;height:180px;padding:8px;border-radius:10px;background:white}.push-linked-devices{margin-top:18px}.push-linked-device-list{display:grid;gap:10px;margin-top:8px}
+.push-device-row{display:grid;gap:8px;padding:12px;border:1px solid var(--border,rgba(148,163,184,.2));border-radius:12px}.push-device-actions{display:flex;flex-wrap:wrap;gap:8px}.push-device-actions button{flex:1}
+#push-pairing-code-input{width:100%;text-transform:uppercase;letter-spacing:.12em}@media(max-width:420px){.push-actions{grid-template-columns:1fr}}

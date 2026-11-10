@@ -1,8 +1,12 @@
 package com.mysteryvault.kotlin
 
+import android.Manifest
 import android.app.Activity
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.Bitmap
@@ -14,6 +18,7 @@ import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Base64
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -36,6 +41,10 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import org.json.JSONObject
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import com.google.android.gms.tasks.Task
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -50,6 +59,7 @@ class MainActivity : Activity() {
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var backExitPending = false
+    private var pendingPushPermissionCallback: String? = null
     private val backExitHandler = Handler(Looper.getMainLooper())
     private val clearBackExitPending = Runnable { backExitPending = false }
 
@@ -166,6 +176,7 @@ class MainActivity : Activity() {
             settings.allowContentAccess = false
             settings.setSupportZoom(false)
             addJavascriptInterface(DownloadBridge(), "Android")
+            addJavascriptInterface(PushBridge(), "MysteryVaultPushNative")
         }
         rootContainer = FrameLayout(this).apply {
             addView(webView, FrameLayout.LayoutParams(
@@ -179,6 +190,8 @@ class MainActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
         setContentView(rootContainer)
+        createPushNotificationChannel()
+        if (hasNotificationPermission()) PushNotifications.ensureRegistered(applicationContext)
 
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
@@ -302,6 +315,84 @@ class MainActivity : Activity() {
         webView.requestApplyInsets()
     }
 
+    private inner class PushBridge {
+        @JavascriptInterface fun getStatus(callbackId: String) {
+            if (!hasNotificationPermission()) {
+                completePushCallback(callbackId, JSONObject().put("ok", true).put("data", JSONObject().put("permissionGranted", false)))
+            } else completePushTask(callbackId, PushNotifications.ensureRegistered(applicationContext))
+        }
+        @JavascriptInterface fun requestNotificationPermission(callbackId: String) {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    pendingPushPermissionCallback = callbackId
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PUSH_PERMISSION_REQUEST_CODE)
+                } else completePushTask(callbackId, PushNotifications.ensureRegistered(applicationContext))
+            }
+        }
+        @JavascriptInterface fun createPairingCode(callbackId: String) {
+            completePushTask(callbackId, PushNotifications.call(applicationContext, "createPairingCode"))
+        }
+        @JavascriptInterface fun joinPairingCode(code: String, callbackId: String) {
+            completePushTask(callbackId, PushNotifications.call(applicationContext, "joinPairingCode", mapOf("code" to code.trim().uppercase(Locale.ROOT))))
+        }
+        @JavascriptInterface fun listLinkedDevices(callbackId: String) {
+            completePushTask(callbackId, PushNotifications.call(applicationContext, "listLinkedDevices"))
+        }
+        @JavascriptInterface fun sendNotification(linkId: String, message: String, callbackId: String) {
+            completePushTask(callbackId, PushNotifications.call(applicationContext, "sendNotification", mapOf("linkId" to linkId, "message" to message)))
+        }
+        @JavascriptInterface fun sendTestNotification(callbackId: String) {
+            completePushTask(callbackId, PushNotifications.call(applicationContext, "sendTestNotification"))
+        }
+        @JavascriptInterface fun unlinkDevice(linkId: String, callbackId: String) {
+            completePushTask(callbackId, PushNotifications.call(applicationContext, "unlinkDevice", mapOf("linkId" to linkId)))
+        }
+        @JavascriptInterface fun qrDataUrl(value: String): String {
+            return try {
+                val size = 280
+                val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, size, size)
+                val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                for (x in 0 until size) for (y in 0 until size) bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+                val output = java.io.ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+                bitmap.recycle()
+                "data:image/png;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+            } catch (_: Throwable) { "" }
+        }
+    }
+
+    private fun completePushTask(callbackId: String, task: Task<Any>) {
+        task.addOnSuccessListener { result ->
+            val data = if (result is Map<*, *>) JSONObject(result) else JSONObject().put("result", result?.toString() ?: "")
+            completePushCallback(callbackId, JSONObject().put("ok", true).put("data", data))
+        }.addOnFailureListener { error ->
+            completePushCallback(callbackId, JSONObject().put("ok", false).put("error", error.localizedMessage ?: "Push notification request failed."))
+        }
+    }
+
+    private fun completePushCallback(callbackId: String, result: JSONObject) {
+        if (!callbackId.matches(Regex("[A-Za-z0-9_-]{1,80}"))) return
+        runOnUiThread { webView.evaluateJavascript("window.MysteryVaultPush && window.MysteryVaultPush._complete(" + JSONObject.quote(callbackId) + "," + result.toString() + ")", null) }
+    }
+
+    private fun hasNotificationPermission(): Boolean = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun createPushNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= 26) {
+            val channel = NotificationChannel(PUSH_NOTIFICATION_CHANNEL, "Mystery Vault notifications", NotificationManager.IMPORTANCE_DEFAULT)
+            channel.description = "Notifications from paired Mystery Vault devices"
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != PUSH_PERMISSION_REQUEST_CODE) return
+        val callbackId = pendingPushPermissionCallback ?: return
+        pendingPushPermissionCallback = null
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) completePushTask(callbackId, PushNotifications.ensureRegistered(applicationContext))
+        else completePushCallback(callbackId, JSONObject().put("ok", false).put("error", "Notification permission was denied. Enable it in Android settings to receive notifications."))
+    }
     private inner class DownloadBridge {
         @JavascriptInterface
         fun downloadTorrent(url: String, requestedName: String) {
@@ -453,6 +544,8 @@ class MainActivity : Activity() {
     }
     companion object {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
+        private const val PUSH_PERMISSION_REQUEST_CODE = 2001
+        const val PUSH_NOTIFICATION_CHANNEL = "mystery_vault_updates"
         private const val BACK_EXIT_WINDOW_MS = 2000L
         private const val SPLASH_MIN_DURATION_MS = 3500L
         private val SPLASH_BACKGROUND_COLOR = Color.rgb(6, 9, 20)

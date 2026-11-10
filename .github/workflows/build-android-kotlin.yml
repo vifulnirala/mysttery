@@ -6,6 +6,7 @@ on:
     branches:
       - feature/android-kotlin-port
       - improved_mobile_app
+      - android-push-notifications
     paths:
       - "app/**"
       - "build.gradle.kts"

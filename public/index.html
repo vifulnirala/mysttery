@@ -86,6 +86,32 @@
         <button class="vault-tool-btn" id="vault-diagnostics" type="button" title="Run diagnostics" aria-label="Run diagnostics">ⓘ</button>
         <p id="vault-diagnostics-result" class="section-note" role="status"></p>
       </div>
+      <section class="push-devices-panel" aria-labelledby="push-devices-title">
+        <h3 id="push-devices-title">Private device pairing</h3>
+        <p class="section-note">Link two Mystery Vault installations without a shared account.</p>
+        <p id="push-status" class="embed-status" role="status" aria-live="polite">Checking notification setup…</p>
+        <div class="push-actions">
+          <button class="btn btn-secondary" id="push-enable-notifications" type="button">Enable notifications</button>
+          <button class="btn btn-secondary" id="push-test-this-device" type="button">Send test to this phone</button>
+        </div>
+        <div class="push-pairing-block">
+          <button class="btn btn-primary" id="push-create-code" type="button">Generate pairing code</button>
+          <div id="push-code-output" class="push-code-output hidden">
+            <strong id="push-pairing-code-display"></strong>
+            <img id="push-pairing-qr" alt="QR code for pairing this Mystery Vault installation">
+            <p class="section-note">This code expires in 10 minutes and can only be used once.</p>
+          </div>
+        </div>
+        <div class="push-pairing-block">
+          <label class="filter-field" for="push-pairing-code-input"><span>Enter another device’s code</span>
+            <input id="push-pairing-code-input" class="select-control" type="text" maxlength="8" autocomplete="off" autocapitalize="characters" placeholder="8-character code">
+          </label>
+          <button class="btn btn-secondary" id="push-join-code" type="button">Pair this device</button>
+        </div>
+        <div class="push-linked-devices"><div class="section-kicker">Linked devices</div>
+          <div id="push-linked-device-list" class="push-linked-device-list"><p class="section-note">No linked devices loaded.</p></div>
+        </div>
+      </section>
       <div class="imported-server-list" id="imported-server-list"></div>
     </div>
   </aside>
@@ -152,5 +178,6 @@
 
     <script src="/js/app.js" defer></script>
     <script src="/js/enhancements.js" defer></script>
+    <script src="/js/push-notifications.js" defer></script>
 </body>
 </html>
