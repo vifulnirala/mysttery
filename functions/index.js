@@ -18,8 +18,20 @@ function requireUid(request) {
 function hashCode(code) { return crypto.createHash("sha256").update(code).digest("hex"); }
 function normalizeCode(value) {
   const code = String(value || "").trim().toUpperCase();
-  if (!/^[A-F0-9]{8}$/.test(code)) throw new HttpsError("invalid-argument", "Enter a valid 8-character pairing code.");
+  if (!/^[A-F0-9]{12}$/.test(code)) throw new HttpsError("invalid-argument", "Enter a valid 12-character pairing code.");
   return code;
+}
+async function enforcePairingAttemptLimit(uid) {
+  const ref = db.collection("pairingAttempts").doc(uid);
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const now = Date.now();
+    const startedAt = snapshot.get("windowStartedAt")?.toMillis?.() || 0;
+    const inWindow = startedAt > 0 && now - startedAt < 60 * 1000;
+    const attempts = inWindow ? Number(snapshot.get("count") || 0) : 0;
+    if (attempts >= 20) throw new HttpsError("resource-exhausted", "Too many pairing attempts. Wait a minute and try again.");
+    transaction.set(ref, { windowStartedAt: admin.firestore.Timestamp.fromMillis(inWindow ? startedAt : now), count: attempts + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
 }
 function safeDeviceName(value) {
   const name = String(value || "Mystery Vault device").replace(/[\u0000-\u001f\u007f]/g, "").trim();
@@ -40,7 +52,7 @@ exports.registerInstallation = onCall(async (request) => {
 
 exports.createPairingCode = onCall(async (request) => {
   const uid = requireUid(request);
-  const code = crypto.randomBytes(4).toString("hex").toUpperCase();
+  const code = crypto.randomBytes(6).toString("hex").toUpperCase();
   const expiresAt = Date.now() + CODE_TTL_MS;
   await db.collection("pairingCodes").doc(hashCode(code)).set({
     createdBy: uid, createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -52,6 +64,7 @@ exports.createPairingCode = onCall(async (request) => {
 exports.joinPairingCode = onCall(async (request) => {
   const uid = requireUid(request);
   const code = normalizeCode(request.data?.code);
+  await enforcePairingAttemptLimit(uid);
   const codeRef = db.collection("pairingCodes").doc(hashCode(code));
   const linkRef = db.collection("deviceLinks").doc();
   await db.runTransaction(async (transaction) => {

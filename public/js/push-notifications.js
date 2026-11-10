@@ -106,11 +106,11 @@
   });
   joinButton?.addEventListener('click', async () => {
     const code = (codeInput?.value || '').replace(/[^A-Fa-f0-9]/g, '').toUpperCase();
-    if (code.length !== 8) { setStatus('Enter the complete 8-character pairing code.', true); return; }
+    if (code.length !== 12) { setStatus('Enter the complete 12-character pairing code.', true); return; }
     joinButton.disabled = true;
     try { await nativeCall('joinPairingCode', code); codeInput.value = ''; codeOutput.classList.add('hidden'); setStatus('Devices paired successfully.'); await refreshDevices(); }
     catch (error) { setStatus(error.message, true); } finally { joinButton.disabled = false; }
   });
-  codeInput?.addEventListener('input', () => { codeInput.value = codeInput.value.replace(/[^A-Fa-f0-9]/g, '').toUpperCase().slice(0, 8); });
+  codeInput?.addEventListener('input', () => { codeInput.value = codeInput.value.replace(/[^A-Fa-f0-9]/g, '').toUpperCase().slice(0, 12); });
   refreshStatus();
 })();

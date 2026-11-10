@@ -510,7 +510,7 @@ class MainActivity : Activity() {
             if (callbackId != null) {
                 val scanned = scan?.contents.orEmpty()
                 val code = try { Uri.parse(scanned).getQueryParameter("code") ?: scanned } catch (_: Throwable) { scanned }
-                if (code.matches(Regex("[A-Fa-f0-9]{8}"))) {
+                if (code.matches(Regex("[A-Fa-f0-9]{12}"))) {
                     completePushCallback(callbackId, JSONObject().put("ok", true).put("data", JSONObject().put("code", code.uppercase(Locale.ROOT))))
                 } else {
                     completePushCallback(callbackId, JSONObject().put("ok", false).put("error", "The QR code is not a Mystery Vault pairing code."))

@@ -40,7 +40,7 @@ On first launch, open the hamburger menu → **Private device pairing** → **En
 ## Pairing behaviour
 
 - Generate a code on the first phone and enter it on the second phone. The displayed QR contains the same pairing URI/code; a QR reader can be used to read it, then enter the code in the app.
-- Codes are 8 hexadecimal characters, expire after 10 minutes, and can be used only once.
+- Codes are 12 hexadecimal characters, expire after 10 minutes, and can be used only once.
 - Each installation has its own anonymous Firebase Auth UID and FCM token.
 - Only callable Cloud Functions can read or write installation, pairing, and link records. Firestore client rules deny all access.
 - Either paired device can send a notification to the other. Unlinking deletes the relationship.
