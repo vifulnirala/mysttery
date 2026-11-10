@@ -1390,7 +1390,7 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
 
 
 /* Stable four-slot toolbar: two TV selectors, server, then sandbox. */
-#external-player-controls {
+#external-player-controls:not(.hidden) {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   align-items: stretch !important;
