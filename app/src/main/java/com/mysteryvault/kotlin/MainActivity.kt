@@ -224,49 +224,49 @@ class MainActivity : Activity() {
     }
 
     private inner class ScoobySplashView(context: android.content.Context) : View(context) {
-        private val sprite: Bitmap = assets.open("scooby_running.png").use {
-            BitmapFactory.decodeStream(it)
-        } ?: throw IllegalStateException("Could not decode Scooby sprite sheet")
+        private val frames: Array<Bitmap> = Array(SPLASH_FRAME_COUNT) { index ->
+            assets.open("frame${index + 1}.png").use { stream ->
+                BitmapFactory.decodeStream(stream)
+                    ?: throw IllegalStateException("Could not decode Scooby frame ${index + 1}")
+            }
+        }
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         private val source = Rect()
         private val destination = RectF()
-        private val frameWidth = sprite.width / SPRITE_COLUMNS
-        private val frameHeight = sprite.height / SPRITE_ROWS
         private var frame = 0
         private var running = true
         private val frameTicker = object : Runnable {
             override fun run() {
                 if (!running) return
-                frame = (frame + 1) % SPRITE_FRAME_COUNT
+                frame = (frame + 1) % frames.size
                 invalidate()
-                splashHandler.postDelayed(this, SPRITE_FRAME_INTERVAL_MS)
+                splashHandler.postDelayed(this, SPLASH_FRAME_INTERVAL_MS)
             }
         }
 
         init {
             setBackgroundColor(Color.rgb(6, 9, 20))
-            splashHandler.postDelayed(frameTicker, SPRITE_FRAME_INTERVAL_MS)
+            splashHandler.postDelayed(frameTicker, SPLASH_FRAME_INTERVAL_MS)
         }
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            val column = frame % SPRITE_COLUMNS
-            val row = frame / SPRITE_COLUMNS
-            source.set(column * frameWidth, row * frameHeight,
-                (column + 1) * frameWidth, (row + 1) * frameHeight)
-            val scale = minOf(width * 0.82f / frameWidth, height * 0.48f / frameHeight)
-            val drawWidth = frameWidth * scale
-            val drawHeight = frameHeight * scale
+            val bitmap = frames[frame]
+            source.set(0, 0, bitmap.width, bitmap.height)
+            // Roughly 10% of the previous animation's displayed dimensions.
+            val scale = minOf(width * 0.082f / bitmap.width, height * 0.048f / bitmap.height)
+            val drawWidth = bitmap.width * scale
+            val drawHeight = bitmap.height * scale
             val left = (width - drawWidth) / 2f
             val top = (height - drawHeight) / 2f
             destination.set(left, top, left + drawWidth, top + drawHeight)
-            canvas.drawBitmap(sprite, source, destination, paint)
+            canvas.drawBitmap(bitmap, source, destination, paint)
         }
 
         fun stop() {
             running = false
             splashHandler.removeCallbacks(frameTicker)
-            sprite.recycle()
+            frames.forEach { if (!it.isRecycled) it.recycle() }
         }
     }
 
@@ -453,10 +453,8 @@ class MainActivity : Activity() {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
         private const val BACK_EXIT_WINDOW_MS = 2000L
         private const val SPLASH_MIN_DURATION_MS = 3500L
-        private const val SPRITE_COLUMNS = 4
-        private const val SPRITE_ROWS = 2
-        private const val SPRITE_FRAME_COUNT = SPRITE_COLUMNS * SPRITE_ROWS
-        private const val SPRITE_FRAME_INTERVAL_MS = 100L
+        private const val SPLASH_FRAME_COUNT = 4
+        private const val SPLASH_FRAME_INTERVAL_MS = 100L
     }
 
 }
