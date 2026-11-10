@@ -67,18 +67,33 @@
  document.getElementById('vault-subtitle-file')?.addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{let t=await f.text();if(f.name.toLowerCase().endsWith('.srt'))t='WEBVTT\n\n'+t.replace(/^(\d+)\r?\n/gm,'').replace(/,(\d{3})/g,'.$1');const u=URL.createObjectURL(new Blob([t],{type:'text/vtt'}));video.querySelectorAll('track[data-vault]').forEach(x=>x.remove());const tr=document.createElement('track');tr.kind='subtitles';tr.label=f.name;tr.srclang='en';tr.src=u;tr.default=true;tr.dataset.vault='1';video.append(tr);document.getElementById('vault-gesture-hint').textContent='Subtitle loaded: '+f.name}catch{document.getElementById('vault-gesture-hint').textContent='Could not load subtitle file.'}});
  let locked=false;
  const lock=document.getElementById('vault-lock-toggle');
- const lockShield=document.createElement('div');lockShield.className='vault-player-lock-shield';lockShield.hidden=true;lockShield.setAttribute('aria-hidden','true');
- const videoParent=video.parentElement;if(videoParent){videoParent.style.position='relative';videoParent.append(lockShield)}
+ const mediaStages=[];
+ function wrapMedia(media){
+   if(!media)return;
+   if(media.parentElement?.classList.contains('vault-media-stage'))return;
+   const stage=document.createElement('div');
+   stage.className='vault-media-stage';
+   media.parentNode.insertBefore(stage,media);
+   stage.appendChild(media);
+   const shield=document.createElement('div');
+   shield.className='vault-player-lock-shield';
+   shield.hidden=true;
+   shield.setAttribute('aria-hidden','true');
+   stage.appendChild(shield);
+   mediaStages.push({stage,shield});
+ }
+ wrapMedia(video);
+ wrapMedia(document.getElementById('external-player-frame'));
  function setPlayerLocked(value){
    locked=Boolean(value);
    video.controls=!locked;
-   lockShield.hidden=!locked;
+   mediaStages.forEach(({shield})=>{shield.hidden=!locked});
    lock?.setAttribute('aria-pressed',String(locked));
    lock?.setAttribute('aria-label',locked?'Unlock player interactions':'Lock player interactions');
    lock?.setAttribute('title',locked?'Unlock player interactions':'Lock player interactions');
    document.getElementById('vault-gesture-hint').textContent=locked?'Player locked':'';
  }
- lock?.addEventListener('click',()=>setPlayerLocked(!locked));
+ lock?.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();setPlayerLocked(!locked)});
  let start=null,lastTap=0,brightness=Number(localStorage.getItem('mysteryVault.brightness')||1);
  video.style.filter=`brightness(${brightness})`;
  const gestureHint=document.getElementById('vault-gesture-hint');
@@ -86,8 +101,9 @@
  function updateBufferStatus(){if(!video.duration||!video.buffered.length){bufferStatus.textContent='';return}let end=0;for(let i=0;i<video.buffered.length;i++){if(video.buffered.start(i)<=video.currentTime+0.5)end=Math.max(end,video.buffered.end(i))}bufferStatus.textContent='Buffered '+Math.max(0,Math.floor(end-video.currentTime))+'s ahead'}
  video.addEventListener('progress',updateBufferStatus);video.addEventListener('timeupdate',updateBufferStatus);
  video.addEventListener('waiting',()=>{bufferStatus.textContent='Buffering…'});video.addEventListener('playing',updateBufferStatus);video.addEventListener('loadedmetadata',updateBufferStatus);
- video.addEventListener('touchstart',e=>{if(e.touches.length===1)start={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
+ video.addEventListener('touchstart',e=>{if(locked)return;if(e.touches.length===1)start={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
  video.addEventListener('touchend',e=>{
+   if(locked){start=null;return}
    if(!start)return;const p=e.changedTouches[0],dx=p.clientX-start.x,dy=p.clientY-start.y,r=video.getBoundingClientRect();
    if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.3){video.currentTime=Math.max(0,Math.min(video.duration||Infinity,video.currentTime+(dx>0?10:-10)));gestureHint.textContent=dx>0?'+10 seconds':'−10 seconds'}
    else if(Math.abs(dy)>45&&Math.abs(dy)>Math.abs(dx)*1.3){
@@ -159,7 +175,8 @@
    if(!event.target.closest('.vault-select-popover'))document.querySelectorAll('.vault-select-popover.open').forEach(x=>x.classList.remove('open'));
  });
 
- const exportButton=document.getElementById('vault-export-backup'),importInput=document.getElementById('vault-import-backup'),diagButton=document.getElementById('vault-diagnostics'),diag=document.getElementById('vault-diagnostics-result');
+ const exportButton=document.getElementById('vault-export-backup'),importInput=document.getElementById('vault-import-backup'),importBackupButton=document.getElementById('vault-import-backup-button'),diagButton=document.getElementById('vault-diagnostics'),diag=document.getElementById('vault-diagnostics-result');
+ importBackupButton?.addEventListener('click',()=>importInput?.click());
  exportButton?.addEventListener('click',()=>{const payload={format:'mystery-vault-backup-v1',createdAt:new Date().toISOString(),watchlist:read(W),history:read(H),searchHistory:read(SEARCH)};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='mystery-vault-backup.json';a.click();URL.revokeObjectURL(url)});
  importInput?.addEventListener('change',async()=>{const file=importInput.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(data.format!=='mystery-vault-backup-v1')throw new Error('This is not a Mystery Vault backup.');if(Array.isArray(data.watchlist))write(W,data.watchlist.slice(0,100));if(Array.isArray(data.history))write(H,data.history.slice(0,40));if(Array.isArray(data.searchHistory))write(SEARCH,data.searchHistory.slice(0,12));renderWatch();renderContinue();renderSearchHistory();syncButtons();loadRecommendations();diag.textContent='Backup restored successfully.'}catch(error){diag.textContent=error.message||'Could not import backup.'}finally{importInput.value=''}});
  diagButton?.addEventListener('click',async()=>{diag.textContent='Checking app services…';const checks=[];checks.push('Network: '+(navigator.onLine?'online':'offline'));checks.push('WebView: '+navigator.userAgent);checks.push('Video: '+(['video/mp4','video/webm'].map(t=>t+' '+(video.canPlayType(t)||'unsupported')).join(', ')));checks.push('MediaSource: '+(!!window.MediaSource));checks.push('Saved watchlist: '+read(W).length);checks.push('Watch history: '+read(H).length);try{const response=await fetch('/api/library',{cache:'no-store'});checks.push('Local API: '+(response.ok?'reachable':'HTTP '+response.status))}catch{checks.push('Local API: unavailable')}try{const estimate=await navigator.storage?.estimate?.();if(estimate)checks.push('Origin storage: '+Math.round(estimate.usage/1048576)+' / '+Math.round(estimate.quota/1048576)+' MB')}catch{}diag.textContent=checks.join(' · ')});
