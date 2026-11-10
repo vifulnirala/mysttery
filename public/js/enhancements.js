@@ -64,35 +64,6 @@
  video.addEventListener('timeupdate',()=>{if(!active||!video.duration||Date.now()-last<2500)return;last=Date.now();active.position=video.currentTime;active.progress=Math.min(.99,video.currentTime/video.duration);const a=read(H);const i=a.findIndex(x=>x.key===active.key);if(i>=0)a[i]=active;write(H,a);renderContinue()});
  video.addEventListener('ended',()=>{if(active){write(H,read(H).filter(x=>x.key!==active.key));active=null;renderContinue()}});
 
- let locked=false;
- const lock=document.getElementById('vault-lock-toggle');
- const mediaStages=[];
- function wrapMedia(media){
-   if(!media)return;
-   if(media.parentElement?.classList.contains('vault-media-stage'))return;
-   const stage=document.createElement('div');
-   stage.className='vault-media-stage';
-   media.parentNode.insertBefore(stage,media);
-   stage.appendChild(media);
-   const shield=document.createElement('div');
-   shield.className='vault-player-lock-shield';
-   shield.hidden=true;
-   shield.setAttribute('aria-hidden','true');
-   stage.appendChild(shield);
-   mediaStages.push({stage,shield});
- }
- wrapMedia(video);
- wrapMedia(document.getElementById('external-player-frame'));
- function setPlayerLocked(value){
-   locked=Boolean(value);
-   video.controls=!locked;
-   mediaStages.forEach(({shield})=>{shield.hidden=!locked});
-   lock?.setAttribute('aria-pressed',String(locked));
-   lock?.setAttribute('aria-label',locked?'Unlock player interactions':'Lock player interactions');
-   lock?.setAttribute('title',locked?'Unlock player interactions':'Lock player interactions');
-   document.getElementById('vault-gesture-hint').textContent=locked?'Player locked':'';
- }
- lock?.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();setPlayerLocked(!locked)});
  let start=null,lastTap=0,brightness=Number(localStorage.getItem('mysteryVault.brightness')||1);
  video.style.filter=`brightness(${brightness})`;
  const gestureHint=document.getElementById('vault-gesture-hint');
@@ -100,9 +71,8 @@
  function updateBufferStatus(){if(!video.duration||!video.buffered.length){bufferStatus.textContent='';return}let end=0;for(let i=0;i<video.buffered.length;i++){if(video.buffered.start(i)<=video.currentTime+0.5)end=Math.max(end,video.buffered.end(i))}bufferStatus.textContent='Buffered '+Math.max(0,Math.floor(end-video.currentTime))+'s ahead'}
  video.addEventListener('progress',updateBufferStatus);video.addEventListener('timeupdate',updateBufferStatus);
  video.addEventListener('waiting',()=>{bufferStatus.textContent='Buffering…'});video.addEventListener('playing',updateBufferStatus);video.addEventListener('loadedmetadata',updateBufferStatus);
- video.addEventListener('touchstart',e=>{if(locked)return;if(e.touches.length===1)start={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
+ video.addEventListener('touchstart',e=>{if(e.touches.length===1)start={x:e.touches[0].clientX,y:e.touches[0].clientY}},{passive:true});
  video.addEventListener('touchend',e=>{
-   if(locked){start=null;return}
    if(!start)return;const p=e.changedTouches[0],dx=p.clientX-start.x,dy=p.clientY-start.y,r=video.getBoundingClientRect();
    if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.3){video.currentTime=Math.max(0,Math.min(video.duration||Infinity,video.currentTime+(dx>0?10:-10)));gestureHint.textContent=dx>0?'+10 seconds':'−10 seconds'}
    else if(Math.abs(dy)>45&&Math.abs(dy)>Math.abs(dx)*1.3){
@@ -117,72 +87,6 @@
  function renderSearchHistory(){if(!searchHistory)return;searchHistory.replaceChildren();read(SEARCH).forEach(q=>{const o=document.createElement('option');o.value=q;searchHistory.append(o)})}
  document.getElementById('search-form')?.addEventListener('submit',()=>{const q=searchInput.value.trim();if(q.length>1){write(SEARCH,[q,...read(SEARCH).filter(x=>x.toLowerCase()!==q.toLowerCase())].slice(0,12));renderSearchHistory()}},true);
  renderSearchHistory();
-
- function addSelectPopover(selectId, icon, mode) {
-   const select=document.getElementById(selectId); if(!select||select.dataset.popoverReady)return;
-   select.dataset.popoverReady='1';
-   const host=document.createElement('div');host.className='vault-select-popover';
-   const trigger=document.createElement('button');trigger.type='button';trigger.className='vault-select-trigger';
-   trigger.setAttribute('aria-label',select.getAttribute('aria-label')||selectId);trigger.title=select.getAttribute('aria-label')||selectId;
-   const menu=document.createElement('div');menu.className='vault-select-menu';menu.setAttribute('role','listbox');
-   host.append(trigger,menu);
-   // Keep the custom popup outside the player/iframe stacking context. An iframe
-   // is a separate compositing layer, so a popup nested beside it can appear
-   // to open while actually being painted underneath the iframe.
-   document.body.appendChild(host);
-   host.style.position='fixed';
-   host.style.zIndex='2147483647';
-   const labelFor=option=>{
-     if(mode==='season'){const n=Number(option.value);return n===0?'Specials':'S'+String(n).padStart(2,'0')}
-     if(mode==='episode'){const n=Number(option.value);return 'E'+String(n).padStart(2,'0')+(option.textContent?' · '+option.textContent:'')}
-     return option.textContent||option.value;
-   };
-   const update=()=>{
-     const current=select.selectedOptions?.[0];
-     trigger.textContent=mode==='server'?icon:(current?labelFor(current).split(' · ')[0]:icon);
-     menu.replaceChildren();
-     Array.from(select.options).forEach(option=>{
-       const item=document.createElement('button');item.type='button';item.className='vault-select-option';
-       item.textContent=labelFor(option);item.setAttribute('role','option');item.setAttribute('aria-selected',String(option.selected));
-       item.addEventListener('click',()=>{select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));host.classList.remove('open');update()});
-       menu.append(item);
-     });
-     trigger.disabled=!select.options.length||select.disabled;
-   };
-   function positionMenu(){
-     if(!host.classList.contains('open'))return;
-     const r=trigger.getBoundingClientRect();
-     const margin=8;
-     const menuRect=menu.getBoundingClientRect();
-     const menuWidth=Math.min(menuRect.width || 250, window.innerWidth-margin*2);
-     const menuHeight=menuRect.height || 220;
-     const left=Math.min(Math.max(margin,r.left),window.innerWidth-menuWidth-margin);
-     let top=r.top-menuHeight-7;
-     if(top<margin)top=Math.min(r.bottom+7,window.innerHeight-menuHeight-margin);
-     host.style.left=Math.round(r.left)+'px';
-     host.style.top=Math.round(r.top)+'px';
-     host.style.width=Math.round(r.width)+'px';
-     host.style.height=Math.round(r.height)+'px';
-     menu.style.left=Math.round(left-r.left)+'px';
-     menu.style.top=Math.round(top-r.top)+'px';
-     menu.style.right='auto';
-     menu.style.bottom='auto';
-   }
-   trigger.addEventListener('click',()=>{
-     document.querySelectorAll('.vault-select-popover.open').forEach(x=>{if(x!==host)x.classList.remove('open')});
-     host.classList.toggle('open');
-     requestAnimationFrame(positionMenu);
-   });
-   window.addEventListener('resize',positionMenu,{passive:true});
-   window.addEventListener('scroll',positionMenu,{passive:true,capture:true});
-   const observer=new MutationObserver(update);observer.observe(select,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
-   select.addEventListener('change',update);update();
- }
- addSelectPopover('player-season','S01','season');
- addSelectPopover('player-episode','E01','episode');
- document.addEventListener('click',event=>{
-   if(!event.target.closest('.vault-select-popover'))document.querySelectorAll('.vault-select-popover.open').forEach(x=>x.classList.remove('open'));
- });
 
  const exportButton=document.getElementById('vault-export-backup'),importInput=document.getElementById('vault-import-backup'),importBackupButton=document.getElementById('vault-import-backup-button'),diagButton=document.getElementById('vault-diagnostics'),diag=document.getElementById('vault-diagnostics-result');
  importBackupButton?.addEventListener('click',()=>importInput?.click());
