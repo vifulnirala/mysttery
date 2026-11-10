@@ -571,7 +571,8 @@
       episodes.forEach(episode => {
         const option = document.createElement('option');
         option.value = String(episode.episodeNumber);
-        option.textContent = `E${String(episode.episodeNumber).padStart(2, '0')} · ${episode.name || 'Untitled episode'}`;
+        option.textContent = `E${String(episode.episodeNumber).padStart(2, '0')}`;
+        option.title = episode.name || `Episode ${episode.episodeNumber}`;
         playerEpisodeInput.append(option);
       });
       if (!episodes.some(episode => Number(episode.episodeNumber) === Number(selectedEpisode)) && episodes.length) playerEpisodeInput.value = String(episodes[0].episodeNumber);
