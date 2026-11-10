@@ -15,6 +15,8 @@
     const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
+    const externalServerTrigger = document.getElementById('external-server-trigger');
+    const externalServerMenu = document.getElementById('external-server-menu');
     const externalServerStatus = document.getElementById('external-server-status');
     const externalEpisodeControl = document.getElementById('external-episode-control');
     const playerSeasonInput = document.getElementById('player-season');
@@ -145,18 +147,39 @@
       const providers = allExternalProviders();
       if (!externalServerSelect) return;
       externalServerSelect.replaceChildren();
+      externalServerMenu?.replaceChildren();
       providers.forEach(provider => {
         const option = document.createElement('option');
         option.value = provider.id;
         option.textContent = provider.name;
         externalServerSelect.append(option);
+        if (externalServerMenu) {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'vault-server-option';
+          item.textContent = provider.name;
+          item.setAttribute('role', 'option');
+          item.addEventListener('click', async () => {
+            externalServerMenu.classList.remove('open');
+            if (!activeExternalPayload || provider.id === externalServerSelect.value) return;
+            externalServerStatus.textContent = 'Switching server…';
+            await playExternalPlayer(activeExternalPayload, activeExternalTitle, provider.id, activeTvMetadata);
+            externalServerStatus.textContent = '';
+          });
+          externalServerMenu.appendChild(item);
+        }
       });
-      if (selectedId && providers.some(provider => provider.id === selectedId)) {
-        externalServerSelect.value = selectedId;
-      } else if (providers.length) {
-        externalServerSelect.value = providers[0].id;
-      }
+      const selected = selectedId && providers.some(provider => provider.id === selectedId)
+        ? selectedId : (providers[0]?.id || '');
+      if (selected) externalServerSelect.value = selected;
+      externalServerControl?.classList.toggle('hidden', providers.length < 2);
     }
+
+    externalServerTrigger?.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      externalServerMenu?.classList.toggle('open');
+    });
 
     function setStatus(message, kind = '') {
       statusBanner.textContent = message;
@@ -524,8 +547,11 @@
     externalServerSelect.addEventListener('change', async () => {
       if (!activeExternalPayload || !externalServerSelect.value) return;
       externalServerStatus.textContent = 'Switching server…';
-      await playExternalPlayer(activeExternalPayload, activeExternalTitle, externalServerSelect.value);
-      externalServerStatus.textContent = `Using ${externalServerSelect.options[externalServerSelect.selectedIndex]?.text || 'selected server'}.`;
+      await playExternalPlayer(activeExternalPayload, activeExternalTitle, externalServerSelect.value, activeTvMetadata);
+      externalServerStatus.textContent = '';
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('#external-server-control')) externalServerMenu?.classList.remove('open');
     });
     async function fetchPlayerSeasonEpisodes(seasonNumber) {
       if (!activeTvMetadata?.showId) return [];
