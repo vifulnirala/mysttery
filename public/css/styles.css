@@ -1005,3 +1005,79 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
  .topbar .menu-btn{flex-basis:42px;width:42px!important;min-width:42px;height:42px;min-height:42px}
  .settings-drawer{width:min(340px,calc(100vw - 18px))!important}
 }
+
+/* Player interaction lock and overflow-safe server menus. */
+.vault-player-lock-shield{
+  position:absolute;
+  inset:0;
+  z-index:25;
+  background:transparent;
+  cursor:not-allowed;
+  touch-action:none;
+}
+.vault-player-lock-shield[hidden]{display:none!important}
+
+/* Server/season/episode popovers are positioned against the viewport so an
+   iframe/player container cannot clip a long server list. */
+.vault-select-menu{
+  position:fixed!important;
+  z-index:10000!important;
+  right:auto!important;
+  bottom:auto!important;
+  max-height:min(60dvh,320px)!important;
+}
+.external-player-controls,
+.external-server-control,
+.external-episode-control,
+.vault-select-popover{
+  overflow:visible!important;
+}
+#player-modal .modal-panel{
+  overflow:visible;
+}
+#player-modal .modal-head,
+#player-modal .vault-native-player-tools,
+#player-modal .external-player-controls{
+  flex-shrink:0;
+}
+
+/* Keep the compact hamburger drawer controls from exposing native file
+   controls or stretching on Android WebView. */
+.settings-drawer .vault-backup-import{
+  position:relative;
+  overflow:hidden;
+  min-width:38px;
+  width:38px!important;
+  height:36px!important;
+  min-height:36px!important;
+  padding:0!important;
+  flex:0 0 38px;
+}
+.settings-drawer .vault-backup-import input{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  max-width:none!important;
+  opacity:0!important;
+  cursor:pointer;
+  margin:0!important;
+}
+.settings-drawer .vault-settings-compact{
+  flex-wrap:wrap!important;
+  min-width:0;
+}
+.settings-drawer .vault-settings-compact .vault-tool-btn,
+.settings-drawer .vault-settings-compact .vault-backup-import{
+  box-sizing:border-box;
+  flex:0 0 38px;
+}
+.settings-drawer #vault-diagnostics-result{
+  width:100%;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+@media(max-width:520px){
+  #player-modal .modal-panel{width:100%;max-width:100%;border-radius:18px}
+  .vault-select-menu{width:min(250px,calc(100vw - 16px))!important}
+}
