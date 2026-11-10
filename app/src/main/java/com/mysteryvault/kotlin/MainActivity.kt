@@ -44,6 +44,7 @@ import java.util.Locale
 import org.json.JSONObject
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.integration.android.IntentIntegrator
 import com.google.android.gms.tasks.Task
 
 class MainActivity : Activity() {
@@ -60,6 +61,7 @@ class MainActivity : Activity() {
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var backExitPending = false
     private var pendingPushPermissionCallback: String? = null
+    private var pendingQrScanCallback: String? = null
     private val backExitHandler = Handler(Looper.getMainLooper())
     private val clearBackExitPending = Runnable { backExitPending = false }
 
@@ -338,6 +340,13 @@ class MainActivity : Activity() {
         @JavascriptInterface fun listLinkedDevices(callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "listLinkedDevices"))
         }
+        @JavascriptInterface fun scanPairingQr(callbackId: String) {
+            runOnUiThread {
+                pendingQrScanCallback = callbackId
+                IntentIntegrator(this@MainActivity).setPrompt("Scan the Mystery Vault pairing QR code")
+                    .setOrientationLocked(false).initiateScan()
+            }
+        }
         @JavascriptInterface fun sendNotification(linkId: String, message: String, callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "sendNotification", mapOf("linkId" to linkId, "message" to message)))
         }
@@ -494,6 +503,21 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == IntentIntegrator.REQUEST_CODE) {
+            val callbackId = pendingQrScanCallback
+            pendingQrScanCallback = null
+            val scan = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+            if (callbackId != null) {
+                val scanned = scan?.contents.orEmpty()
+                val code = try { Uri.parse(scanned).getQueryParameter("code") ?: scanned } catch (_: Throwable) { scanned }
+                if (code.matches(Regex("[A-Fa-f0-9]{8}"))) {
+                    completePushCallback(callbackId, JSONObject().put("ok", true).put("data", JSONObject().put("code", code.uppercase(Locale.ROOT))))
+                } else {
+                    completePushCallback(callbackId, JSONObject().put("ok", false).put("error", "The QR code is not a Mystery Vault pairing code."))
+                }
+            }
+            return
+        }
         if (requestCode != FILE_CHOOSER_REQUEST_CODE) return
         val callback = fileChooserCallback ?: return
         fileChooserCallback = null

@@ -10,6 +10,7 @@
   const qrImage = document.getElementById('push-pairing-qr');
   const codeInput = document.getElementById('push-pairing-code-input');
   const joinButton = document.getElementById('push-join-code');
+  const scanButton = document.getElementById('push-scan-code');
   const deviceList = document.getElementById('push-linked-device-list');
   if (!status || !window.MysteryVaultPushNative) return;
 
@@ -93,6 +94,15 @@
       codeOutput.classList.remove('hidden');
       setStatus('Pairing code created. It expires in 10 minutes and can be used once.');
     } catch (error) { setStatus(error.message, true); } finally { createButton.disabled = false; }
+  });
+  scanButton?.addEventListener('click', async () => {
+    scanButton.disabled = true;
+    try {
+      const result = await nativeCall('scanPairingQr');
+      codeInput.value = String(result.code || '').toUpperCase();
+      setStatus('Pairing code scanned. Tap Pair this device to continue.');
+    } catch (error) { setStatus(error.message, true); }
+    finally { scanButton.disabled = false; }
   });
   joinButton?.addEventListener('click', async () => {
     const code = (codeInput?.value || '').replace(/[^A-Fa-f0-9]/g, '').toUpperCase();
