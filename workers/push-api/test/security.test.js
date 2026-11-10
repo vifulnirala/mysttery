@@ -55,3 +55,33 @@ test("encrypted FCM tokens reject malformed storage values", async () => {
     { FCM_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") }, "plaintext-token"
   ));
 });
+
+test("unlisted admin, debug and arbitrary paths are not exposed", async () => {
+  const worker = (await import("../src/index.js")).default;
+  for (const path of ["/admin", "/debug", "/v1/admin", "/v1/debug", "/v1/raw-database", "/v1/send-all"]) {
+    const response = await worker.fetch(new Request("https://worker.example" + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}"
+    }), { FIREBASE_PROJECT_ID: "test-project", DB: {} });
+    assert.equal(response.status, 404, path);
+  }
+});
+
+test("non-POST methods are rejected", async () => {
+  const worker = (await import("../src/index.js")).default;
+  const response = await worker.fetch(new Request("https://worker.example/v1/devices"), {
+    method: "GET"
+  }, { FIREBASE_PROJECT_ID: "test-project", DB: {} });
+  assert.equal(response.status, 405);
+});
+
+test("a protected route rejects a missing Firebase bearer token", async () => {
+  const worker = (await import("../src/index.js")).default;
+  const response = await worker.fetch(new Request("https://worker.example/v1/devices", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}"
+  }), { FIREBASE_PROJECT_ID: "test-project", DB: {} });
+  assert.equal(response.status, 401);
+});

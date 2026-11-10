@@ -15,7 +15,7 @@ The Android client uses Firebase Anonymous Authentication for per-installation i
 - Responses are marked no-store; errors are sanitized; request bodies are size-limited.
 - Firebase Firestore rules are no longer involved because this implementation does not use Firestore.
 
-No software change can prove the absence of every possible backdoor. Review the Worker source and deployed Worker version, keep Cloudflare account MFA enabled, restrict account access, and rotate the service-account key if it is ever exposed.
+No software change can prove the absence of every possible backdoor. Review the Worker source and deployed Worker version, keep Cloudflare account MFA enabled, restrict account access, and rotate the service-account key if it is ever exposed. If the AES token-encryption key is rotated, existing encrypted FCM tokens must be cleared and devices must reopen the app to register fresh tokens.
 
 ## 1. Firebase Console
 
@@ -42,9 +42,10 @@ Create one JSON key for that service account. Treat the file as a password:
 
 ## 3. Create the Cloudflare Worker and D1 database
 
-Use Cloudflare Dashboard → Workers & Pages, or run these commands in Cloudflare's browser-based dashboard terminal / a trusted local terminal with Node.js:
+Open Google Cloud Console and start Cloud Shell (browser-based), or use a trusted terminal with Node.js 22. Clone the feature branch, then enter the Worker project:
 
-    cd workers/push-api
+    git clone -b android-push-notifications https://github.com/vifulnirala/mysttery.git
+    cd mysttery/workers/push-api
     npm install
     npm test
     npm run check
