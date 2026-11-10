@@ -65,7 +65,20 @@
  video.addEventListener('ended',()=>{if(active){write(H,read(H).filter(x=>x.key!==active.key));active=null;renderContinue()}});
  document.getElementById('vault-playback-speed')?.addEventListener('change',e=>{video.playbackRate=Number(e.target.value)||1});
  document.getElementById('vault-subtitle-file')?.addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{let t=await f.text();if(f.name.toLowerCase().endsWith('.srt'))t='WEBVTT\n\n'+t.replace(/^(\d+)\r?\n/gm,'').replace(/,(\d{3})/g,'.$1');const u=URL.createObjectURL(new Blob([t],{type:'text/vtt'}));video.querySelectorAll('track[data-vault]').forEach(x=>x.remove());const tr=document.createElement('track');tr.kind='subtitles';tr.label=f.name;tr.srclang='en';tr.src=u;tr.default=true;tr.dataset.vault='1';video.append(tr);document.getElementById('vault-gesture-hint').textContent='Subtitle loaded: '+f.name}catch{document.getElementById('vault-gesture-hint').textContent='Could not load subtitle file.'}});
- let locked=false;const lock=document.getElementById('vault-lock-toggle');lock?.addEventListener('click',()=>{locked=!locked;video.controls=!locked;lock.textContent=locked?'Unlock controls':'Lock controls';document.getElementById('vault-gesture-hint').textContent=locked?'Player controls locked':''});
+ let locked=false;
+ const lock=document.getElementById('vault-lock-toggle');
+ const lockShield=document.createElement('div');lockShield.className='vault-player-lock-shield';lockShield.hidden=true;lockShield.setAttribute('aria-hidden','true');
+ const videoParent=video.parentElement;if(videoParent){videoParent.style.position='relative';videoParent.append(lockShield)}
+ function setPlayerLocked(value){
+   locked=Boolean(value);
+   video.controls=!locked;
+   lockShield.hidden=!locked;
+   lock?.setAttribute('aria-pressed',String(locked));
+   lock?.setAttribute('aria-label',locked?'Unlock player interactions':'Lock player interactions');
+   lock?.setAttribute('title',locked?'Unlock player interactions':'Lock player interactions');
+   document.getElementById('vault-gesture-hint').textContent=locked?'Player locked':'';
+ }
+ lock?.addEventListener('click',()=>setPlayerLocked(!locked));
  let start=null,lastTap=0,brightness=Number(localStorage.getItem('mysteryVault.brightness')||1);
  video.style.filter=`brightness(${brightness})`;
  const gestureHint=document.getElementById('vault-gesture-hint');
@@ -115,10 +128,26 @@
      });
      trigger.disabled=!select.options.length||select.disabled;
    };
+   function positionMenu(){
+     if(!host.classList.contains('open'))return;
+     const r=trigger.getBoundingClientRect();
+     const menuRect=menu.getBoundingClientRect();
+     const margin=8;
+     let left=Math.min(Math.max(margin,r.right-menuRect.width),window.innerWidth-menuRect.width-margin);
+     let top=r.top-menuRect.height-7;
+     if(top<margin)top=Math.min(r.bottom+7,window.innerHeight-menuRect.height-margin);
+     menu.style.left=Math.round(left)+'px';
+     menu.style.top=Math.round(top)+'px';
+     menu.style.right='auto';
+     menu.style.bottom='auto';
+   }
    trigger.addEventListener('click',()=>{
      document.querySelectorAll('.vault-select-popover.open').forEach(x=>{if(x!==host)x.classList.remove('open')});
      host.classList.toggle('open');
+     requestAnimationFrame(positionMenu);
    });
+   window.addEventListener('resize',positionMenu,{passive:true});
+   window.addEventListener('scroll',positionMenu,{passive:true,capture:true});
    const observer=new MutationObserver(update);observer.observe(select,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
    select.addEventListener('change',update);update();
  }
