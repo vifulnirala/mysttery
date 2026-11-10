@@ -63,8 +63,7 @@
  window.addEventListener('mysteryvault:play',e=>{const d=e.detail||{};active=d.kind==='torrent'?{kind:'torrent',source:d.source,fileIndex:d.fileIndex,title:d.fileName,key:d.source+'|'+d.fileIndex,progress:0,position:0}:{kind:'external',title:d.title,key:(d.payload?.mediaType+'|'+d.payload?.id+'|'+(d.payload?.season??'')+'|'+(d.payload?.episode??'')),progress:0.01,position:0};if(d.payload)active.item={tmdbId:d.payload.id,mediaType:d.payload.mediaType,title:d.title,season:d.payload.season,episode:d.payload.episode};const a=read(H);write(H,[active,...a.filter(x=>x.key!==active.key)].slice(0,40));renderContinue();loadRecommendations()});
  video.addEventListener('timeupdate',()=>{if(!active||!video.duration||Date.now()-last<2500)return;last=Date.now();active.position=video.currentTime;active.progress=Math.min(.99,video.currentTime/video.duration);const a=read(H);const i=a.findIndex(x=>x.key===active.key);if(i>=0)a[i]=active;write(H,a);renderContinue()});
  video.addEventListener('ended',()=>{if(active){write(H,read(H).filter(x=>x.key!==active.key));active=null;renderContinue()}});
- document.getElementById('vault-playback-speed')?.addEventListener('change',e=>{video.playbackRate=Number(e.target.value)||1});
- document.getElementById('vault-subtitle-file')?.addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{let t=await f.text();if(f.name.toLowerCase().endsWith('.srt'))t='WEBVTT\n\n'+t.replace(/^(\d+)\r?\n/gm,'').replace(/,(\d{3})/g,'.$1');const u=URL.createObjectURL(new Blob([t],{type:'text/vtt'}));video.querySelectorAll('track[data-vault]').forEach(x=>x.remove());const tr=document.createElement('track');tr.kind='subtitles';tr.label=f.name;tr.srclang='en';tr.src=u;tr.default=true;tr.dataset.vault='1';video.append(tr);document.getElementById('vault-gesture-hint').textContent='Subtitle loaded: '+f.name}catch{document.getElementById('vault-gesture-hint').textContent='Could not load subtitle file.'}});
+
  let locked=false;
  const lock=document.getElementById('vault-lock-toggle');
  const mediaStages=[];
@@ -179,7 +178,6 @@
    const observer=new MutationObserver(update);observer.observe(select,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
    select.addEventListener('change',update);update();
  }
- addSelectPopover('vault-playback-speed','1×','speed');
  addSelectPopover('player-season','S01','season');
  addSelectPopover('player-episode','E01','episode');
  document.addEventListener('click',event=>{
