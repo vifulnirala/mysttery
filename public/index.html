@@ -78,11 +78,11 @@
   <aside class="settings-drawer" id="settings-drawer" aria-label="External server settings" aria-hidden="true">
     <div class="settings-drawer-head"><h2>Servers</h2><button class="icon-btn" id="settings-menu-close" type="button" aria-label="Close server settings">×</button></div>
     <div class="settings-drawer-body">
-      <label class="csv-upload" aria-label="Import server CSV"><span class="csv-upload-icon">↑</span><strong>Import CSV</strong><input id="server-csv-input" type="file" accept=".csv,text/csv" /></label>
+      <button class="csv-upload" id="server-csv-import-button" type="button" aria-label="Import server CSV"><span class="csv-upload-icon">↑</span><strong>Import CSV</strong></button><input id="server-csv-input" class="vault-file-input" type="file" accept=".csv,text/csv" aria-hidden="true" tabindex="-1">
       <p class="embed-status" id="server-csv-status" role="status" aria-live="polite"></p>
       <div class="vault-settings-tools vault-settings-compact">
         <button class="vault-tool-btn" id="vault-export-backup" type="button" title="Export watchlist and history" aria-label="Export watchlist and history">⇧</button>
-        <label class="vault-backup-import" title="Import backup" aria-label="Import backup">⇩<input id="vault-import-backup" type="file" accept="application/json,.json"></label>
+        <button class="vault-backup-import" id="vault-import-backup-button" type="button" title="Import backup" aria-label="Import backup">⇩</button><input id="vault-import-backup" class="vault-file-input" type="file" accept="application/json,.json" aria-hidden="true" tabindex="-1">
         <button class="vault-tool-btn" id="vault-diagnostics" type="button" title="Run diagnostics" aria-label="Run diagnostics">ⓘ</button>
         <p id="vault-diagnostics-result" class="section-note" role="status"></p>
       </div>
