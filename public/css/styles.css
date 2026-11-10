@@ -1081,3 +1081,44 @@ body::after { content: "🐾  ☾  ✦"; right: 2%; bottom: 18%; transform: rota
   #player-modal .modal-panel{width:100%;max-width:100%;border-radius:18px}
   .vault-select-menu{width:min(250px,calc(100vw - 16px))!important}
 }
+
+/* Final Android WebView fixes. */
+.vault-file-input{
+  position:absolute!important;width:1px!important;height:1px!important;
+  padding:0!important;margin:-1px!important;overflow:hidden!important;
+  clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;
+  white-space:nowrap!important;border:0!important;opacity:0!important;
+  pointer-events:none!important;
+}
+.settings-drawer .csv-upload{
+  box-sizing:border-box;width:100%!important;min-height:104px;
+  justify-content:flex-start;
+}
+.settings-drawer .vault-settings-compact{
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;
+  gap:12px!important;width:100%!important;margin:18px 0!important;padding:0!important;
+}
+.settings-drawer .vault-settings-compact .vault-tool-btn,
+.settings-drawer .vault-settings-compact .vault-backup-import{
+  width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;
+  flex:0 0 42px!important;padding:0!important;display:grid!important;place-items:center!important;
+  box-sizing:border-box!important;font-size:1.05rem!important;
+}
+.settings-drawer .vault-settings-compact #vault-diagnostics-result{
+  flex:1 1 100%!important;width:100%!important;min-width:0!important;
+}
+/* Shield only the media surface; the lock button remains clickable. */
+.vault-media-stage{position:relative;flex:0 0 auto;width:100%;min-width:0;overflow:hidden}
+.vault-media-stage .vault-player-lock-shield{
+  position:absolute;inset:0;z-index:50;background:transparent;cursor:not-allowed;touch-action:none
+}
+.vault-media-stage .vault-player-lock-shield[hidden]{display:none!important}
+.vault-media-stage #video-element,.vault-media-stage #external-player-frame{display:block;width:100%}
+/* Server/season/episode menus escape player clipping and remain touchable. */
+.vault-select-menu{
+  position:fixed!important;z-index:2147483647!important;
+  width:min(280px,calc(100vw - 16px))!important;
+  max-height:min(55dvh,360px)!important;overflow-y:auto!important;overflow-x:hidden!important;
+  pointer-events:auto!important;
+}
+.vault-select-trigger{position:relative;z-index:2;pointer-events:auto!important;touch-action:manipulation}
