@@ -1,0 +1,16 @@
+name = "mystery-vault-push-api"
+main = "src/index.js"
+compatibility_date = "2026-11-11"
+
+[vars]
+# Replace this with the Firebase project ID before deploying.
+FIREBASE_PROJECT_ID = "REPLACE_WITH_FIREBASE_PROJECT_ID"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mystery-vault-push"
+database_id = "REPLACE_AFTER_RUNNING_WRANGLER_D1_CREATE"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["17 4 * * *"]

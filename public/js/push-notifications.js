@@ -12,7 +12,7 @@
   const joinButton = document.getElementById('push-join-code');
   const scanButton = document.getElementById('push-scan-code');
   const deviceList = document.getElementById('push-linked-device-list');
-  if (!status || !window.MysteryVaultPushNative) return;
+  if (!status || !window.MysteryVaultNative) return;
 
   let sequence = 0;
   const pending = new Map();
@@ -30,7 +30,7 @@
     return new Promise((resolve, reject) => {
       const id = 'push_' + (++sequence);
       pending.set(id, { resolve, reject });
-      try { window.MysteryVaultPushNative[method](...args, id); }
+      try { window.MysteryVaultNative.postMessage(JSON.stringify({ type: 'push', method, args, id })); }
       catch (error) { pending.delete(id); reject(error); }
     });
   }
@@ -90,7 +90,8 @@
     try {
       const result = await nativeCall('createPairingCode');
       codeDisplay.textContent = result.code || '';
-      qrImage.src = window.MysteryVaultPushNative.qrDataUrl('mysteryvault://pair?code=' + encodeURIComponent(result.code || ''));
+      const qr = await nativeCall('qrDataUrl', 'mysteryvault://pair?code=' + encodeURIComponent(result.code || ''));
+      qrImage.src = qr.dataUrl || '';
       codeOutput.classList.remove('hidden');
       setStatus('Pairing code created. It expires in 10 minutes and can be used once.');
     } catch (error) { setStatus(error.message, true); } finally { createButton.disabled = false; }

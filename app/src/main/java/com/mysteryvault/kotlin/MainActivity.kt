@@ -25,13 +25,16 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.view.View
 import android.view.WindowManager
-import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.ValueCallback
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.JavaScriptReplyProxy
+import androidx.webkit.WebMessageCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import android.widget.FrameLayout
 import android.widget.Toast
 import java.io.ByteArrayInputStream
@@ -41,6 +44,7 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import org.json.JSONArray
 import org.json.JSONObject
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
@@ -177,8 +181,6 @@ class MainActivity : Activity() {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.setSupportZoom(false)
-            addJavascriptInterface(DownloadBridge(), "Android")
-            addJavascriptInterface(PushBridge(), "MysteryVaultPushNative")
         }
         rootContainer = FrameLayout(this).apply {
             addView(webView, FrameLayout.LayoutParams(
@@ -207,7 +209,10 @@ class MainActivity : Activity() {
                 val httpServer = LocalHttpServer(applicationContext)
                 val port = httpServer.start()
                 server = httpServer
-                runOnUiThread { webView.loadUrl("http://127.0.0.1:$port/") }
+                runOnUiThread {
+                    installNativeBridge(port)
+                    webView.loadUrl("http://127.0.0.1:$port/")
+                }
             } catch (t: Throwable) {
                 runOnUiThread { webView.loadData(
                     "<html><body><h2>Mystery Vault failed to start</h2><pre>" + t.message + "</pre></body></html>",
@@ -217,6 +222,60 @@ class MainActivity : Activity() {
         }.start()
     }
 
+
+    private fun installNativeBridge(port: Int) {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            Toast.makeText(this, "This Android System WebView does not support the secure native bridge.", Toast.LENGTH_LONG).show()
+            return
+        }
+        WebViewCompat.addWebMessageListener(
+            webView,
+            "MysteryVaultNative",
+            setOf("http://127.0.0.1:$port"),
+            object : WebViewCompat.WebMessageListener {
+                override fun onPostMessage(
+                    view: WebView,
+                    message: WebMessageCompat,
+                    sourceOrigin: Uri,
+                    isMainFrame: Boolean,
+                    replyProxy: JavaScriptReplyProxy
+                ) {
+                    if (!isMainFrame || sourceOrigin.scheme != "http" ||
+                        sourceOrigin.host != "127.0.0.1" || sourceOrigin.port != port) return
+                    val raw = message.data ?: return
+                    if (raw.length > 8192) return
+                    val payload = try { JSONObject(raw) } catch (_: Throwable) { return }
+                    when (payload.optString("type")) {
+                        "downloadTorrent" -> DownloadBridge().downloadTorrent(
+                            payload.optString("url"), payload.optString("fileName")
+                        )
+                        "push" -> dispatchPushMessage(payload)
+                    }
+                }
+            }
+        )
+    }
+
+    private fun dispatchPushMessage(payload: JSONObject) {
+        val callbackId = payload.optString("id")
+        if (!callbackId.matches(Regex("[A-Za-z0-9_-]{1,80}"))) return
+        val args = payload.optJSONArray("args") ?: JSONArray()
+        val bridge = PushBridge()
+        when (payload.optString("method")) {
+            "getStatus" -> bridge.getStatus(callbackId)
+            "requestNotificationPermission" -> bridge.requestNotificationPermission(callbackId)
+            "createPairingCode" -> bridge.createPairingCode(callbackId)
+            "joinPairingCode" -> bridge.joinPairingCode(args.optString(0), callbackId)
+            "listLinkedDevices" -> bridge.listLinkedDevices(callbackId)
+            "scanPairingQr" -> bridge.scanPairingQr(callbackId)
+            "sendNotification" -> bridge.sendNotification(args.optString(0), args.optString(1), callbackId)
+            "sendTestNotification" -> bridge.sendTestNotification(callbackId)
+            "unlinkDevice" -> bridge.unlinkDevice(args.optString(0), callbackId)
+            "qrDataUrl" -> bridge.qrDataUrl(args.optString(0), callbackId)
+            else -> completePushCallback(callbackId, JSONObject()
+                .put("ok", false).put("error", "Unsupported native operation."))
+        }
+    }
 
     private fun scheduleSplashDismissal() {
         val remaining = (SPLASH_MIN_DURATION_MS -
@@ -318,12 +377,12 @@ class MainActivity : Activity() {
     }
 
     private inner class PushBridge {
-        @JavascriptInterface fun getStatus(callbackId: String) {
+        fun getStatus(callbackId: String) {
             if (!hasNotificationPermission()) {
                 completePushCallback(callbackId, JSONObject().put("ok", true).put("data", JSONObject().put("permissionGranted", false)))
             } else completePushTask(callbackId, PushNotifications.ensureRegistered(applicationContext))
         }
-        @JavascriptInterface fun requestNotificationPermission(callbackId: String) {
+        fun requestNotificationPermission(callbackId: String) {
             runOnUiThread {
                 if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     pendingPushPermissionCallback = callbackId
@@ -331,33 +390,33 @@ class MainActivity : Activity() {
                 } else completePushTask(callbackId, PushNotifications.ensureRegistered(applicationContext))
             }
         }
-        @JavascriptInterface fun createPairingCode(callbackId: String) {
+        fun createPairingCode(callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "createPairingCode"))
         }
-        @JavascriptInterface fun joinPairingCode(code: String, callbackId: String) {
+        fun joinPairingCode(code: String, callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "joinPairingCode", mapOf("code" to code.trim().uppercase(Locale.ROOT))))
         }
-        @JavascriptInterface fun listLinkedDevices(callbackId: String) {
+        fun listLinkedDevices(callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "listLinkedDevices"))
         }
-        @JavascriptInterface fun scanPairingQr(callbackId: String) {
+        fun scanPairingQr(callbackId: String) {
             runOnUiThread {
                 pendingQrScanCallback = callbackId
                 IntentIntegrator(this@MainActivity).setPrompt("Scan the Mystery Vault pairing QR code")
                     .setOrientationLocked(false).initiateScan()
             }
         }
-        @JavascriptInterface fun sendNotification(linkId: String, message: String, callbackId: String) {
+        fun sendNotification(linkId: String, message: String, callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "sendNotification", mapOf("linkId" to linkId, "message" to message)))
         }
-        @JavascriptInterface fun sendTestNotification(callbackId: String) {
+        fun sendTestNotification(callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "sendTestNotification"))
         }
-        @JavascriptInterface fun unlinkDevice(linkId: String, callbackId: String) {
+        fun unlinkDevice(linkId: String, callbackId: String) {
             completePushTask(callbackId, PushNotifications.call(applicationContext, "unlinkDevice", mapOf("linkId" to linkId)))
         }
-        @JavascriptInterface fun qrDataUrl(value: String): String {
-            return try {
+        fun qrDataUrl(value: String, callbackId: String) {
+            val dataUrl = try {
                 val size = 280
                 val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, size, size)
                 val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -367,6 +426,8 @@ class MainActivity : Activity() {
                 bitmap.recycle()
                 "data:image/png;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
             } catch (_: Throwable) { "" }
+            completePushCallback(callbackId, JSONObject().put("ok", true)
+                .put("data", JSONObject().put("dataUrl", dataUrl)))
         }
     }
 
@@ -403,7 +464,6 @@ class MainActivity : Activity() {
         else completePushCallback(callbackId, JSONObject().put("ok", false).put("error", "Notification permission was denied. Enable it in Android settings to receive notifications."))
     }
     private inner class DownloadBridge {
-        @JavascriptInterface
         fun downloadTorrent(url: String, requestedName: String) {
             try {
                 val parsed = URL(url)

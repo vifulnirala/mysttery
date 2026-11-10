@@ -1,0 +1,37 @@
+name: Test Cloudflare Push Worker
+
+on:
+  push:
+    branches:
+      - android-push-notifications
+    paths:
+      - "workers/push-api/**"
+      - ".github/workflows/test-push-worker.yml"
+  pull_request:
+    paths:
+      - "workers/push-api/**"
+      - ".github/workflows/test-push-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Worker dependencies
+        working-directory: workers/push-api
+        run: npm install --ignore-scripts
+      - name: Run security unit tests
+        working-directory: workers/push-api
+        run: npm test
+      - name: Check JavaScript syntax
+        working-directory: workers/push-api
+        run: npm run check

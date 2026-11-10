@@ -3,7 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Firebase activates once the project configuration file is added.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
@@ -28,7 +27,14 @@ android {
             .get()
             .replace("\\", "\\\\")
             .replace("\"", "\\\"")
+        val pushApiBaseUrl = providers.environmentVariable("PUSH_API_BASE_URL")
+            .orElse("https://YOUR-WORKER.workers.dev")
+            .get()
+            .trimEnd('/')
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
         buildConfigField("String", "TMDB_TOKEN", "\"$tmdbToken\"")
+        buildConfigField("String", "PUSH_API_BASE_URL", "\"$pushApiBaseUrl\"")
         buildConfigField("String", "YTS_API_BASE", "\"https://yts.lt/api/v2/list_movies.json\"")
         buildConfigField("String", "EMBED_SERVERS", "\"vidcore,vidsrc\"")
         buildConfigField("String", "EMBED_VIDCORE_NAME", "\"Vidcore\"")
@@ -42,11 +48,7 @@ android {
     }
 
     buildFeatures { buildConfig = true }
-
-    packaging {
-        jniLibs { useLegacyPackaging = true }
-    }
-
+    packaging { jniLibs { useLegacyPackaging = true } }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -58,11 +60,10 @@ android {
 dependencies {
     implementation("com.frostwire:jlibtorrent:2.0.12.9")
     implementation("com.frostwire:jlibtorrent-android-arm64:2.0.12.9")
-
     implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
     implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-functions")
     implementation("com.google.firebase:firebase-messaging")
+    implementation("androidx.webkit:webkit:1.14.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }

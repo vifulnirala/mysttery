@@ -33,6 +33,18 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;27.3.13750724"
 
+      - name: Stage Firebase Android configuration
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_GOOGLE_SERVICES_JSON}" ]; then
+            printf '%s' "${FIREBASE_GOOGLE_SERVICES_JSON}" > app/google-services.json
+          else
+            echo "::warning::FIREBASE_GOOGLE_SERVICES_JSON is not configured; Firebase push features will be inactive in this APK."
+          fi
+
       - name: Stage web frontend
         shell: bash
         run: |
@@ -46,6 +58,7 @@ jobs:
         run: |
           node --check public/js/app.js
           node --check public/js/enhancements.js
+          node --check public/js/push-notifications.js
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -55,6 +68,7 @@ jobs:
       - name: Compile and package debug APK
         env:
           TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
+          PUSH_API_BASE_URL: ${{ secrets.PUSH_API_BASE_URL }}
         run: gradle assembleDebug
 
       - name: Upload debug APK
