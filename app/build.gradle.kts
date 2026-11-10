@@ -59,7 +59,7 @@ dependencies {
     implementation("com.frostwire:jlibtorrent:2.0.12.9")
     implementation("com.frostwire:jlibtorrent-android-arm64:2.0.12.9")
 
-    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-functions")
     implementation("com.google.firebase:firebase-messaging")
