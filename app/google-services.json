@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "327345408994",
+    "project_id": "mystery-vault-27983",
+    "storage_bucket": "mystery-vault-27983.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327345408994:android:e61b65ade25e7d6e6487bb",
+        "android_client_info": {
+          "package_name": "com.mysteryvault.kotlin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCb7ZErr_SQklpN6UPja5DoghQl3_ru4mU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
