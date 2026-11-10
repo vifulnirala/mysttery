@@ -126,7 +126,13 @@
    const trigger=document.createElement('button');trigger.type='button';trigger.className='vault-select-trigger';
    trigger.setAttribute('aria-label',select.getAttribute('aria-label')||selectId);trigger.title=select.getAttribute('aria-label')||selectId;
    const menu=document.createElement('div');menu.className='vault-select-menu';menu.setAttribute('role','listbox');
-   host.append(trigger,menu);select.after(host);
+   host.append(trigger,menu);
+   // Keep the custom popup outside the player/iframe stacking context. An iframe
+   // is a separate compositing layer, so a popup nested beside it can appear
+   // to open while actually being painted underneath the iframe.
+   document.body.appendChild(host);
+   host.style.position='fixed';
+   host.style.zIndex='2147483647';
    const labelFor=option=>{
      if(mode==='season'){const n=Number(option.value);return n===0?'Specials':'S'+String(n).padStart(2,'0')}
      if(mode==='episode'){const n=Number(option.value);return 'E'+String(n).padStart(2,'0')+(option.textContent?' · '+option.textContent:'')}
@@ -147,13 +153,19 @@
    function positionMenu(){
      if(!host.classList.contains('open'))return;
      const r=trigger.getBoundingClientRect();
-     const menuRect=menu.getBoundingClientRect();
      const margin=8;
-     let left=Math.min(Math.max(margin,r.right-menuRect.width),window.innerWidth-menuRect.width-margin);
-     let top=r.top-menuRect.height-7;
-     if(top<margin)top=Math.min(r.bottom+7,window.innerHeight-menuRect.height-margin);
-     menu.style.left=Math.round(left)+'px';
-     menu.style.top=Math.round(top)+'px';
+     const menuRect=menu.getBoundingClientRect();
+     const menuWidth=Math.min(menuRect.width || 250, window.innerWidth-margin*2);
+     const menuHeight=menuRect.height || 220;
+     const left=Math.min(Math.max(margin,r.left),window.innerWidth-menuWidth-margin);
+     let top=r.top-menuHeight-7;
+     if(top<margin)top=Math.min(r.bottom+7,window.innerHeight-menuHeight-margin);
+     host.style.left=Math.round(r.left)+'px';
+     host.style.top=Math.round(r.top)+'px';
+     host.style.width=Math.round(r.width)+'px';
+     host.style.height=Math.round(r.height)+'px';
+     menu.style.left=Math.round(left-r.left)+'px';
+     menu.style.top=Math.round(top-r.top)+'px';
      menu.style.right='auto';
      menu.style.bottom='auto';
    }
