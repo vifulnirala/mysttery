@@ -346,3 +346,18 @@
 .watchlist-actions button,.watchlist-actions a{flex:1;min-height:36px;border:1px solid var(--border,#27304b);border-radius:10px;background:rgba(255,255,255,.04);color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer}
 .watchlist-empty{padding:55px 20px;text-align:center;border:1px dashed var(--border,#27304b);border-radius:18px;opacity:.8}
 @media(max-width:700px){.topbar-actions{gap:7px}.nav-link{padding:0 10px}.watchlist-page{padding:24px 16px 45px}.watchlist-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Server manager, sandbox switch and UI motion */
+.server-manager-panel{padding:20px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+.server-import-form{display:flex;align-items:end;gap:14px;flex-wrap:wrap}
+.server-import-form .embed-field{flex:1;min-width:240px}
+.server-import-form input[type=file]{width:100%;min-height:44px;padding:9px;border:1px solid var(--line);border-radius:12px;background:var(--surface-solid);color:var(--text)}
+.managed-server-list{display:grid;gap:9px;margin-top:12px}
+.managed-server-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,.4fr) auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-solid)}
+.managed-server-row span{color:var(--muted);font-size:.8rem}
+.sandbox-toggle{display:flex;align-items:center;gap:9px;padding:12px 18px;color:#e2e8f0;background:#0b1020;font-size:.84rem;font-weight:700;cursor:pointer}
+.sandbox-toggle input{width:18px;height:18px;accent-color:var(--accent)}
+.card,.btn,.nav-link,.select-control,.watchlist-toggle,.managed-server-row{transition:transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.card:hover{transform:translateY(-4px);box-shadow:0 16px 38px rgba(0,0,0,.2)}
+.btn:active,.nav-link:active{transform:scale(.97)}
+@media(max-width:600px){.managed-server-row{grid-template-columns:1fr auto}.managed-server-row span{grid-column:1}.managed-server-row button{grid-column:2;grid-row:1/3}}
