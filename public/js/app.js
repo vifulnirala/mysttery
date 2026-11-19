@@ -62,6 +62,18 @@
       const n = Number(size);
       return Number.isFinite(n) && n > 0 ? `${n.toLocaleString()} MB` : 'Size unknown';
     }
+    const WATCHLIST_KEY = 'mystery-vault-watchlist-v1';
+    function getWatchlist() { try { const parsed = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); return Array.isArray(parsed) ? parsed : []; } catch (_) { return []; } }
+    function saveWatchlist(items) { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items)); }
+    function makeWatchlistItem(item, type) {
+      const isTmdb = type === 'tmdb';
+      return { id: isTmdb ? `tmdb:${item.mediaType}:${item.tmdbId}` : `${type}:${item.id || item.source || item.magnet}`, title: item.title || 'Untitled', year: item.year || '',
+        poster: posterUrl(isTmdb ? item.posterUrl : item.poster), type, mediaType: item.mediaType || null, tmdbId: item.tmdbId || null,
+        source: item.source || item.magnet || null, provider: item.provider || (isTmdb ? 'TMDB' : type === 'catalog' ? 'Curated' : 'Torrent'),
+        quality: item.quality || null, torrentType: item.torrentType || null };
+    }
+    function isWatchlisted(id) { return getWatchlist().some(item => item.id === id); }
+    function toggleWatchlist(item) { const items = getWatchlist(); const index = items.findIndex(existing => existing.id === item.id); if (index >= 0) items.splice(index, 1); else items.unshift(item); saveWatchlist(items); return index < 0; }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
       const poster = escapeHtml(posterUrl(type === 'tmdb' ? item.posterUrl : item.poster));
@@ -77,9 +89,12 @@
         : isTmdb
           ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
           : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
+      const watchlistItem = makeWatchlistItem(item, type);
+      const watchlisted = isWatchlisted(watchlistItem.id);
       return `<article class="card" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
         <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
-          <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span></div>
+          <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span>
+          <button class="watchlist-toggle${watchlisted ? ' active' : ''}" type="button" data-watchlist-id="${escapeHtml(watchlistItem.id)}" aria-label="${watchlisted ? 'Remove from watchlist' : 'Add to watchlist'}" title="${watchlisted ? 'Remove from watchlist' : 'Add to watchlist'}">${watchlisted ? '★' : '☆'}</button></div>
         <div class="card-info"><div class="card-title">${title}</div><div class="meta-row"><span>${metaLeft}</span><span class="meta-tag">${metaRight}</span></div></div>
       </article>`;
     }
@@ -178,12 +193,19 @@
       const source = resultSourceFilter.value;
       const quality = qualityFilter.value;
       filteredResults = unifiedResults.filter(entry => {
-        if (source !== 'all' && entry.type !== source) return false;
-        if (entry.type === 'search' && quality !== 'all' && qualityKey(searchResults[entry.index]) !== quality) return false;
+        const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
+        if (!item) return false;
+        if (source !== 'all') {
+          if (source === 'yts' && item.provider !== 'YTS') return false;
+          if (source === 'archive' && item.provider !== 'Internet Archive') return false;
+          if (source === 'tmdb-movie' && !(entry.type === 'tmdb' && item.mediaType === 'movie')) return false;
+          if (source === 'tmdb-tv' && !(entry.type === 'tmdb' && item.mediaType === 'tv')) return false;
+        }
+        if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
         return true;
       });
       renderMoreResults(true);
-      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb');
+      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb-movie' || source === 'tmdb-tv');
     }
 
     function populateQualityFilter() {
@@ -411,7 +433,6 @@
     document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
     episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
-    document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
     fileListContainer.addEventListener('click', event => {
       const button = event.target.closest('[data-file-index]');
       if (!button) return;
@@ -516,6 +537,24 @@
       }
     }
 
+    document.addEventListener('click', event => {
+      const button = event.target.closest('.watchlist-toggle');
+      if (!button) return;
+      event.stopPropagation();
+      const card = button.closest('[data-card-type]');
+      if (!card) return;
+      const index = Number(card.dataset.index);
+      const type = card.dataset.cardType;
+      const items = type === 'catalog' ? catalogGrid._items : type === 'tmdb' ? tmdbResults : searchResults;
+      const item = items?.[index];
+      if (!item) return;
+      const saved = toggleWatchlist(makeWatchlistItem(item, type));
+      button.classList.toggle('active', saved);
+      button.textContent = saved ? '★' : '☆';
+      button.setAttribute('aria-label', saved ? 'Remove from watchlist' : 'Add to watchlist');
+      button.title = saved ? 'Remove from watchlist' : 'Add to watchlist';
+      setStatus(saved ? 'Added to watchlist.' : 'Removed from watchlist.', 'success');
+    });
     function handleCardActivation(event) {
       if (event.target.closest('.tmdb-series-details')) return;
       const card = event.target.closest('[data-card-type]');
@@ -567,3 +606,5 @@
     });
 
     loadCatalog();
+    const initialQuery = new URLSearchParams(location.search).get('q');
+    if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
