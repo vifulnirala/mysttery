@@ -14,8 +14,7 @@
     const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
-    const externalServerStatus = document.getElementById('external-server-status');
-    const externalEpisodeControl = document.getElementById('external-episode-control');
+    const externalServerStatus = document.getElementById('external-server-status');\n    const sandboxToggle = document.getElementById('external-sandbox-toggle');\n    const SANDBOX_KEY = 'mystery-vault-player-sandbox';\n    let sandboxEnabled = localStorage.getItem(SANDBOX_KEY) !== 'false';\n    if (sandboxToggle) sandboxToggle.checked = sandboxEnabled;
     const playerSeasonInput = document.getElementById('player-season');
     const playerEpisodeInput = document.getElementById('player-episode');
     const playerEpisodeStatus = document.getElementById('player-episode-status');
@@ -205,7 +204,7 @@
         return true;
       });
       renderMoreResults(true);
-      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb-movie' || source === 'tmdb-tv');
+      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb' || !searchResults.length);
     }
 
     function populateQualityFilter() {
@@ -320,18 +319,7 @@
       }
     }
 
-    const externalTypeSelect = document.getElementById('external-media-type');
-    const externalStatus = document.getElementById('external-provider-status');
-    const externalTvFields = [...document.querySelectorAll('.external-tv-field')];
-    function updateExternalTypeFields() {
-      const isTv = externalTypeSelect.value === 'tv';
-      externalTvFields.forEach(field => field.classList.toggle('hidden', !isTv));
-      document.getElementById('external-season').required = isTv;
-      document.getElementById('external-episode').required = isTv;
-    }
-    externalTypeSelect.addEventListener('change', updateExternalTypeFields);
-    updateExternalTypeFields();
-    const externalConfigPromise = fetch('/api/embed-config')
+    const externalStatus = document.getElementById('external-provider-status');\n    const externalConfigPromise = fetch('/api/embed-config')
       .then(response => {
         if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
         return response.json();
@@ -365,7 +353,7 @@
         if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
-        externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
+        externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;\n        applyExternalSandbox();
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
         if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
@@ -383,6 +371,15 @@
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
 
+    function applyExternalSandbox() {
+      if (sandboxEnabled) externalFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+      else externalFrame.removeAttribute('sandbox');
+    }
+    sandboxToggle?.addEventListener('change', async () => {
+      sandboxEnabled = sandboxToggle.checked;
+      localStorage.setItem(SANDBOX_KEY, String(sandboxEnabled));
+      if (activeExternalPayload && currentPlaybackMode === 'external') await playExternalPlayer(activeExternalPayload, activeExternalTitle, activeExternalServerId || externalServerSelect.value || '');
+    });
     externalFrame.addEventListener('load', () => {
       if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
         externalPlayerControls.classList.remove('hidden');
@@ -407,17 +404,6 @@
       playerEpisodeStatus.textContent = 'Loading selected episode…';
       await playExternalPlayer({ ...activeExternalPayload, season, episode }, activeExternalTitle, activeExternalServerId || '');
       playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
-    });
-
-    document.getElementById('external-player-form').addEventListener('submit', async event => {
-      event.preventDefault();
-      const payload = {
-        mediaType: externalTypeSelect.value,
-        id: document.getElementById('external-media-id').value.trim(),
-        season: document.getElementById('external-season').value,
-        episode: document.getElementById('external-episode').value
-      };
-      await playExternalPlayer(payload);
     });
 
     document.getElementById('search-form').addEventListener('submit', event => {
@@ -475,11 +461,6 @@
           button.title = episode.overview || episode.name || '';
           button.addEventListener('click', async clickEvent => {
             clickEvent.stopPropagation();
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = 'tv';
-            updateExternalTypeFields();
-            document.getElementById('external-season').value = seasonNumber;
-            document.getElementById('external-episode').value = episode.episodeNumber;
             hideModal(episodePickerModal);
             await playExternalPlayer({
               mediaType: 'tv', id: item.tmdbId,
@@ -565,9 +546,6 @@
         const item = tmdbResults[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
-          document.getElementById('external-media-id').value = item.tmdbId;
-          externalTypeSelect.value = 'movie';
-          updateExternalTypeFields();
           void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
         } else {
           void expandTmdbShow(card, item);
@@ -605,6 +583,37 @@
       document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
     });
 
-    loadCatalog();
+
+    async function refreshManagedServers() {
+      const response = await fetch('/api/embed-config'); const config = await response.json();
+      externalProviders = Array.isArray(config.providers) ? config.providers : [];
+      const list = document.getElementById('managed-server-list'); if (!list) return;
+      list.replaceChildren();
+      if (!externalProviders.length) { list.innerHTML = '<p class="section-note">No valid servers configured.</p>'; return; }
+      externalProviders.forEach(provider => {
+        const row = document.createElement('div'); row.className = 'managed-server-row';
+        const name = document.createElement('strong'); name.textContent = provider.name;
+        const id = document.createElement('span'); id.textContent = provider.id;
+        const remove = document.createElement('button'); remove.className = 'btn btn-secondary'; remove.type = 'button'; remove.textContent = 'Remove';
+        remove.addEventListener('click', async () => {
+          if (!confirm('Remove ' + provider.name + ' from the player server list?')) return;
+          const response = await fetch('/api/embed-servers/' + encodeURIComponent(provider.id), { method: 'DELETE' });
+          const result = await response.json(); if (!response.ok) { document.getElementById('server-manager-status').textContent = result.error || 'Could not remove server.'; return; }
+          document.getElementById('server-manager-status').textContent = provider.name + ' removed.'; await refreshManagedServers();
+        });
+        row.append(name,id,remove); list.append(row);
+      });
+    }
+    document.getElementById('server-import-form')?.addEventListener('submit', async event => {
+      event.preventDefault(); const file = document.getElementById('server-config-file').files[0]; if (!file) return;
+      const status = document.getElementById('server-manager-status'); status.textContent = 'Importing server configuration…';
+      try {
+        const response = await fetch('/api/embed-servers/import', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:await file.text()}) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Import failed.');
+        status.textContent = 'Imported ' + result.count + ' server(s).'; document.getElementById('server-config-file').value = ''; await refreshManagedServers();
+      } catch(error) { status.textContent = error.message || 'Could not import server configuration.'; }
+    });
+    void refreshManagedServers().catch(error => console.warn('Could not refresh player servers:', error));
+\n    loadCatalog();
     const initialQuery = new URLSearchParams(location.search).get('q');
     if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
