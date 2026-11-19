@@ -1,6 +1,9 @@
 name: Windows Desktop Build
 
 on:
+  push:
+    branches:
+      - windows-executable-build
   pull_request:
     branches:
       - main
