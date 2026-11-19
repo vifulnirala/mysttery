@@ -324,3 +324,25 @@
   .external-episode-control input { width:70px; }
   #player-episode-status { flex-basis:100%; }
 }
+
+/* Watchlist and desktop navigation */
+.topbar-actions{display:flex;align-items:center;gap:12px;margin-left:auto}
+.nav-link{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 15px;border:1px solid var(--border,#27304b);border-radius:12px;color:inherit;text-decoration:none;background:rgba(255,255,255,.04);font-weight:700}
+.nav-link:hover{background:rgba(255,255,255,.08)}
+.watchlist-toggle{position:absolute;right:10px;top:10px;width:38px;height:38px;border:1px solid rgba(255,255,255,.2);border-radius:50%;background:rgba(8,12,25,.75);color:#fff;font-size:21px;cursor:pointer;z-index:3;backdrop-filter:blur(8px)}
+.watchlist-toggle.active{color:#ffd75e;border-color:rgba(255,215,94,.55)}
+.watchlist-toggle:hover{transform:scale(1.05)}
+.poster-wrap{position:relative}
+.watchlist-page{max-width:1280px;margin:0 auto;padding:32px 24px 60px}
+.watchlist-page .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
+.watchlist-page h1{margin:0}
+.watchlist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:18px}
+.watchlist-item{position:relative}
+.watchlist-item .poster{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:14px;display:block;background:#18213a}
+.watchlist-item .info{padding:10px 4px}
+.watchlist-item .title{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.watchlist-item .meta{font-size:.82rem;opacity:.7;margin-top:4px}
+.watchlist-actions{display:flex;gap:8px;margin-top:9px}
+.watchlist-actions button,.watchlist-actions a{flex:1;min-height:36px;border:1px solid var(--border,#27304b);border-radius:10px;background:rgba(255,255,255,.04);color:inherit;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer}
+.watchlist-empty{padding:55px 20px;text-align:center;border:1px dashed var(--border,#27304b);border-radius:18px;opacity:.8}
+@media(max-width:700px){.topbar-actions{gap:7px}.nav-link{padding:0 10px}.watchlist-page{padding:24px 16px 45px}.watchlist-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
