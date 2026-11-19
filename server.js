@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import WebTorrent from 'webtorrent';
 import path from 'node:path';
