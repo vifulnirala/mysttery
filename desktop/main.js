@@ -42,7 +42,8 @@ async function createWindow() {
     }
   });
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Library', submenu: [{ label: 'Watchlist', click: () => mainWindow?.loadURL(`http://127.0.0.1:${serverInfo.port}/watchlist.html`) }, { type: 'separator' }, { role: 'reload' }] }]));\n  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Library', submenu: [{ label: 'Watchlist', click: () => mainWindow?.loadURL(`http://127.0.0.1:${serverInfo.port}/watchlist.html`) }, { type: 'separator' }, { role: 'reload' }] }]));
+  mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open ordinary external links in the user's default browser, never a new
     // privileged Electron window. Embedded provider iframes remain in-app.
