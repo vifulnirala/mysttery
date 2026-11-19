@@ -35,7 +35,7 @@
         <div class="result-controls">
           <label class="filter-field"><span>Source</span>
             <select id="result-source-filter" class="select-control" aria-label="Filter results by source">
-              <option value="all">All sources</option><option value="yts">YTS</option><option value="archive">Internet Archive</option><option value="tmdb-movie">TMDB movies</option><option value="tmdb-tv">TMDB series</option>
+              <option value="all">All sources</option><option value="yts">YTS</option><option value="archive">Internet Archive</option><option value="tmdb">TMDB movies &amp; series</option>
             </select>
           </label>
           <label class="filter-field" id="quality-filter-wrap"><span>Picture quality</span>
@@ -61,24 +61,17 @@
       <div class="grid" id="catalog-grid"></div>
     </section>
 
-    <section class="section" aria-label="External playback">
-      <div class="embed-panel">
-        <form id="external-player-form" class="embed-form">
-          <label class="embed-field">Media type
-            <select id="external-media-type" class="select-control"><option value="movie">Movie</option><option value="tv">TV episode</option></select>
+    <section class="section server-manager-section" aria-labelledby="server-manager-title">
+      <div class="section-head"><div><div class="section-kicker">Playback configuration</div><h2 id="server-manager-title">Player servers</h2><p class="section-note">Import an .env or CSV file containing EMBED server settings. Changes are saved on this PC.</p></div></div>
+      <div class="server-manager-panel">
+        <form id="server-import-form" class="server-import-form">
+          <label class="embed-field">Upload server configuration (.env or .csv)
+            <input id="server-config-file" type="file" accept=".env,.txt,.csv,text/plain,text/csv" required>
           </label>
-          <label class="embed-field">IMDb / TMDB ID
-            <input id="external-media-id" type="text" required maxlength="80" pattern="[A-Za-z0-9._:-]{1,80}" placeholder="e.g. tt1234567 or 12345" autocomplete="off">
-          </label>
-          <label class="embed-field external-tv-field hidden">Season
-            <input id="external-season" type="number" min="0" max="99" value="1">
-          </label>
-          <label class="embed-field external-tv-field hidden">Episode
-            <input id="external-episode" type="number" min="1" max="999" value="1">
-          </label>
-          <button class="btn btn-primary" type="submit">Play selected title/episode</button>
+          <button class="btn btn-primary" type="submit">Import servers</button>
         </form>
-        <p class="embed-status" id="external-provider-status" role="status" aria-live="polite"></p>
+        <p id="server-manager-status" class="embed-status" role="status" aria-live="polite"></p>
+        <div id="managed-server-list" class="managed-server-list"></div>
       </div>
     </section>
     <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
@@ -112,7 +105,7 @@
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowfullscreen
         referrerpolicy="strict-origin-when-cross-origin"></iframe>
-      <div class="external-player-controls hidden" id="external-player-controls">
+      <div class="external-player-controls hidden" id="external-player-controls">\n        <label class="sandbox-toggle"><input type="checkbox" id="external-sandbox-toggle" checked> <span>Enable player sandbox</span></label>
         <div class="external-server-control" id="external-server-control">
           <label for="external-server-select">Player server</label>
           <select id="external-server-select" class="select-control"></select>
