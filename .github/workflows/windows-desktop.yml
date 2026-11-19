@@ -35,6 +35,7 @@ jobs:
       - name: Prepare desktop runtime configuration
         env:
           TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $vars = gh variable list --repo "$env:GITHUB_REPOSITORY" --json name,value | ConvertFrom-Json
