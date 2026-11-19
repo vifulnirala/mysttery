@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <title>Mystery Vault — Watchlist</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="watchlist-page">
+    <nav class="topbar" aria-label="Main navigation">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">✦</div>
+        <div><div class="brand-name">MYSTERY VAULT</div><div class="brand-caption">Your saved titles</div></div>
+      </div>
+      <div class="topbar-actions">
+        <a class="nav-link" href="/">Search</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">☼ <span>Light mode</span></button>
+      </div>
+    </nav>
+    <section class="page-head">
+      <div><div class="section-kicker">Your library</div><h1>Watchlist</h1><p class="section-note">Saved on this device. Nothing is uploaded to the server.</p></div>
+      <button class="btn btn-secondary" id="clear-watchlist" type="button">Clear all</button>
+    </section>
+    <section id="watchlist-grid" class="watchlist-grid" aria-live="polite"></section>
+  </main>
+  <script src="/js/watchlist.js" defer></script>
+</body>
+</html>
