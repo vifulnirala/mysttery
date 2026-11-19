@@ -1,0 +1,43 @@
+name: Windows Desktop Build
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/windows-desktop-port-main
+      - windows-executable-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Validate JavaScript
+        run: npm.cmd run check
+
+      - name: Build Windows installer
+        run: npm.cmd run dist:win
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mystery-vault-windows
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14
