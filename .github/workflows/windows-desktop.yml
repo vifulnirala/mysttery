@@ -39,27 +39,14 @@ jobs:
         run: |
           $vars = gh variable list --repo "$env:GITHUB_REPOSITORY" --json name,value | ConvertFrom-Json
           $wanted = @('EMBED_SERVERS')
-          $wanted += $vars | Where-Object { $_.name -match '^EMBED_[A-Z0-9_-]+_(NAME|BASE_URL|MOVIE_PATH_TEMPLATE|TV_PATH_TEMPLATE)
-        run: npm.cmd run check
-
-      - name: Build Windows installer
-        run: npm.cmd run dist:win
-
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: mystery-vault-windows
-          path: release/*.exe
-          if-no-files-found: error
-          retention-days: 14
- } | ForEach-Object { $_.name }
+          $wanted += $vars | Where-Object { $_.name -match '^EMBED_[A-Z0-9_-]+_(NAME|BASE_URL|MOVIE_PATH_TEMPLATE|TV_PATH_TEMPLATE)$' } | ForEach-Object { $_.name }
           $lines = @()
           if (-not $env:TMDB_READ_TOKEN) { throw 'TMDB_READ_TOKEN secret is not configured.' }
           $lines += 'TMDB_API_READ_ACCESS_TOKEN=' + $env:TMDB_READ_TOKEN
           foreach ($name in $wanted | Sort-Object -Unique) {
             $value = ($vars | Where-Object { $_.name -eq $name } | Select-Object -First 1).value
             if ($null -ne $value) {
-              $escaped = [string]$value -replace '\', '\\' -replace '"', '\"' -replace "`r?`n", '`n'
+              $escaped = [string]$value -replace '\\', '\\\\' -replace '"', '\\"' -replace "`r?`n", '\n'
               $lines += $name + '="' + $escaped + '"'
             }
           }
