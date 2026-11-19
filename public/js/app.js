@@ -14,7 +14,11 @@
     const externalPlayerControls = document.getElementById('external-player-controls');
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
-    const externalServerStatus = document.getElementById('external-server-status');\n    const sandboxToggle = document.getElementById('external-sandbox-toggle');\n    const SANDBOX_KEY = 'mystery-vault-player-sandbox';\n    let sandboxEnabled = localStorage.getItem(SANDBOX_KEY) !== 'false';\n    if (sandboxToggle) sandboxToggle.checked = sandboxEnabled;
+    const externalServerStatus = document.getElementById('external-server-status');
+    const sandboxToggle = document.getElementById('external-sandbox-toggle');
+    const SANDBOX_KEY = 'mystery-vault-player-sandbox';
+    let sandboxEnabled = localStorage.getItem(SANDBOX_KEY) !== 'false';
+    if (sandboxToggle) sandboxToggle.checked = sandboxEnabled;
     const playerSeasonInput = document.getElementById('player-season');
     const playerEpisodeInput = document.getElementById('player-episode');
     const playerEpisodeStatus = document.getElementById('player-episode-status');
@@ -197,8 +201,7 @@
         if (source !== 'all') {
           if (source === 'yts' && item.provider !== 'YTS') return false;
           if (source === 'archive' && item.provider !== 'Internet Archive') return false;
-          if (source === 'tmdb-movie' && !(entry.type === 'tmdb' && item.mediaType === 'movie')) return false;
-          if (source === 'tmdb-tv' && !(entry.type === 'tmdb' && item.mediaType === 'tv')) return false;
+          if (source === 'tmdb' && entry.type !== 'tmdb') return false;
         }
         if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
         return true;
@@ -319,7 +322,8 @@
       }
     }
 
-    const externalStatus = document.getElementById('external-provider-status');\n    const externalConfigPromise = fetch('/api/embed-config')
+    const externalStatus = document.getElementById('external-provider-status');
+    const externalConfigPromise = fetch('/api/embed-config')
       .then(response => {
         if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
         return response.json();
@@ -353,7 +357,8 @@
         if (!response.ok) throw new Error(result.error || 'Could not prepare external playback.');
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
-        externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;\n        applyExternalSandbox();
+        externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
+        applyExternalSandbox();
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
         if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
@@ -614,6 +619,7 @@
       } catch(error) { status.textContent = error.message || 'Could not import server configuration.'; }
     });
     void refreshManagedServers().catch(error => console.warn('Could not refresh player servers:', error));
-\n    loadCatalog();
+
+    loadCatalog();
     const initialQuery = new URLSearchParams(location.search).get('q');
     if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
