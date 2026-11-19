@@ -9,6 +9,9 @@ files:
   - scripts/**/*
   - package.json
 asar: true
+extraResources:
+  - from: runtime.env
+    to: runtime.env
 win:
   target:
     - target: nsis

@@ -1,7 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import WebTorrent from 'webtorrent';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -73,8 +76,12 @@ async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream 
 
 // Optional licensed external-player adapter. Configure a provider you are authorized
 // to embed; the browser never submits an arbitrary iframe URL to the server.
+const EMBED_CONFIG_DIR = path.join(os.homedir(), '.mystery-vault');
+const EMBED_CONFIG_PATH = path.join(EMBED_CONFIG_DIR, 'embed-servers.json');
+function readStoredEmbedEnv() { try { return JSON.parse(fs.readFileSync(EMBED_CONFIG_PATH, 'utf8')); } catch (_) { return null; } }
 function readEmbedProviders() {
-  const ids = String(process.env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
+  const env = readStoredEmbedEnv() || process.env;
+  const ids = String(env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
   const providerIds = ids.length ? ids : ['default'];
   const providers = [];
 
@@ -83,10 +90,10 @@ function readEmbedProviders() {
 
     const prefix = 'EMBED_' + id.toUpperCase() + '_';
     const legacy = id === 'default';
-    const name = process.env[prefix + 'NAME'] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
-    const baseUrl = process.env[prefix + 'BASE_URL'] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
-    const moviePath = process.env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
-    const tvPath = process.env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
+    const name = env[prefix + 'NAME'] || (legacy ? env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
+    const baseUrl = env[prefix + 'BASE_URL'] || (legacy ? env.EMBED_PROVIDER_BASE_URL : '');
+    const moviePath = env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? env.EMBED_MOVIE_PATH_TEMPLATE : '');
+    const tvPath = env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? env.EMBED_TV_PATH_TEMPLATE : '');
 
     if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') ||
         !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
@@ -290,7 +297,8 @@ function refineAndRankTorrents(candidates, query) {
       return providerPriority || (b.score - a.score);
     });
 
-  console.log(`\n[Search Refinement] Kept ${ranked.length} of ${candidates.length} raw results for "${query}":`);
+  console.log(`
+[Search Refinement] Kept ${ranked.length} of ${candidates.length} raw results for "${query}":`);
   ranked.slice(0, 5).forEach((c, idx) => {
     console.log(`  #${idx + 1} [Score: ${c.score}] [${c.resolution}] ${c.title} (Seeds: ${c.seeders}, Size: ${c.sizeMB}MB)`);
   });
@@ -581,7 +589,8 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
   };
 
   entry.promise = new Promise((resolve, reject) => {
-    console.log(`\n[Torrent] Opening ${isCurated ? 'curated' : 'search'} source on explicit selection: ${String(torrentSource).slice(0, 80)}`);
+    console.log(`
+[Torrent] Opening ${isCurated ? 'curated' : 'search'} source on explicit selection: ${String(torrentSource).slice(0, 80)}`);
 
     let settled = false;
     let metadataTimeout = null;
@@ -649,7 +658,9 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
   return entry.promise;
 }
 
-// Torrent sessions are created only on explicit user selection; no startup warmup.\n\n// General file-based range streaming
+// Torrent sessions are created only on explicit user selection; no startup warmup.
+
+// General file-based range streaming
 function pipeFileToResponse(key, file, req, res) {
   if (!file) {
     if (!res.headersSent) res.status(404).send('No playable video file found in this torrent');
@@ -775,6 +786,31 @@ function pipeFileToResponse(key, file, req, res) {
 // ============================================================================
 // 5. EXPRESS API ROUTES
 // ============================================================================
+function parseEmbedImport(content) {
+  const env = {};
+  for (const rawLine of String(content || '').split(String.fromCharCode(10))) {
+    const line = rawLine.trim(); if (!line || line.startsWith('#')) continue;
+    let key = '', value = ''; const equals = line.indexOf('=');
+    if (equals > 0) { key = line.slice(0, equals).trim(); value = line.slice(equals + 1).trim(); }
+    else { const cells = line.split(',').map(cell => cell.trim().replace(/^["']|["']$/g, '')); if (cells.length >= 2) { key = cells[0]; value = cells.slice(1).join(','); } }
+    if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
+    env[key.toUpperCase()] = String(value).replace(/^["']|["']$/g, '').replace(/\\:/g, ':');
+  }
+  if (!env.EMBED_SERVERS) throw new Error('The file must define EMBED_SERVERS.');
+  const ids = env.EMBED_SERVERS.split(',').map(value => value.trim()).filter(Boolean), valid = [];
+  for (const id of ids) {
+    if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+    const prefix = 'EMBED_' + id.toUpperCase() + '_', base = env[prefix+'BASE_URL'], movie = env[prefix+'MOVIE_PATH_TEMPLATE'], tv = env[prefix+'TV_PATH_TEMPLATE'];
+    if (!env[prefix+'NAME'] || !base || !movie || !tv || !movie.includes('{id}') || !['{id}','{season}','{episode}'].every(token => tv.includes(token))) continue;
+    try { const url = new URL(base), safe = template => template.startsWith('/') && !template.startsWith('//') && new URL(template.replace(/\{(?:id|season|episode)\}/g,'placeholder'),url).origin === url.origin; if (url.protocol === 'https:' && !url.username && !url.password && safe(movie) && safe(tv)) valid.push(id); } catch (_) {}
+  }
+  if (!valid.length) throw new Error('No valid EMBED servers found. Each server needs NAME, BASE_URL, MOVIE_PATH_TEMPLATE and TV_PATH_TEMPLATE.');
+  env.EMBED_SERVERS = valid.join(','); return { env, count: valid.length };
+}
+function saveEmbedEnv(env) { fs.mkdirSync(EMBED_CONFIG_DIR,{recursive:true}); fs.writeFileSync(EMBED_CONFIG_PATH,JSON.stringify(env,null,2),{encoding:'utf8',mode:0o600}); }
+app.post('/api/embed-servers/import',(req,res)=>{try{const parsed=parseEmbedImport(req.body?.content);saveEmbedEnv(parsed.env);res.json({count:parsed.count,providers:readEmbedProviders().map(({id,name})=>({id,name}))});}catch(error){res.status(400).json({error:error.message||'Invalid server configuration.'});}});
+app.delete('/api/embed-servers/:id',(req,res)=>{const id=String(req.params.id||'');if(!/^[a-z0-9_-]{1,32}$/i.test(id))return res.status(400).json({error:'Invalid server ID.'});const env=readStoredEmbedEnv()||Object.fromEntries(Object.entries(process.env).filter(([key])=>key.startsWith('EMBED_')));const original=String(env.EMBED_SERVERS||'').split(',').map(value=>value.trim()).filter(Boolean);if(!original.includes(id))return res.status(404).json({error:'Server not found.'});env.EMBED_SERVERS=original.filter(value=>value!==id).join(',');saveEmbedEnv(env);res.json({removed:id,providers:readEmbedProviders().map(({id,name})=>({id,name}))});});
+
 app.get('/api/embed-config', (_req, res) => {
   const providers = readEmbedProviders();
   res.json({ enabled: providers.length > 0, providerName: providers[0]?.name || null,
@@ -923,7 +959,8 @@ app.get('/api/torrent-search', async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Search query is required' });
   const requestedLimit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 50));
 
-  console.log(`\n[Search] Querying indexers for: "${query}" (YTS limit ${requestedLimit})...`);
+  console.log(`
+[Search] Querying indexers for: "${query}" (YTS limit ${requestedLimit})...`);
   const candidates = await searchTorrentIndexers(query, requestedLimit);
   const { best, results } = refineAndRankTorrents(candidates, query);
 

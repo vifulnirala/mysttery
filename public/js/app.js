@@ -15,7 +15,10 @@
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
     const externalServerStatus = document.getElementById('external-server-status');
-    const externalEpisodeControl = document.getElementById('external-episode-control');
+    const sandboxToggle = document.getElementById('external-sandbox-toggle');
+    const SANDBOX_KEY = 'mystery-vault-player-sandbox';
+    let sandboxEnabled = localStorage.getItem(SANDBOX_KEY) !== 'false';
+    if (sandboxToggle) sandboxToggle.checked = sandboxEnabled;
     const playerSeasonInput = document.getElementById('player-season');
     const playerEpisodeInput = document.getElementById('player-episode');
     const playerEpisodeStatus = document.getElementById('player-episode-status');
@@ -62,6 +65,18 @@
       const n = Number(size);
       return Number.isFinite(n) && n > 0 ? `${n.toLocaleString()} MB` : 'Size unknown';
     }
+    const WATCHLIST_KEY = 'mystery-vault-watchlist-v1';
+    function getWatchlist() { try { const parsed = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); return Array.isArray(parsed) ? parsed : []; } catch (_) { return []; } }
+    function saveWatchlist(items) { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items)); }
+    function makeWatchlistItem(item, type) {
+      const isTmdb = type === 'tmdb';
+      return { id: isTmdb ? `tmdb:${item.mediaType}:${item.tmdbId}` : `${type}:${item.id || item.source || item.magnet}`, title: item.title || 'Untitled', year: item.year || '',
+        poster: posterUrl(isTmdb ? item.posterUrl : item.poster), type, mediaType: item.mediaType || null, tmdbId: item.tmdbId || null,
+        source: item.source || item.magnet || null, provider: item.provider || (isTmdb ? 'TMDB' : type === 'catalog' ? 'Curated' : 'Torrent'),
+        quality: item.quality || null, torrentType: item.torrentType || null };
+    }
+    function isWatchlisted(id) { return getWatchlist().some(item => item.id === id); }
+    function toggleWatchlist(item) { const items = getWatchlist(); const index = items.findIndex(existing => existing.id === item.id); if (index >= 0) items.splice(index, 1); else items.unshift(item); saveWatchlist(items); return index < 0; }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
       const poster = escapeHtml(posterUrl(type === 'tmdb' ? item.posterUrl : item.poster));
@@ -77,9 +92,12 @@
         : isTmdb
           ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
           : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
+      const watchlistItem = makeWatchlistItem(item, type);
+      const watchlisted = isWatchlisted(watchlistItem.id);
       return `<article class="card" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
         <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
-          <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span></div>
+          <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span>
+          <button class="watchlist-toggle${watchlisted ? ' active' : ''}" type="button" data-watchlist-id="${escapeHtml(watchlistItem.id)}" aria-label="${watchlisted ? 'Remove from watchlist' : 'Add to watchlist'}" title="${watchlisted ? 'Remove from watchlist' : 'Add to watchlist'}">${watchlisted ? '★' : '☆'}</button></div>
         <div class="card-info"><div class="card-title">${title}</div><div class="meta-row"><span>${metaLeft}</span><span class="meta-tag">${metaRight}</span></div></div>
       </article>`;
     }
@@ -178,12 +196,18 @@
       const source = resultSourceFilter.value;
       const quality = qualityFilter.value;
       filteredResults = unifiedResults.filter(entry => {
-        if (source !== 'all' && entry.type !== source) return false;
-        if (entry.type === 'search' && quality !== 'all' && qualityKey(searchResults[entry.index]) !== quality) return false;
+        const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
+        if (!item) return false;
+        if (source !== 'all') {
+          if (source === 'yts' && item.provider !== 'YTS') return false;
+          if (source === 'archive' && item.provider !== 'Internet Archive') return false;
+          if (source === 'tmdb' && entry.type !== 'tmdb') return false;
+        }
+        if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
         return true;
       });
       renderMoreResults(true);
-      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb');
+      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb' || !searchResults.length);
     }
 
     function populateQualityFilter() {
@@ -298,17 +322,7 @@
       }
     }
 
-    const externalTypeSelect = document.getElementById('external-media-type');
     const externalStatus = document.getElementById('external-provider-status');
-    const externalTvFields = [...document.querySelectorAll('.external-tv-field')];
-    function updateExternalTypeFields() {
-      const isTv = externalTypeSelect.value === 'tv';
-      externalTvFields.forEach(field => field.classList.toggle('hidden', !isTv));
-      document.getElementById('external-season').required = isTv;
-      document.getElementById('external-episode').required = isTv;
-    }
-    externalTypeSelect.addEventListener('change', updateExternalTypeFields);
-    updateExternalTypeFields();
     const externalConfigPromise = fetch('/api/embed-config')
       .then(response => {
         if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
@@ -344,6 +358,7 @@
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
+        applyExternalSandbox();
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
         if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
@@ -361,6 +376,15 @@
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
 
+    function applyExternalSandbox() {
+      if (sandboxEnabled) externalFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+      else externalFrame.removeAttribute('sandbox');
+    }
+    sandboxToggle?.addEventListener('change', async () => {
+      sandboxEnabled = sandboxToggle.checked;
+      localStorage.setItem(SANDBOX_KEY, String(sandboxEnabled));
+      if (activeExternalPayload && currentPlaybackMode === 'external') await playExternalPlayer(activeExternalPayload, activeExternalTitle, activeExternalServerId || externalServerSelect.value || '');
+    });
     externalFrame.addEventListener('load', () => {
       if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
         externalPlayerControls.classList.remove('hidden');
@@ -387,17 +411,6 @@
       playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
     });
 
-    document.getElementById('external-player-form').addEventListener('submit', async event => {
-      event.preventDefault();
-      const payload = {
-        mediaType: externalTypeSelect.value,
-        id: document.getElementById('external-media-id').value.trim(),
-        season: document.getElementById('external-season').value,
-        episode: document.getElementById('external-episode').value
-      };
-      await playExternalPlayer(payload);
-    });
-
     document.getElementById('search-form').addEventListener('submit', event => {
       event.preventDefault();
       searchTorrents();
@@ -411,7 +424,6 @@
     document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
     episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
-    document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
     fileListContainer.addEventListener('click', event => {
       const button = event.target.closest('[data-file-index]');
       if (!button) return;
@@ -454,11 +466,6 @@
           button.title = episode.overview || episode.name || '';
           button.addEventListener('click', async clickEvent => {
             clickEvent.stopPropagation();
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = 'tv';
-            updateExternalTypeFields();
-            document.getElementById('external-season').value = seasonNumber;
-            document.getElementById('external-episode').value = episode.episodeNumber;
             hideModal(episodePickerModal);
             await playExternalPlayer({
               mediaType: 'tv', id: item.tmdbId,
@@ -516,6 +523,24 @@
       }
     }
 
+    document.addEventListener('click', event => {
+      const button = event.target.closest('.watchlist-toggle');
+      if (!button) return;
+      event.stopPropagation();
+      const card = button.closest('[data-card-type]');
+      if (!card) return;
+      const index = Number(card.dataset.index);
+      const type = card.dataset.cardType;
+      const items = type === 'catalog' ? catalogGrid._items : type === 'tmdb' ? tmdbResults : searchResults;
+      const item = items?.[index];
+      if (!item) return;
+      const saved = toggleWatchlist(makeWatchlistItem(item, type));
+      button.classList.toggle('active', saved);
+      button.textContent = saved ? '★' : '☆';
+      button.setAttribute('aria-label', saved ? 'Remove from watchlist' : 'Add to watchlist');
+      button.title = saved ? 'Remove from watchlist' : 'Add to watchlist';
+      setStatus(saved ? 'Added to watchlist.' : 'Removed from watchlist.', 'success');
+    });
     function handleCardActivation(event) {
       if (event.target.closest('.tmdb-series-details')) return;
       const card = event.target.closest('[data-card-type]');
@@ -526,9 +551,6 @@
         const item = tmdbResults[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
-          document.getElementById('external-media-id').value = item.tmdbId;
-          externalTypeSelect.value = 'movie';
-          updateExternalTypeFields();
           void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
         } else {
           void expandTmdbShow(card, item);
@@ -566,4 +588,38 @@
       document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
     });
 
+
+    async function refreshManagedServers() {
+      const response = await fetch('/api/embed-config'); const config = await response.json();
+      externalProviders = Array.isArray(config.providers) ? config.providers : [];
+      const list = document.getElementById('managed-server-list'); if (!list) return;
+      list.replaceChildren();
+      if (!externalProviders.length) { list.innerHTML = '<p class="section-note">No valid servers configured.</p>'; return; }
+      externalProviders.forEach(provider => {
+        const row = document.createElement('div'); row.className = 'managed-server-row';
+        const name = document.createElement('strong'); name.textContent = provider.name;
+        const id = document.createElement('span'); id.textContent = provider.id;
+        const remove = document.createElement('button'); remove.className = 'btn btn-secondary'; remove.type = 'button'; remove.textContent = 'Remove';
+        remove.addEventListener('click', async () => {
+          if (!confirm('Remove ' + provider.name + ' from the player server list?')) return;
+          const response = await fetch('/api/embed-servers/' + encodeURIComponent(provider.id), { method: 'DELETE' });
+          const result = await response.json(); if (!response.ok) { document.getElementById('server-manager-status').textContent = result.error || 'Could not remove server.'; return; }
+          document.getElementById('server-manager-status').textContent = provider.name + ' removed.'; await refreshManagedServers();
+        });
+        row.append(name,id,remove); list.append(row);
+      });
+    }
+    document.getElementById('server-import-form')?.addEventListener('submit', async event => {
+      event.preventDefault(); const file = document.getElementById('server-config-file').files[0]; if (!file) return;
+      const status = document.getElementById('server-manager-status'); status.textContent = 'Importing server configuration…';
+      try {
+        const response = await fetch('/api/embed-servers/import', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content:await file.text()}) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Import failed.');
+        status.textContent = 'Imported ' + result.count + ' server(s).'; document.getElementById('server-config-file').value = ''; await refreshManagedServers();
+      } catch(error) { status.textContent = error.message || 'Could not import server configuration.'; }
+    });
+    void refreshManagedServers().catch(error => console.warn('Could not refresh player servers:', error));
+
     loadCatalog();
+    const initialQuery = new URLSearchParams(location.search).get('q');
+    if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }

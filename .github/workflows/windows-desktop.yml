@@ -1,0 +1,68 @@
+name: Windows Desktop Build
+
+on:
+  push:
+    branches:
+      - windows-executable-build
+  pull_request:
+    branches:
+      - main
+      - feature/windows-desktop-port-main
+      - windows-executable-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm.cmd install
+
+      - name: Prepare desktop runtime configuration
+        env:
+          TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
+        shell: pwsh
+        run: |
+          if (-not $env:TMDB_READ_TOKEN) { throw 'TMDB_READ_TOKEN secret is not configured.' }
+          $lines = @(
+            ('TMDB_API_READ_ACCESS_TOKEN="' + ($env:TMDB_READ_TOKEN -replace '\\', '\\\\' -replace '"', '\\"') + '"'),
+            'EMBED_SERVERS="vidcore,vidsrc"',
+            'EMBED_VIDCORE_NAME="Vidcore"',
+            'EMBED_VIDCORE_BASE_URL="https://vidcore.org"',
+            'EMBED_VIDCORE_MOVIE_PATH_TEMPLATE="/embed/movie/{id}"',
+            'EMBED_VIDCORE_TV_PATH_TEMPLATE="/embed/tv/{id}/{season}/{episode}"',
+            'EMBED_VIDSRC_NAME="Vidsrc"',
+            'EMBED_VIDSRC_BASE_URL="https://vidsrc.mov"',
+            'EMBED_VIDSRC_MOVIE_PATH_TEMPLATE="/embed/movie/{id}"',
+            'EMBED_VIDSRC_TV_PATH_TEMPLATE="/embed/tv/{id}/{season}/{episode}"'
+          )
+          Set-Content -Path runtime.env -Value ($lines -join "`n") -Encoding UTF8
+          Write-Host 'Prepared TMDB and external player runtime configuration.'
+
+      - name: Validate JavaScript
+        run: npm.cmd run check
+
+      - name: Build Windows installer
+        run: npm.cmd run dist:win -- --publish never
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mystery-vault-windows
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14

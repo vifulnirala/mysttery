@@ -1,14 +1,28 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, Menu } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startServer, closeServer } from '../server.js';
+import fs from 'node:fs';
+import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow = null;
 let serverInfo = null;
 let isQuitting = false;
+let startServer;
+let closeServer;
+
+async function loadServer() {
+  const envPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'runtime.env')
+    : path.join(process.cwd(), 'runtime.env');
+  if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: true });
+  const serverModule = await import('../server.js');
+  startServer = serverModule.startServer;
+  closeServer = serverModule.closeServer;
+}
 
 async function createWindow() {
+  await loadServer();
   serverInfo = await startServer({ host: '127.0.0.1', port: 0 });
 
   mainWindow = new BrowserWindow({
@@ -18,7 +32,7 @@ async function createWindow() {
     minHeight: 640,
     show: false,
     backgroundColor: '#0b1020',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -28,6 +42,7 @@ async function createWindow() {
     }
   });
 
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Library', submenu: [{ label: 'Watchlist', click: () => mainWindow?.loadURL(`http://127.0.0.1:${serverInfo.port}/watchlist.html`) }, { type: 'separator' }, { role: 'reload' }] }]));
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open ordinary external links in the user's default browser, never a new
