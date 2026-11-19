@@ -35,24 +35,40 @@ jobs:
       - name: Prepare desktop runtime configuration
         env:
           TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
+          EMBED_SERVERS: ${{ vars.EMBED_SERVERS }}
+          EMBED_VIDCORE_NAME: ${{ vars.EMBED_VIDCORE_NAME }}
+          EMBED_VIDCORE_BASE_URL: ${{ vars.EMBED_VIDCORE_BASE_URL }}
+          EMBED_VIDCORE_MOVIE_PATH_TEMPLATE: ${{ vars.EMBED_VIDCORE_MOVIE_PATH_TEMPLATE }}
+          EMBED_VIDCORE_TV_PATH_TEMPLATE: ${{ vars.EMBED_VIDCORE_TV_PATH_TEMPLATE }}
+          EMBED_VIDSRC_NAME: ${{ vars.EMBED_VIDSRC_NAME }}
+          EMBED_VIDSRC_BASE_URL: ${{ vars.EMBED_VIDSRC_BASE_URL }}
+          EMBED_VIDSRC_MOVIE_PATH_TEMPLATE: ${{ vars.EMBED_VIDSRC_MOVIE_PATH_TEMPLATE }}
+          EMBED_VIDSRC_TV_PATH_TEMPLATE: ${{ vars.EMBED_VIDSRC_TV_PATH_TEMPLATE }}
         shell: pwsh
         run: |
-          $vars = gh variable list --repo "$env:GITHUB_REPOSITORY" --json name,value | ConvertFrom-Json
-          $wanted = @('EMBED_SERVERS')
-          $wanted += $vars | Where-Object { $_.name -match '^EMBED_[A-Z0-9_-]+_(NAME|BASE_URL|MOVIE_PATH_TEMPLATE|TV_PATH_TEMPLATE)$' } | ForEach-Object { $_.name }
-          $lines = @()
           if (-not $env:TMDB_READ_TOKEN) { throw 'TMDB_READ_TOKEN secret is not configured.' }
-          $lines += 'TMDB_API_READ_ACCESS_TOKEN=' + $env:TMDB_READ_TOKEN
-          foreach ($name in $wanted | Sort-Object -Unique) {
-            $value = ($vars | Where-Object { $_.name -eq $name } | Select-Object -First 1).value
-            if ($null -ne $value) {
-              $escaped = [string]$value -replace '\\', '\\\\' -replace '"', '\\"' -replace "`r?`n", '\n'
+          $names = @(
+            'EMBED_SERVERS',
+            'EMBED_VIDCORE_NAME',
+            'EMBED_VIDCORE_BASE_URL',
+            'EMBED_VIDCORE_MOVIE_PATH_TEMPLATE',
+            'EMBED_VIDCORE_TV_PATH_TEMPLATE',
+            'EMBED_VIDSRC_NAME',
+            'EMBED_VIDSRC_BASE_URL',
+            'EMBED_VIDSRC_MOVIE_PATH_TEMPLATE',
+            'EMBED_VIDSRC_TV_PATH_TEMPLATE'
+          )
+          $lines = @('TMDB_API_READ_ACCESS_TOKEN="' + ($env:TMDB_READ_TOKEN -replace '\\', '\\\\' -replace '"', '\\"') + '"')
+          foreach ($name in $names) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ($null -ne $value -and $value -ne '') {
+              $escaped = $value -replace '\\', '\\\\' -replace '"', '\\"' -replace "`r?`n", '\n'
               $lines += $name + '="' + $escaped + '"'
             }
           }
           Set-Content -Path runtime.env -Value ($lines -join "`n") -Encoding UTF8
-          if (-not ($lines -match '^EMBED_SERVERS=')) { Write-Warning 'EMBED_SERVERS repository variable was not found.' }
+          if (-not $env:EMBED_SERVERS) { throw 'EMBED_SERVERS repository variable is not configured.' }
+          Write-Host "Prepared runtime configuration for external providers: $env:EMBED_SERVERS"
 
       - name: Validate JavaScript
         run: npm.cmd run check
