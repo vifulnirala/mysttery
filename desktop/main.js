@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, Menu } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -32,7 +32,7 @@ async function createWindow() {
     minHeight: 640,
     show: false,
     backgroundColor: '#0b1020',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -42,7 +42,7 @@ async function createWindow() {
     }
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Library', submenu: [{ label: 'Watchlist', click: () => mainWindow?.loadURL(`http://127.0.0.1:${serverInfo.port}/watchlist.html`) }, { type: 'separator' }, { role: 'reload' }] }]));\n  mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open ordinary external links in the user's default browser, never a new
     // privileged Electron window. Embedded provider iframes remain in-app.
