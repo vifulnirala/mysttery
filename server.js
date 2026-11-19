@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import WebTorrent from 'webtorrent';
-import path from 'node:path';
+import path from 'node:path';\nimport fs from 'node:fs';\nimport os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -84,10 +84,10 @@ function readEmbedProviders() {
 
     const prefix = 'EMBED_' + id.toUpperCase() + '_';
     const legacy = id === 'default';
-    const name = process.env[prefix + 'NAME'] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
-    const baseUrl = process.env[prefix + 'BASE_URL'] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
-    const moviePath = process.env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
-    const tvPath = process.env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
+    const name = env[prefix + 'NAME'] || (legacy ? env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
+    const baseUrl = env[prefix + 'BASE_URL'] || (legacy ? env.EMBED_PROVIDER_BASE_URL : '');
+    const moviePath = env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? env.EMBED_MOVIE_PATH_TEMPLATE : '');
+    const tvPath = env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? env.EMBED_TV_PATH_TEMPLATE : '');
 
     if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') ||
         !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
@@ -776,7 +776,31 @@ function pipeFileToResponse(key, file, req, res) {
 // ============================================================================
 // 5. EXPRESS API ROUTES
 // ============================================================================
-app.get('/api/embed-config', (_req, res) => {
+function parseEmbedImport(content) {
+  const env = {};
+  for (const rawLine of String(content || '').split(/\r?\n/)) {
+    const line = rawLine.trim(); if (!line || line.startsWith('#')) continue;
+    let key = '', value = ''; const equals = line.indexOf('=');
+    if (equals > 0) { key = line.slice(0, equals).trim(); value = line.slice(equals + 1).trim(); }
+    else { const cells = line.split(',').map(cell => cell.trim().replace(/^["']|["']$/g, '')); if (cells.length >= 2) { key = cells[0]; value = cells.slice(1).join(','); } }
+    if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
+    env[key.toUpperCase()] = String(value).replace(/^["']|["']$/g, '').replace(/\\:/g, ':');
+  }
+  if (!env.EMBED_SERVERS) throw new Error('The file must define EMBED_SERVERS.');
+  const ids = env.EMBED_SERVERS.split(',').map(value => value.trim()).filter(Boolean), valid = [];
+  for (const id of ids) {
+    if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+    const prefix = 'EMBED_' + id.toUpperCase() + '_', base = env[prefix+'BASE_URL'], movie = env[prefix+'MOVIE_PATH_TEMPLATE'], tv = env[prefix+'TV_PATH_TEMPLATE'];
+    if (!env[prefix+'NAME'] || !base || !movie || !tv || !movie.includes('{id}') || !['{id}','{season}','{episode}'].every(token => tv.includes(token))) continue;
+    try { const url = new URL(base), safe = template => template.startsWith('/') && !template.startsWith('//') && new URL(template.replace(/\{(?:id|season|episode)\}/g,'placeholder'),url).origin === url.origin; if (url.protocol === 'https:' && !url.username && !url.password && safe(movie) && safe(tv)) valid.push(id); } catch (_) {}
+  }
+  if (!valid.length) throw new Error('No valid EMBED servers found. Each server needs NAME, BASE_URL, MOVIE_PATH_TEMPLATE and TV_PATH_TEMPLATE.');
+  env.EMBED_SERVERS = valid.join(','); return { env, count: valid.length };
+}
+function saveEmbedEnv(env) { fs.mkdirSync(EMBED_CONFIG_DIR,{recursive:true}); fs.writeFileSync(EMBED_CONFIG_PATH,JSON.stringify(env,null,2),{encoding:'utf8',mode:0o600}); }
+app.post('/api/embed-servers/import',(req,res)=>{try{const parsed=parseEmbedImport(req.body?.content);saveEmbedEnv(parsed.env);res.json({count:parsed.count,providers:readEmbedProviders().map(({id,name})=>({id,name}))});}catch(error){res.status(400).json({error:error.message||'Invalid server configuration.'});}});
+app.delete('/api/embed-servers/:id',(req,res)=>{const id=String(req.params.id||'');if(!/^[a-z0-9_-]{1,32}$/i.test(id))return res.status(400).json({error:'Invalid server ID.'});const env=readStoredEmbedEnv()||Object.fromEntries(Object.entries(process.env).filter(([key])=>key.startsWith('EMBED_')));const original=String(env.EMBED_SERVERS||'').split(',').map(value=>value.trim()).filter(Boolean);if(!original.includes(id))return res.status(404).json({error:'Server not found.'});env.EMBED_SERVERS=original.filter(value=>value!==id).join(',');saveEmbedEnv(env);res.json({removed:id,providers:readEmbedProviders().map(({id,name})=>({id,name}))});});
+\napp.get('/api/embed-config', (_req, res) => {
   const providers = readEmbedProviders();
   res.json({ enabled: providers.length > 0, providerName: providers[0]?.name || null,
     defaultProviderId: providers[0]?.id || null,
