@@ -35,40 +35,23 @@ jobs:
       - name: Prepare desktop runtime configuration
         env:
           TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
-          EMBED_SERVERS: ${{ vars.EMBED_SERVERS }}
-          EMBED_VIDCORE_NAME: ${{ vars.EMBED_VIDCORE_NAME }}
-          EMBED_VIDCORE_BASE_URL: ${{ vars.EMBED_VIDCORE_BASE_URL }}
-          EMBED_VIDCORE_MOVIE_PATH_TEMPLATE: ${{ vars.EMBED_VIDCORE_MOVIE_PATH_TEMPLATE }}
-          EMBED_VIDCORE_TV_PATH_TEMPLATE: ${{ vars.EMBED_VIDCORE_TV_PATH_TEMPLATE }}
-          EMBED_VIDSRC_NAME: ${{ vars.EMBED_VIDSRC_NAME }}
-          EMBED_VIDSRC_BASE_URL: ${{ vars.EMBED_VIDSRC_BASE_URL }}
-          EMBED_VIDSRC_MOVIE_PATH_TEMPLATE: ${{ vars.EMBED_VIDSRC_MOVIE_PATH_TEMPLATE }}
-          EMBED_VIDSRC_TV_PATH_TEMPLATE: ${{ vars.EMBED_VIDSRC_TV_PATH_TEMPLATE }}
         shell: pwsh
         run: |
           if (-not $env:TMDB_READ_TOKEN) { throw 'TMDB_READ_TOKEN secret is not configured.' }
-          $names = @(
-            'EMBED_SERVERS',
-            'EMBED_VIDCORE_NAME',
-            'EMBED_VIDCORE_BASE_URL',
-            'EMBED_VIDCORE_MOVIE_PATH_TEMPLATE',
-            'EMBED_VIDCORE_TV_PATH_TEMPLATE',
-            'EMBED_VIDSRC_NAME',
-            'EMBED_VIDSRC_BASE_URL',
-            'EMBED_VIDSRC_MOVIE_PATH_TEMPLATE',
-            'EMBED_VIDSRC_TV_PATH_TEMPLATE'
+          $lines = @(
+            ('TMDB_API_READ_ACCESS_TOKEN="' + ($env:TMDB_READ_TOKEN -replace '\\', '\\\\' -replace '"', '\\"') + '"'),
+            'EMBED_SERVERS="vidcore,vidsrc"',
+            'EMBED_VIDCORE_NAME="Vidcore"',
+            'EMBED_VIDCORE_BASE_URL="https://vidcore.org"',
+            'EMBED_VIDCORE_MOVIE_PATH_TEMPLATE="/embed/movie/{id}"',
+            'EMBED_VIDCORE_TV_PATH_TEMPLATE="/embed/tv/{id}/{season}/{episode}"',
+            'EMBED_VIDSRC_NAME="Vidsrc"',
+            'EMBED_VIDSRC_BASE_URL="https://vidsrc.mov"',
+            'EMBED_VIDSRC_MOVIE_PATH_TEMPLATE="/embed/movie/{id}"',
+            'EMBED_VIDSRC_TV_PATH_TEMPLATE="/embed/tv/{id}/{season}/{episode}"'
           )
-          $lines = @('TMDB_API_READ_ACCESS_TOKEN="' + ($env:TMDB_READ_TOKEN -replace '\\', '\\\\' -replace '"', '\\"') + '"')
-          foreach ($name in $names) {
-            $value = [Environment]::GetEnvironmentVariable($name)
-            if ($null -ne $value -and $value -ne '') {
-              $escaped = $value -replace '\\', '\\\\' -replace '"', '\\"' -replace "`r?`n", '\n'
-              $lines += $name + '="' + $escaped + '"'
-            }
-          }
           Set-Content -Path runtime.env -Value ($lines -join "`n") -Encoding UTF8
-          if (-not $env:EMBED_SERVERS) { throw 'EMBED_SERVERS repository variable is not configured.' }
-          Write-Host "Prepared runtime configuration for external providers: $env:EMBED_SERVERS"
+          Write-Host 'Prepared TMDB and external player runtime configuration.'
 
       - name: Validate JavaScript
         run: npm.cmd run check
