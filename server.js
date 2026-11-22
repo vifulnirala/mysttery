@@ -818,11 +818,33 @@ app.get('/api/embed-config', (_req, res) => {
     providers: providers.map(({ id, name }) => ({ id, name })) });
 });
 
-app.post('/api/external-player', (req, res) => {
+async function resolveExternalPlaybackId(mediaType, id, idType = '') {
+  // TMDB search results contain numeric TMDB IDs, while the configured external
+  // players commonly expect IMDb IDs (the old manual player explicitly asked
+  // for an IMDb ID). Resolve numeric TMDB IDs to IMDb IDs server-side so the
+  // browser never needs to know or expose the TMDB credentials.
+  if (String(idType).toLowerCase() !== 'tmdb' && !/^\\d{1,12}$/.test(id)) return id;
+  if (!TMDB_API_READ_ACCESS_TOKEN) return id;
+  const endpoint = mediaType === 'tv' ? 'tv' : 'movie';
+  const response = await fetchWithLogarithmicBackoff(
+    `https://api.themoviedb.org/3/${endpoint}/${encodeURIComponent(id)}/external_ids`,
+    {
+      headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+      timeoutMs: 10000
+    },
+    `TMDB ${mediaType} external IDs`
+  );
+  if (!response.ok) throw new Error(`TMDB ${mediaType} external ID lookup failed: HTTP ${response.status}`);
+  const data = await response.json();
+  return String(data?.imdb_id || id).trim();
+}
+
+app.post('/api/external-player', async (req, res) => {
   const config = getEmbedProviderConfig(String(req.body?.serverId || ''));
   if (!config) return res.status(503).json({ error: 'No valid external player servers are configured. Check EMBED_SERVERS and EMBED_<ID>_* variables.' });
   const mediaType = req.body?.mediaType === 'tv' ? 'tv' : req.body?.mediaType === 'movie' ? 'movie' : null;
   const id = String(req.body?.id || '').trim();
+  const idType = String(req.body?.idType || '').trim();
   if (!mediaType || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return res.status(400).json({ error: 'Provide a valid IMDb/TMDB-style ID and choose movie or TV.' });
   let season = null, episode = null;
   if (mediaType === 'tv') {
@@ -830,14 +852,24 @@ app.post('/api/external-player', (req, res) => {
     if (!Number.isInteger(season) || season < 0 || season > 99 || !Number.isInteger(episode) || episode < 1 || episode > 999)
       return res.status(400).json({ error: 'TV playback requires a valid season (0–99) and episode (1–999).' });
   }
+
+  let playbackId;
+  try {
+    playbackId = await resolveExternalPlaybackId(mediaType, id, idType);
+  } catch (error) {
+    console.error(`[External Player] ID resolution failed for ${mediaType} ${id}: ${error.message}`);
+    return res.status(502).json({ error: 'Could not resolve the TMDB title to an external playback ID. Try again in a moment.' });
+  }
+  if (!playbackId) return res.status(404).json({ error: 'No external playback ID is available for this TMDB title.' });
+
   const template = mediaType === 'movie' ? config.moviePath : config.tvPath;
-  const path = template.replaceAll('{id}', encodeURIComponent(id))
+  const path = template.replaceAll('{id}', encodeURIComponent(playbackId))
     .replaceAll('{season}', encodeURIComponent(String(season ?? '')))
     .replaceAll('{episode}', encodeURIComponent(String(episode ?? '')));
   try {
     const url = new URL(path, config.base);
     if (url.origin !== config.base.origin || url.protocol !== 'https:') return res.status(500).json({ error: 'Configured embed path must remain on the configured HTTPS provider origin.' });
-    res.json({ url: url.toString(), providerName: config.name, providerId: config.id, mediaType });
+    res.json({ url: url.toString(), providerName: config.name, providerId: config.id, mediaType, playbackId });
   } catch (_) { res.status(500).json({ error: 'The configured provider path is invalid.' }); }
 });
 
