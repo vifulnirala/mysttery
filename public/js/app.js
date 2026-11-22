@@ -468,7 +468,7 @@
             clickEvent.stopPropagation();
             hideModal(episodePickerModal);
             await playExternalPlayer({
-              mediaType: 'tv', id: item.tmdbId,
+              mediaType: 'tv', id: item.tmdbId, idType: 'tmdb',
               season: seasonNumber, episode: episode.episodeNumber
             }, `${item.title} · S${seasonNumber}E${episode.episodeNumber} · ${episode.name || ''}`);
           });
@@ -551,7 +551,7 @@
         const item = tmdbResults[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
-          void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
+          void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId, idType: 'tmdb' }, item.title);
         } else {
           void expandTmdbShow(card, item);
         }
