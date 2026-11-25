@@ -35,6 +35,7 @@
     const pageSizeSelect = document.getElementById('page-size');
     const resultSourceFilter = document.getElementById('result-source-filter');
     const qualityFilter = document.getElementById('quality-filter');
+    const apiBayFilter = document.getElementById('apibay-filter');
     const qualityFilterWrap = document.getElementById('quality-filter-wrap');
     let searchResults = [];
     let tmdbResults = [];
@@ -141,11 +142,11 @@
       tmdbController = wantsTmdb ? new AbortController() : null;
       searchSection.classList.remove('hidden');
       loadMoreButton.classList.add('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching torrent sources and TMDB…</div>';
+      torrentGrid.innerHTML = '<div class="empty">Searching torrent sources, APIBay and TMDB…</div>';
       searchResults = [];
       tmdbResults = [];
       unifiedResults = [];
-      setStatus(`Searching torrent sources and TMDB for “${query}”…`);
+      setStatus(`Searching torrent sources, APIBay and TMDB for “${query}”…`);
 
       const tasks = [];
       if (wantsTorrents) {
@@ -200,6 +201,7 @@
 
     function applyResultFilters() {
       const source = resultSourceFilter.value;
+      const apiBaySource = apiBayFilter.value;
       const quality = qualityFilter.value;
       filteredResults = unifiedResults.filter(entry => {
         const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
@@ -209,6 +211,7 @@
           if (source === 'archive' && item.provider !== 'Internet Archive') return false;
           if (source === 'tmdb' && entry.type !== 'tmdb') return false;
         }
+        if (apiBaySource === 'apibay' && (entry.type !== 'search' || item.provider !== 'APIBay')) return false;
         if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
         return true;
       });
@@ -424,6 +427,7 @@
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
     resultSourceFilter.addEventListener('change', applyResultFilters);
+    apiBayFilter.addEventListener('change', applyResultFilters);
     qualityFilter.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
