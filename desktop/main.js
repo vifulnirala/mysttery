@@ -62,6 +62,55 @@ ipcMain.handle('mystery-vault:dns:set', (_event, value) => {
     defaultEndpoint: DEFAULT_DOH_ENDPOINT,
     provider: endpoint === DEFAULT_DOH_ENDPOINT ? 'AdGuard DNS' : 'Custom DNS-over-HTTPS'
   };
+
+const WATCHLIST_PATH = () => path.join(app.getPath('userData'), 'watchlist.json');
+
+function readWatchlist() {
+  try {
+    const items = JSON.parse(fs.readFileSync(WATCHLIST_PATH(), 'utf8'));
+    return Array.isArray(items) ? items : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function normalizeWatchlist(items) {
+  if (!Array.isArray(items)) throw new Error('Watchlist must be an array.');
+  if (items.length > 500) throw new Error('Watchlist can contain at most 500 titles.');
+  const seen = new Set();
+  return items.map(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const id = String(item.id || '').slice(0, 240);
+    if (!id || seen.has(id)) return null;
+    seen.add(id);
+    const poster = String(item.poster || '');
+    return {
+      id,
+      title: String(item.title || 'Untitled').slice(0, 300),
+      year: String(item.year || '').slice(0, 20),
+      poster: /^https?:\/\//i.test(poster) || /^data:image\/svg\+xml/i.test(poster) ? poster.slice(0, 4000) : '',
+      type: String(item.type || '').slice(0, 30),
+      mediaType: String(item.mediaType || '').slice(0, 20),
+      tmdbId: String(item.tmdbId || '').slice(0, 40),
+      source: String(item.source || '').slice(0, 12000),
+      provider: String(item.provider || '').slice(0, 100),
+      quality: String(item.quality || '').slice(0, 40),
+      torrentType: String(item.torrentType || '').slice(0, 40)
+    };
+  }).filter(Boolean);
+}
+
+ipcMain.handle('mystery-vault:watchlist:get', () => readWatchlist());
+ipcMain.handle('mystery-vault:watchlist:set', (_event, items) => {
+  const normalized = normalizeWatchlist(items);
+  const filePath = WATCHLIST_PATH();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temporaryPath = filePath + '.tmp';
+  fs.writeFileSync(temporaryPath, JSON.stringify(normalized, null, 2), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(temporaryPath, filePath);
+  return normalized;
+});
+
 });
 
 async function loadServer() {
