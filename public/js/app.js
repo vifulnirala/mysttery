@@ -298,17 +298,9 @@
       }
     }
 
-    const externalTypeSelect = document.getElementById('external-media-type');
-    const externalStatus = document.getElementById('external-provider-status');
-    const externalTvFields = [...document.querySelectorAll('.external-tv-field')];
-    function updateExternalTypeFields() {
-      const isTv = externalTypeSelect.value === 'tv';
-      externalTvFields.forEach(field => field.classList.toggle('hidden', !isTv));
-      document.getElementById('external-season').required = isTv;
-      document.getElementById('external-episode').required = isTv;
-    }
-    externalTypeSelect.addEventListener('change', updateExternalTypeFields);
-    updateExternalTypeFields();
+    // External playback is launched only from a selected TMDB card/episode.
+    // The old manual IMDb/TMDB form was removed, so playback must not depend on
+    // DOM elements that no longer exist.
     const externalConfigPromise = fetch('/api/embed-config')
       .then(response => {
         if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
@@ -316,13 +308,10 @@
       })
       .then(config => {
         externalProviders = Array.isArray(config.providers) ? config.providers : [];
-        externalStatus.textContent = externalProviders.length
-          ? 'Configured servers: ' + externalProviders.map(provider => provider.name).join(', ') + '.'
-          : 'No valid external servers found. Check EMBED_SERVERS and each EMBED_<ID>_* setting.';
         return externalProviders;
       })
       .catch(error => {
-        externalStatus.textContent = error.message || 'Could not load player server configuration.';
+        console.error('External player configuration error:', error);
         externalProviders = [];
         return externalProviders;
       });
@@ -332,7 +321,7 @@
       activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
       await externalConfigPromise;
       const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
-      externalStatus.textContent = 'Preparing external player…';
+      externalServerStatus.textContent = 'Preparing external player…';
       externalPlayerControls.classList.add('hidden'); externalServerStatus.textContent = ''; playerEpisodeStatus.textContent = '';
       try {
         const response = await fetch('/api/external-player', {
@@ -357,8 +346,8 @@
         showModal(playerModal);
         // Set src only after opening the modal so a fast iframe load cannot beat the load handler.
         externalFrame.src = result.url;
-        externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
-      } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
+        externalServerStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
+      } catch (error) { externalServerStatus.textContent = error.message || 'Could not open external player.'; }
     }
 
     externalFrame.addEventListener('load', () => {
@@ -387,16 +376,6 @@
       playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
     });
 
-    document.getElementById('external-player-form').addEventListener('submit', async event => {
-      event.preventDefault();
-      const payload = {
-        mediaType: externalTypeSelect.value,
-        id: document.getElementById('external-media-id').value.trim(),
-        season: document.getElementById('external-season').value,
-        episode: document.getElementById('external-episode').value
-      };
-      await playExternalPlayer(payload);
-    });
 
     document.getElementById('search-form').addEventListener('submit', event => {
       event.preventDefault();
@@ -454,11 +433,6 @@
           button.title = episode.overview || episode.name || '';
           button.addEventListener('click', async clickEvent => {
             clickEvent.stopPropagation();
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = 'tv';
-            updateExternalTypeFields();
-            document.getElementById('external-season').value = seasonNumber;
-            document.getElementById('external-episode').value = episode.episodeNumber;
             hideModal(episodePickerModal);
             await playExternalPlayer({
               mediaType: 'tv', id: item.tmdbId,
@@ -526,9 +500,6 @@
         const item = tmdbResults[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
-          document.getElementById('external-media-id').value = item.tmdbId;
-          externalTypeSelect.value = 'movie';
-          updateExternalTypeFields();
           void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
         } else {
           void expandTmdbShow(card, item);
