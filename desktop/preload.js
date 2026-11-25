@@ -4,5 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mysteryVault', Object.freeze({
   getDnsSettings: () => ipcRenderer.invoke('mystery-vault:dns:get'),
-  setDnsEndpoint: endpoint => ipcRenderer.invoke('mystery-vault:dns:set', endpoint)
+  setDnsEndpoint: endpoint => ipcRenderer.invoke('mystery-vault:dns:set', endpoint),
+  getWatchlist: () => ipcRenderer.invoke('mystery-vault:watchlist:get'),
+  saveWatchlist: items => ipcRenderer.invoke('mystery-vault:watchlist:set', items)
 }));
