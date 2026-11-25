@@ -40,18 +40,6 @@
       <div class="section-head"><div><div class="section-kicker">Hand-picked</div><h2 id="catalog-title">Curated library</h2><p class="section-note">Quick picks to test the streaming setup.</p></div></div>
       <div class="grid" id="catalog-grid"></div>
     </section>
-    <section class="section" aria-label="External playback">
-      <div class="embed-panel">
-        <form id="external-player-form" class="embed-form">
-          <label class="embed-field">Media type<select id="external-media-type" class="select-control"><option value="movie">Movie</option><option value="tv">TV episode</option></select></label>
-          <label class="embed-field">IMDb / TMDB ID<input id="external-media-id" type="text" required maxlength="80" pattern="[A-Za-z0-9._:-]{1,80}" placeholder="e.g. tt1234567 or 12345" autocomplete="off"></label>
-          <label class="embed-field external-tv-field hidden">Season<input id="external-season" type="number" min="0" max="99" value="1"></label>
-          <label class="embed-field external-tv-field hidden">Episode<input id="external-episode" type="number" min="1" max="999" value="1"></label>
-          <button class="btn btn-primary" type="submit">Play selected title/episode</button>
-        </form>
-        <p class="embed-status" id="external-provider-status" role="status" aria-live="polite"></p>
-      </div>
-    </section>
     <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </main>
 
