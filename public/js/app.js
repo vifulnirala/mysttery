@@ -621,6 +621,53 @@
     });
     void refreshManagedServers().catch(error => console.warn('Could not refresh player servers:', error));
 
+
+    // App-only DNS-over-HTTPS settings are handled by the Electron main process.
+    // The web deployment intentionally does not attempt to modify system DNS.
+    const dnsSettingsForm = document.getElementById('dns-settings-form');
+    const dnsEndpointInput = document.getElementById('dns-endpoint');
+    const dnsSettingsStatus = document.getElementById('dns-settings-status');
+    const adguardDohEndpoint = 'https://dns.adguard-dns.com/dns-query';
+
+    async function applyDnsSetting(endpoint) {
+      if (!window.mysteryVault?.setDnsEndpoint) {
+        dnsSettingsStatus.textContent = 'App-only DNS settings are available in the Windows desktop app.';
+        return;
+      }
+      dnsSettingsStatus.textContent = 'Applying secure DNS to Mystery Vault…';
+      try {
+        const settings = await window.mysteryVault.setDnsEndpoint(endpoint);
+        dnsEndpointInput.value = settings.endpoint;
+        dnsSettingsStatus.textContent = 'Using ' + settings.provider + '. Secure DNS is active for this app only.';
+      } catch (error) {
+        dnsSettingsStatus.textContent = error.message || 'Could not apply DNS settings.';
+      }
+    }
+
+    dnsSettingsForm?.addEventListener('submit', event => {
+      event.preventDefault();
+      void applyDnsSetting(dnsEndpointInput.value);
+    });
+    document.getElementById('dns-use-adguard')?.addEventListener('click', () => {
+      dnsEndpointInput.value = adguardDohEndpoint;
+      void applyDnsSetting(adguardDohEndpoint);
+    });
+
+    async function loadDnsSettings() {
+      if (!window.mysteryVault?.getDnsSettings) {
+        dnsSettingsStatus.textContent = 'App-only DNS settings are available in the Windows desktop app.';
+        return;
+      }
+      try {
+        const settings = await window.mysteryVault.getDnsSettings();
+        dnsEndpointInput.value = settings.endpoint;
+        dnsSettingsStatus.textContent = 'Using ' + settings.provider + '. Default is AdGuard DNS (94.140.14.14); Windows DNS settings are unchanged.';
+      } catch (error) {
+        dnsSettingsStatus.textContent = error.message || 'Could not load DNS settings.';
+      }
+    }
+    void loadDnsSettings();
+
     loadCatalog();
     const initialQuery = new URLSearchParams(location.search).get('q');
     if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
