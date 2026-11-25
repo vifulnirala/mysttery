@@ -3,7 +3,7 @@ const KEY='mystery-vault-watchlist-v1';
 const grid=document.getElementById('watchlist-grid');
 const fallback='data:image/svg+xml;charset=UTF-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="300" fill="#a78bfa" font-size="52" text-anchor="middle">✦</text></svg>');
 function read(){try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');return Array.isArray(v)?v:[]}catch(_){return[]}}
-function write(v){localStorage.setItem(KEY,JSON.stringify(v));render()}
+function write(v){localStorage.setItem(KEY,JSON.stringify(v));if(window.mysteryVault?.saveWatchlist)void window.mysteryVault.saveWatchlist(v).catch(error=>console.warn('Could not persist watchlist:',error));render()}
 function render(){
   const items=read(); grid.innerHTML='';
   if(!items.length){grid.innerHTML='<div class="watchlist-empty">Your watchlist is empty.<br><a class="nav-link" style="display:inline-flex;margin-top:16px" href="/">Search for something to watch</a></div>';return}
@@ -24,4 +24,15 @@ const theme=document.getElementById('theme-toggle'),root=document.documentElemen
 const savedTheme=localStorage.getItem('mystery-vault-theme')||'dark';root.dataset.theme=savedTheme;
 theme.innerHTML=savedTheme==='dark'?'☼ <span>Light mode</span>':'☾ <span>Dark mode</span>';
 theme.addEventListener('click',()=>{const next=root.dataset.theme==='dark'?'light':'dark';root.dataset.theme=next;localStorage.setItem('mystery-vault-theme',next);theme.innerHTML=next==='dark'?'☼ <span>Light mode</span>':'☾ <span>Dark mode</span>'});
-render();
+async function initializeWatchlist(){
+  if(window.mysteryVault?.getWatchlist){
+    try{
+      const stored=await window.mysteryVault.getWatchlist();
+      const items=Array.isArray(stored)?stored:read();
+      localStorage.setItem(KEY,JSON.stringify(items));
+      if(!Array.isArray(stored)&&items.length)void window.mysteryVault.saveWatchlist(items).catch(error=>console.warn('Could not migrate watchlist:',error));
+    }catch(error){console.warn('Could not load persistent watchlist:',error)}
+  }
+  render();
+}
+void initializeWatchlist();
