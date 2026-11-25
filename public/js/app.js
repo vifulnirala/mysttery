@@ -68,7 +68,12 @@
     }
     const WATCHLIST_KEY = 'mystery-vault-watchlist-v1';
     function getWatchlist() { try { const parsed = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); return Array.isArray(parsed) ? parsed : []; } catch (_) { return []; } }
-    function saveWatchlist(items) { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items)); }
+    function saveWatchlist(items) {
+      localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
+      if (window.mysteryVault?.saveWatchlist) {
+        void window.mysteryVault.saveWatchlist(items).catch(error => console.warn('Could not persist watchlist:', error));
+      }
+    }
     function makeWatchlistItem(item, type) {
       const isTmdb = type === 'tmdb';
       return { id: isTmdb ? `tmdb:${item.mediaType}:${item.tmdbId}` : `${type}:${item.id || item.source || item.magnet}`, title: item.title || 'Untitled', year: item.year || '',
@@ -671,6 +676,21 @@
     }
     void loadDnsSettings();
 
-    loadCatalog();
-    const initialQuery = new URLSearchParams(location.search).get('q');
-    if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
+    async function initializeApp() {
+      if (window.mysteryVault?.getWatchlist) {
+        try {
+          const storedWatchlist = await window.mysteryVault.getWatchlist();
+          const items = Array.isArray(storedWatchlist)
+            ? storedWatchlist
+            : getWatchlist(); // Migrate any existing browser-local entries on first desktop launch.
+          localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
+          if (!Array.isArray(storedWatchlist) && items.length) saveWatchlist(items);
+        } catch (error) {
+          console.warn('Could not load persistent watchlist:', error);
+        }
+      }
+      loadCatalog();
+      const initialQuery = new URLSearchParams(location.search).get('q');
+      if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
+    }
+    void initializeApp();
