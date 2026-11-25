@@ -371,3 +371,11 @@
 .dns-settings-actions{display:flex;gap:9px;flex-wrap:wrap}
 .dns-settings-note{margin-top:6px;color:var(--muted);font-size:.78rem;line-height:1.55}
 @media(max-width:640px){.dns-settings-form{display:grid;grid-template-columns:1fr}.dns-settings-form .embed-field{min-width:0}.dns-settings-actions{display:grid;grid-template-columns:1fr 1fr}.dns-settings-actions .btn{width:100%}}
+
+
+/* Dedicated settings page */
+.settings-page{max-width:1280px;margin:0 auto;padding:32px 24px 60px}
+.settings-page .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:24px 0 12px}
+.settings-page h1{margin:0}
+.settings-page .section{margin-top:30px}
+@media(max-width:700px){.settings-page{padding:24px 16px 45px}.settings-page .page-head{margin-top:18px}}
