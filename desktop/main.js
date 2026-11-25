@@ -62,6 +62,7 @@ ipcMain.handle('mystery-vault:dns:set', (_event, value) => {
     defaultEndpoint: DEFAULT_DOH_ENDPOINT,
     provider: endpoint === DEFAULT_DOH_ENDPOINT ? 'AdGuard DNS' : 'Custom DNS-over-HTTPS'
   };
+});
 
 const WATCHLIST_PATH = () => path.join(app.getPath('userData'), 'watchlist.json');
 
@@ -109,8 +110,6 @@ ipcMain.handle('mystery-vault:watchlist:set', (_event, items) => {
   fs.writeFileSync(temporaryPath, JSON.stringify(normalized, null, 2), { encoding: 'utf8', mode: 0o600 });
   fs.renameSync(temporaryPath, filePath);
   return normalized;
-});
-
 });
 
 async function loadServer() {
