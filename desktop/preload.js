@@ -1,4 +1,4 @@
-// Expose only the DNS settings operations needed by the renderer.
+// Expose only the DNS settings and watchlist operations needed by the renderer.
 // No filesystem, shell, or general IPC access is exposed.
 const { contextBridge, ipcRenderer } = require('electron');
 
