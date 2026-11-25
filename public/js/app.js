@@ -15,6 +15,7 @@
     const externalServerControl = document.getElementById('external-server-control');
     const externalServerSelect = document.getElementById('external-server-select');
     const externalServerStatus = document.getElementById('external-server-status');
+    const externalEpisodeControl = document.getElementById('external-episode-control');
     const sandboxToggle = document.getElementById('external-sandbox-toggle');
     const SANDBOX_KEY = 'mystery-vault-player-sandbox';
     let sandboxEnabled = localStorage.getItem(SANDBOX_KEY) !== 'false';
