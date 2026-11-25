@@ -786,26 +786,104 @@ function pipeFileToResponse(key, file, req, res) {
 // ============================================================================
 // 5. EXPRESS API ROUTES
 // ============================================================================
-function parseEmbedImport(content) {
-  const env = {};
-  for (const rawLine of String(content || '').split(String.fromCharCode(10))) {
-    const line = rawLine.trim(); if (!line || line.startsWith('#')) continue;
-    let key = '', value = ''; const equals = line.indexOf('=');
-    if (equals > 0) { key = line.slice(0, equals).trim(); value = line.slice(equals + 1).trim(); }
-    else { const cells = line.split(',').map(cell => cell.trim().replace(/^["']|["']$/g, '')); if (cells.length >= 2) { key = cells[0]; value = cells.slice(1).join(','); } }
-    if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
-    env[key.toUpperCase()] = String(value).replace(/^["']|["']$/g, '').replace(/\\:/g, ':');
+function parseCsvRows(content) {
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  const source = String(content || '').replace(/^\uFEFF/, '');
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') { field += '"'; i += 1; }
+      else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"' && field.length === 0) quoted = true;
+    else if (char === ',') { row.push(field.trim()); field = ''; }
+    else if (char === '\n' || char === '\r') {
+      row.push(field.trim()); field = '';
+      if (row.some(cell => cell !== '')) rows.push(row);
+      row = [];
+      if (char === '\r' && source[i + 1] === '\n') i += 1;
+    } else field += char;
   }
-  if (!env.EMBED_SERVERS) throw new Error('The file must define EMBED_SERVERS.');
-  const ids = env.EMBED_SERVERS.split(',').map(value => value.trim()).filter(Boolean), valid = [];
+  row.push(field.trim());
+  if (row.some(cell => cell !== '')) rows.push(row);
+  if (quoted) throw new Error('CSV contains an unterminated quoted field.');
+  return rows;
+}
+
+function parseEmbedImport(content) {
+  const source = String(content || '').replace(/^\uFEFF/, '').trim();
+  const env = {};
+  if (!source) throw new Error('The configuration file is empty.');
+
+  // Keep .env support, including values that contain commas.
+  if (/^\s*(?:#.*)?(?:EMBED_[A-Z0-9_-]+\s*=)/im.test(source)) {
+    for (const rawLine of source.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const equals = line.indexOf('=');
+      if (equals <= 0) continue;
+      const key = line.slice(0, equals).trim();
+      if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
+      env[key.toUpperCase()] = line.slice(equals + 1).trim().replace(/^(['"])(.*)\1$/, '$2').replace(/\\:/g, ':');
+    }
+  } else {
+    const rows = parseCsvRows(source);
+    if (!rows.length) throw new Error('The CSV file contains no rows.');
+    const normalize = value => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const headers = rows[0].map(normalize);
+    const findColumn = aliases => headers.findIndex(value => aliases.includes(value));
+    const idCol = findColumn(['id', 'server_id', 'provider_id']);
+    const nameCol = findColumn(['name', 'server_name', 'provider_name']);
+    const baseCol = findColumn(['base_url', 'baseurl', 'url']);
+    const movieCol = findColumn(['movie_path_template', 'movie_path', 'movie_template']);
+    const tvCol = findColumn(['tv_path_template', 'tv_path', 'series_path_template', 'tv_template']);
+
+    if ([idCol, nameCol, baseCol, movieCol, tvCol].every(index => index >= 0)) {
+      // Tabular CSV: one provider per row.
+      const ids = [];
+      for (const cells of rows.slice(1)) {
+        const id = String(cells[idCol] || '').trim();
+        if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+        const prefix = 'EMBED_' + id.toUpperCase() + '_';
+        env[prefix + 'NAME'] = cells[nameCol] || id;
+        env[prefix + 'BASE_URL'] = cells[baseCol] || '';
+        env[prefix + 'MOVIE_PATH_TEMPLATE'] = cells[movieCol] || '';
+        env[prefix + 'TV_PATH_TEMPLATE'] = cells[tvCol] || '';
+        ids.push(id);
+      }
+      env.EMBED_SERVERS = ids.join(',');
+    } else {
+      // Key/value CSV: EMBED_SERVERS,"vidcore,vidsrc" or EMBED_VIDCORE_NAME,Vidcore.
+      const hasHeader = ['key', 'setting', 'variable', 'env', 'environment_variable'].includes(headers[0]) &&
+        ['value', 'setting_value'].includes(headers[1]);
+      const pairs = hasHeader ? rows.slice(1) : rows;
+      for (const cells of pairs) {
+        const key = String(cells[0] || '').trim();
+        if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
+        env[key.toUpperCase()] = cells.slice(1).join(',').trim().replace(/^(['"])(.*)\1$/, '$2').replace(/\\:/g, ':');
+      }
+    }
+  }
+
+  if (!env.EMBED_SERVERS) throw new Error('The file must define EMBED_SERVERS or use a provider table with id, name, base_url, movie_path_template and tv_path_template columns.');
+  const ids = [...new Set(env.EMBED_SERVERS.split(',').map(value => value.trim()).filter(Boolean))], valid = [];
   for (const id of ids) {
     if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
-    const prefix = 'EMBED_' + id.toUpperCase() + '_', base = env[prefix+'BASE_URL'], movie = env[prefix+'MOVIE_PATH_TEMPLATE'], tv = env[prefix+'TV_PATH_TEMPLATE'];
-    if (!env[prefix+'NAME'] || !base || !movie || !tv || !movie.includes('{id}') || !['{id}','{season}','{episode}'].every(token => tv.includes(token))) continue;
-    try { const url = new URL(base), safe = template => template.startsWith('/') && !template.startsWith('//') && new URL(template.replace(/\{(?:id|season|episode)\}/g,'placeholder'),url).origin === url.origin; if (url.protocol === 'https:' && !url.username && !url.password && safe(movie) && safe(tv)) valid.push(id); } catch (_) {}
+    const prefix = 'EMBED_' + id.toUpperCase() + '_';
+    const base = env[prefix + 'BASE_URL'], movie = env[prefix + 'MOVIE_PATH_TEMPLATE'], tv = env[prefix + 'TV_PATH_TEMPLATE'];
+    if (!env[prefix + 'NAME'] || !base || !movie || !tv || !movie.includes('{id}') ||
+        !['{id}', '{season}', '{episode}'].every(token => tv.includes(token))) continue;
+    try {
+      const url = new URL(base);
+      const safe = template => template.startsWith('/') && !template.startsWith('//') &&
+        new URL(template.replace(/\{(?:id|season|episode)\}/g, 'placeholder'), url).origin === url.origin;
+      if (url.protocol === 'https:' && !url.username && !url.password && safe(movie) && safe(tv)) valid.push(id);
+    } catch (_) {}
   }
-  if (!valid.length) throw new Error('No valid EMBED servers found. Each server needs NAME, BASE_URL, MOVIE_PATH_TEMPLATE and TV_PATH_TEMPLATE.');
-  env.EMBED_SERVERS = valid.join(','); return { env, count: valid.length };
+  if (!valid.length) throw new Error('No valid servers found. Each server needs a name, HTTPS base URL, movie path containing {id}, and TV path containing {id}, {season} and {episode}.');
+  env.EMBED_SERVERS = valid.join(',');
+  return { env, count: valid.length };
 }
 function saveEmbedEnv(env) { fs.mkdirSync(EMBED_CONFIG_DIR,{recursive:true}); fs.writeFileSync(EMBED_CONFIG_PATH,JSON.stringify(env,null,2),{encoding:'utf8',mode:0o600}); }
 app.post('/api/embed-servers/import',(req,res)=>{try{const parsed=parseEmbedImport(req.body?.content);saveEmbedEnv(parsed.env);res.json({count:parsed.count,providers:readEmbedProviders().map(({id,name})=>({id,name}))});}catch(error){res.status(400).json({error:error.message||'Invalid server configuration.'});}});
