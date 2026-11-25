@@ -543,6 +543,9 @@
       setStatus(saved ? 'Added to watchlist.' : 'Removed from watchlist.', 'success');
     });
     function handleCardActivation(event) {
+      // A watchlist star is an independent control inside a clickable result card.
+      // Do not let its click also launch the movie/series/torrent.
+      if (event.target.closest('.watchlist-toggle')) return;
       if (event.target.closest('.tmdb-series-details')) return;
       const card = event.target.closest('[data-card-type]');
       if (!card) return;
