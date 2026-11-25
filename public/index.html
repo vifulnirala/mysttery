@@ -74,6 +74,23 @@
         <div id="managed-server-list" class="managed-server-list"></div>
       </div>
     </section>
+
+    <section class="section dns-settings-section" aria-labelledby="dns-settings-title">
+      <div class="section-head"><div><div class="section-kicker">Privacy & filtering</div><h2 id="dns-settings-title">DNS settings</h2><p class="section-note">Use AdGuard DNS to block many ad, tracker and known malicious domains inside Mystery Vault.</p></div></div>
+      <div class="dns-settings-panel">
+        <form id="dns-settings-form" class="dns-settings-form">
+          <label class="embed-field" for="dns-endpoint">DNS-over-HTTPS endpoint
+            <input id="dns-endpoint" type="url" inputmode="url" autocomplete="url" spellcheck="false" value="https://dns.adguard-dns.com/dns-query" required>
+          </label>
+          <div class="dns-settings-actions">
+            <button class="btn btn-primary" type="submit">Apply DNS</button>
+            <button class="btn btn-secondary" id="dns-use-adguard" type="button">Use AdGuard DNS</button>
+          </div>
+        </form>
+        <p id="dns-settings-status" class="embed-status" role="status" aria-live="polite">Default: AdGuard DNS (94.140.14.14). App-only; Windows network settings are not changed.</p>
+        <p class="dns-settings-note">Custom entries must be HTTPS DNS-over-HTTPS URLs, not plain IP addresses. DNS filtering blocks many ad domains, but cannot remove every ad embedded in a video stream.</p>
+      </div>
+    </section>
     <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </main>
 
