@@ -361,3 +361,13 @@
 .card:hover{transform:translateY(-4px);box-shadow:0 16px 38px rgba(0,0,0,.2)}
 .btn:active,.nav-link:active{transform:scale(.97)}
 @media(max-width:600px){.managed-server-row{grid-template-columns:1fr auto}.managed-server-row span{grid-column:1}.managed-server-row button{grid-column:2;grid-row:1/3}}
+
+
+/* App-scoped DNS-over-HTTPS settings */
+.dns-settings-panel{padding:20px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+.dns-settings-form{display:flex;align-items:end;gap:14px;flex-wrap:wrap}
+.dns-settings-form .embed-field{flex:1;min-width:260px}
+.dns-settings-form input{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-solid);color:var(--text)}
+.dns-settings-actions{display:flex;gap:9px;flex-wrap:wrap}
+.dns-settings-note{margin-top:6px;color:var(--muted);font-size:.78rem;line-height:1.55}
+@media(max-width:640px){.dns-settings-form{display:grid;grid-template-columns:1fr}.dns-settings-form .embed-field{min-width:0}.dns-settings-actions{display:grid;grid-template-columns:1fr 1fr}.dns-settings-actions .btn{width:100%}}
