@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import WebTorrent from 'webtorrent';
-import { createApiBay, VIDEO as APIBAY_VIDEO } from 'apibay.org';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -413,12 +412,20 @@ async function searchYts(query, requestedLimit = 50) {
 // ============================================================================
 async function searchApiBay(query, requestedLimit = 50) {
   const results = [];
-  const apiBay = createApiBay({ baseUrl: process.env.APIBAY_BASE_URL || 'https://apibay.org' });
+  const baseUrl = process.env.APIBAY_BASE_URL || 'https://apibay.org';
 
   try {
-    const payload = { q: query, cat: APIBAY_VIDEO.DEFAULT };
+    const url = new URL('/q.php', baseUrl);
+    url.searchParams.set('q', query);
+    url.searchParams.set('cat', '200');
     const torrents = await Promise.race([
-      apiBay.search(payload),
+      fetchWithLogarithmicBackoff(url, {
+        timeoutMs: Number(process.env.APIBAY_TIMEOUT_MS) || 10000,
+        headers: { 'User-Agent': 'Mystery-Vault/1.0' }
+      }, 'APIBay').then(async response => {
+        if (!response.ok) throw new Error(`APIBay returned HTTP ${response.status}`);
+        return response.json();
+      }),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('API Bay request timed out')), Number(process.env.APIBAY_TIMEOUT_MS) || 10000)
       )
@@ -516,8 +523,9 @@ async function searchTorrentIndexers(query, ytsLimit = 50) {
     }
   }
 
-  // Search providers concurrently so a slow YTS response doesn't delay Archive results.
+  // Search providers concurrently so one slow upstream does not delay the others.
   const ytsPromise = searchYts(query, ytsLimit);
+  const apiBayPromise = searchApiBay(query, ytsLimit);
   const archivePromise = (async () => {
     const archiveResults = [];
     try {
@@ -555,8 +563,8 @@ async function searchTorrentIndexers(query, ytsLimit = 50) {
     return archiveResults;
   })();
 
-  const [ytsResults, archiveResults] = await Promise.all([ytsPromise, archivePromise]);
-  results.push(...ytsResults, ...archiveResults);
+  const [ytsResults, apiBayResults, archiveResults] = await Promise.all([ytsPromise, apiBayPromise, archivePromise]);
+  results.push(...ytsResults, ...apiBayResults, ...archiveResults);
   return results;
 }
 
