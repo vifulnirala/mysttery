@@ -70,8 +70,8 @@ function readWatchlist() {
   try {
     const items = JSON.parse(fs.readFileSync(WATCHLIST_PATH(), 'utf8'));
     return Array.isArray(items) ? items : [];
-  } catch (_) {
-    return [];
+  } catch (error) {
+    return error.code === 'ENOENT' ? null : [];
   }
 }
 
