@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
 import WebTorrent from 'webtorrent';
+import { createApiBay, VIDEO as APIBAY_VIDEO } from 'apibay.org';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -410,6 +411,66 @@ async function searchYts(query, requestedLimit = 50) {
 // ============================================================================
 // 3. INDEXER PROVIDERS
 // ============================================================================
+async function searchApiBay(query, requestedLimit = 50) {
+  const results = [];
+  const apiBay = createApiBay({ baseUrl: process.env.APIBAY_BASE_URL || 'https://apibay.org' });
+
+  try {
+    const payload = { q: query, cat: APIBAY_VIDEO.DEFAULT };
+    const torrents = await Promise.race([
+      apiBay.search(payload),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('API Bay request timed out')), Number(process.env.APIBAY_TIMEOUT_MS) || 10000)
+      )
+    ]);
+
+    const trackers = [
+      'udp://tracker.opentrackr.org:1337/announce',
+      'udp://tracker.openbittorrent.com:6969/announce',
+      'udp://tracker.torrent.eu.org:451/announce'
+    ];
+
+    const limit = Math.max(1, Math.min(50, Number.parseInt(requestedLimit, 10) || 50));
+    for (const torrent of (Array.isArray(torrents) ? torrents : []).slice(0, limit)) {
+      const hash = String(torrent.info_hash || '').trim();
+      if (!/^[a-fA-F0-9]{40}$/.test(hash)) continue;
+
+      const sizeBytes = Number(torrent.size || 0);
+      const sizeMB = sizeBytes > 0 ? Math.round(sizeBytes / (1024 * 1024)) : 0;
+      const releaseName = String(torrent.name || 'API Bay torrent').trim();
+      const magnetSource = [
+        `xt=urn:btih:${hash}`,
+        `dn=${encodeURIComponent(releaseName)}`,
+        ...trackers.map(tracker => `tr=${encodeURIComponent(tracker)}`)
+      ].join('&');
+
+      const added = Number(torrent.added || 0);
+      const year = added > 0 ? new Date(added * 1000).getUTCFullYear() : 'API Bay';
+
+      results.push({
+        title: releaseName,
+        year,
+        seeders: Number(torrent.seeders || 0),
+        leechers: Number(torrent.leechers || 0),
+        sizeMB: sizeMB || 800,
+        poster: 'https://via.placeholder.com/300x450?text=API+Bay',
+        source: `magnet:?${magnetSource}`,
+        provider: 'APIBay',
+        infoHash: hash,
+        imdb: torrent.imdb || null,
+        category: Number(torrent.category || 0)
+      });
+    }
+
+    console.log(`[APIBay Provider] Found ${results.length} results for "${query}".`);
+  } catch (err) {
+    const cause = err?.cause?.code || err?.cause?.message;
+    console.log(`[APIBay Provider Notice] ${err.message}${cause ? ` (cause: ${cause})` : ''}`);
+  }
+
+  return results;
+}
+
 async function searchTorrentIndexers(query, ytsLimit = 50) {
   const results = [];
 
