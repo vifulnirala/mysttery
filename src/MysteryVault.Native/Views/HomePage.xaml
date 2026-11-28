@@ -7,10 +7,11 @@
     </StackPanel>
     <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <TextBox x:Name="SearchBox" PlaceholderText="Search movies, TV shows, or torrents…"/>
-      <Button Grid.Column="1" Content="Search" MinWidth="120" Click="SearchButton_Click"/>
+      <Button x:Name="SearchButton" Grid.Column="1" Content="Search" MinWidth="120" Click="SearchButton_Click"/>
     </Grid>
-    <TextBlock x:Name="StatusText" Text="Native WinUI 3 shell. Provider services are the next migration stage." TextWrapping="Wrap" Opacity="0.7"/>
-    <StackPanel Spacing="8"><TextBlock Text="Trending this week" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="TMDB trending shelf will be connected in the discovery-services phase." Opacity="0.65"/></StackPanel>
-    <StackPanel Spacing="8"><TextBlock Text="Mystery · Romance · Horror · Animation · Comedy" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="Genre shelves will be connected in the discovery-services phase." Opacity="0.65"/></StackPanel>
+    <TextBlock x:Name="StatusText" Text="Search across TMDB, YTS, APIBay and Internet Archive." TextWrapping="Wrap" Opacity="0.7"/>
+    <ListView x:Name="SearchResults" SelectionMode="None" />
+    <StackPanel Spacing="8"><TextBlock Text="Trending this week" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="TMDB trending shelf will be connected next." Opacity="0.65"/></StackPanel>
+    <StackPanel Spacing="8"><TextBlock Text="Mystery · Romance · Horror · Animation · Comedy" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="Genre shelves will be connected next." Opacity="0.65"/></StackPanel>
   </StackPanel></ScrollViewer>
 </Page>
