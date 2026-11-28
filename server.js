@@ -1274,7 +1274,10 @@ function isLoopbackRequest(req) {
   const address = String(req.socket.remoteAddress || '');
   return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
 }
-app.get('/api/torrent-cache', (_req, res) => res.json({ path: torrentCachePath, activeSessions: activeTorrents.size }));
+app.get('/api/torrent-cache', (req, res) => {
+  if (!isLoopbackRequest(req)) return res.sendStatus(403);
+  res.json({ path: torrentCachePath, activeSessions: activeTorrents.size });
+});
 app.post('/api/torrent-cache/location', async (req, res) => {
   if (!isLoopbackRequest(req)) return res.sendStatus(403);
   if (activeTorrents.size) return res.status(409).json({ error: 'Stop playback before changing the torrent cache location.' });
@@ -1361,14 +1364,14 @@ memoryLogInterval.unref?.();
 let activeHttpServer = null;
 
 export async function startServer({ host = process.env.HOST || '0.0.0.0', port = Number(process.env.PORT) || DEFAULT_PORT } = {}) {
-  // A previous forced exit may have interrupted store deletion. This directory
-  // is exclusively owned by Mystery Vault, so remove its stale contents on boot.
-  await fs.promises.rm(torrentCachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
-  await fs.promises.mkdir(torrentCachePath, { recursive: true });
   if (activeHttpServer?.listening) {
     const address = activeHttpServer.address();
     return { server: activeHttpServer, host, port: address.port, close: closeServer };
   }
+  // A previous forced exit may have interrupted store deletion. This directory
+  // is exclusively owned by Mystery Vault, so remove its stale contents on boot.
+  await fs.promises.rm(torrentCachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+  await fs.promises.mkdir(torrentCachePath, { recursive: true });
   activeHttpServer = await new Promise((resolve, reject) => {
     const server = app.listen(port, host);
     server.once('error', reject);
