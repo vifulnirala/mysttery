@@ -4,7 +4,7 @@
     <StackPanel Spacing="8"><TextBlock Text="External player servers" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="Import/manage validated HTTPS provider configs (CSV or .env)." Opacity="0.7"/><Button Content="Import server configuration" IsEnabled="False"/></StackPanel>
     <StackPanel Spacing="8"><TextBlock Text="App-only DNS" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="AdGuard DNS and custom DNS-over-HTTPS. Windows DNS will not be changed." Opacity="0.7"/><TextBox x:Name="DnsEndpointBox" Header="DNS-over-HTTPS endpoint"/><Button Content="Apply DNS" IsEnabled="False"/></StackPanel>
     <StackPanel Spacing="8"><TextBlock Text="Torrent cache" FontSize="20" FontWeight="SemiBold"/><TextBlock Text="Choose a dedicated cache folder and clear it after active sessions stop." Opacity="0.7"/><Button Content="Choose storage folder" IsEnabled="False"/><Button Content="Clear torrent cache" IsEnabled="False"/></StackPanel>
-    <StackPanel Spacing="8"><TextBlock Text="Player" FontSize="20" FontWeight="SemiBold"/><CheckBox x:Name="SandboxCheckBox" Content="Enable player sandbox" IsChecked="True" Checked="SandboxCheckBox_Changed" Unchecked="SandboxCheckBox_Changed"/></StackPanel>
+    <StackPanel Spacing="8"><TextBlock Text="Player" FontSize="20" FontWeight="SemiBold"/><CheckBox x:Name="SandboxCheckBox" Content="Enable player sandbox" Checked="SandboxCheckBox_Changed" Unchecked="SandboxCheckBox_Changed"/></StackPanel>
     <TextBlock x:Name="SettingsStatus" Text="Settings are stored locally on this PC." Opacity="0.65" TextWrapping="Wrap"/>
   </StackPanel></ScrollViewer>
 </Page>
