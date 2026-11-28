@@ -1125,6 +1125,76 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
   }
 });
 
+// Home discovery feeds used by the desktop home page. These mirror the mobile port's TMDB shelves.
+app.get('/api/discover', async (req, res) => {
+  const genreId = Number.parseInt(String(req.query.genreId || ''), 10);
+  if (!Number.isInteger(genreId) || genreId < 1 || genreId > 9999) return res.status(400).json({ error: 'Choose a valid genre.' });
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB discovery is not configured.' });
+  try {
+    const discoverOne = async mediaType => {
+      const url = new URL(`https://api.themoviedb.org/3/discover/${mediaType}`);
+      url.searchParams.set('with_genres', String(genreId));
+      url.searchParams.set('sort_by', 'popularity.desc');
+      url.searchParams.set('include_adult', 'false');
+      url.searchParams.set('language', 'en-US');
+      url.searchParams.set('page', '1');
+      const response = await fetchWithLogarithmicBackoff(url, {
+        headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+        timeoutMs: 10000
+      }, `TMDB ${mediaType} genre discovery`);
+      if (!response.ok) throw new Error(`TMDB ${mediaType} discovery failed: HTTP ${response.status}`);
+      const data = await response.json();
+      const today = new Date().toISOString().slice(0, 10);
+      return (Array.isArray(data.results) ? data.results : [])
+        .filter(item => mediaType !== 'movie' || !item.release_date || item.release_date <= today)
+        .slice(0, 12)
+        .map(item => ({
+          tmdbId: String(item.id),
+          mediaType,
+          title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
+          year: String((mediaType === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
+          overview: String(item.overview || ''),
+          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+          popularity: Number(item.popularity || 0)
+        }));
+    };
+    const [movies, shows] = await Promise.all([discoverOne('movie'), discoverOne('tv')]);
+    res.json({ results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 20).map(({ popularity, ...item }) => item) });
+  } catch (error) {
+    console.error('TMDB genre discovery error:', error.message);
+    res.status(502).json({ error: 'Could not load this genre from TMDB. Try again in a moment.' });
+  }
+});
+
+app.get('/api/trending', async (_req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  try {
+    const response = await fetchWithLogarithmicBackoff(
+      'https://api.themoviedb.org/3/trending/all/week?language=en-US',
+      { headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' }, timeoutMs: 10000 },
+      'TMDB trending'
+    );
+    if (!response.ok) throw new Error(`TMDB trending failed: HTTP ${response.status}`);
+    const data = await response.json();
+    const today = new Date().toISOString().slice(0, 10);
+    const results = (Array.isArray(data.results) ? data.results : [])
+      .filter(item => ['movie', 'tv'].includes(item.media_type) && (item.media_type !== 'movie' || !item.release_date || item.release_date <= today))
+      .slice(0, 20)
+      .map(item => ({
+        tmdbId: String(item.id),
+        mediaType: item.media_type,
+        title: String(item.media_type === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
+        year: String((item.media_type === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
+        overview: String(item.overview || ''),
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null
+      }));
+    res.json({ results });
+  } catch (error) {
+    console.error('TMDB trending error:', error.message);
+    res.status(502).json({ error: 'Could not load trending titles.' });
+  }
+});
+
 app.get('/api/library', (req, res) => {
   const query = req.query.q ? req.query.q.toLowerCase() : '';
   const filtered = CATALOG.filter(item =>
