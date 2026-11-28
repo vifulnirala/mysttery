@@ -6,16 +6,42 @@ public enum MediaType
     Tv
 }
 
-public sealed record MediaItem(
-    string Id,
-    string Title,
-    string? Overview,
-    string? PosterUrl,
-    string? BackdropUrl,
-    int? ReleaseYear,
-    double? Rating,
-    MediaType Type,
-    string Source);
+public sealed class MediaItem
+{
+    public MediaItem() { }
+
+    public MediaItem(
+        string id,
+        string title,
+        string? overview,
+        string? posterUrl,
+        string? backdropUrl,
+        int? releaseYear,
+        double? rating,
+        MediaType type,
+        string source)
+    {
+        Id = id;
+        Title = title;
+        Overview = overview;
+        PosterUrl = posterUrl;
+        BackdropUrl = backdropUrl;
+        ReleaseYear = releaseYear;
+        Rating = rating;
+        Type = type;
+        Source = source;
+    }
+
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? Overview { get; set; }
+    public string? PosterUrl { get; set; }
+    public string? BackdropUrl { get; set; }
+    public int? ReleaseYear { get; set; }
+    public double? Rating { get; set; }
+    public MediaType Type { get; set; }
+    public string Source { get; set; } = string.Empty;
+}
 
 public sealed record TorrentResult(
     string Title,
