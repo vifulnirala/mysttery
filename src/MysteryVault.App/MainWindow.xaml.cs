@@ -17,6 +17,11 @@ public sealed partial class MainWindow : Window
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
+        if (args.IsSettingsSelected)
+        {
+            ContentFrame.Navigate(typeof(SettingsPage));
+            return;
+        }
         if (args.SelectedItemContainer is not NavigationViewItem item) return;
         var tag = item.Tag?.ToString();
         if (tag == "library")
@@ -35,11 +40,5 @@ public sealed partial class MainWindow : Window
                 ? ElementTheme.Light
                 : ElementTheme.Dark;
         }
-    }
-
-    public void NavigateToSearch(string query)
-    {
-        NavView.SelectedItem = NavView.MenuItems[1];
-        ContentFrame.Navigate(typeof(SearchResultsPage), query);
     }
 }

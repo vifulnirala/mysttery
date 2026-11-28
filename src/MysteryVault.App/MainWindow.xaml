@@ -10,7 +10,7 @@
     <NavigationView x:Name="NavView"
                     PaneDisplayMode="Top"
                     IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="False"
+                    IsSettingsVisible="True"
                     SelectionChanged="NavView_SelectionChanged">
         <NavigationView.MenuItems>
             <NavigationViewItem Content="Library" Tag="library" Icon="Library" />

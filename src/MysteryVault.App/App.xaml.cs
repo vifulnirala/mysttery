@@ -25,7 +25,7 @@ public partial class App : Application
         var services = new ServiceCollection();
         var settings = LoadAppSettings();
         services.AddSingleton(settings);
-        services.AddSingleton(new HttpClient());
+        services.AddSingleton(_ => DohHttpClientFactory.Create(settings));
 
         var appDataDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -34,15 +34,20 @@ public partial class App : Application
 
         var catalogPath = Path.Combine(AppContext.BaseDirectory, "Assets", "scooby_doo_catalog.json");
         var watchlistPath = Path.Combine(appDataDir, "watchlist.json");
+        var embedStorePath = Path.Combine(appDataDir, "embed-servers.json");
 
+        services.AddSingleton<ICacheManagerService>(_ => new CacheManagerService(appDataDir));
         services.AddSingleton<ITmdbClientService, TmdbClientService>();
         services.AddSingleton<ILocalCatalogService>(_ => new LocalCatalogService(catalogPath));
         services.AddSingleton<ITorrentSearchService, TorrentSearchService>();
         services.AddSingleton<IWatchlistService>(_ => new WatchlistService(watchlistPath));
+        services.AddSingleton<IEmbedProviderService>(_ => new EmbedProviderService(embedStorePath, settings));
+        services.AddSingleton<ITorrentStreamingService, TorrentStreamingService>();
 
         services.AddTransient<HomeViewModel>();
         services.AddTransient<SearchViewModel>();
         services.AddTransient<WatchlistViewModel>();
+        services.AddTransient<SettingsViewModel>();
 
         return services.BuildServiceProvider();
     }

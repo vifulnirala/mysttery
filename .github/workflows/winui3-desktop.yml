@@ -23,6 +23,18 @@ jobs:
       - name: Publish WinUI 3 App (x64)
         run: dotnet publish src/MysteryVault.App/MysteryVault.App.csproj -c Release -r win-x64 -p:Platform=x64 -o publish/win-x64
 
+      - name: Write Production AppSettings
+        shell: pwsh
+        env:
+          TMDB_READ_TOKEN: ${{ secrets.TMDB_READ_TOKEN }}
+        run: |
+          $config = @{
+            TmdbReadAccessToken = "$env:TMDB_READ_TOKEN"
+            DohEndpoint = "https://dns.adguard-dns.com/dns-query"
+            EnableEmbedSandbox = $true
+          } | ConvertTo-Json
+          Set-Content -Path "publish/win-x64/appsettings.Production.json" -Value $config -Encoding UTF8
+
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
