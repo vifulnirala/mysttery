@@ -245,7 +245,6 @@ html[data-desktop="windows"] .win-titlebar {
   background: var(--win-mica-layer);
   border-top: 1px solid var(--win-stroke);
   border-left: 1px solid var(--win-stroke);
-  border-top-left-radius: var(--radius-card);
   scrollbar-width: thin;
   scrollbar-color: var(--win-stroke-strong) transparent;
 }
@@ -574,6 +573,9 @@ html[data-theme="light"] .btn-danger:hover {
   overflow-y: hidden;
   padding: 2px 2px 10px;
   overscroll-behavior-x: contain;
+  transform: translateZ(0);
+  will-change: scroll-position;
+  contain: content;
   scrollbar-width: thin;
   scrollbar-color: var(--win-stroke-strong) transparent;
 }
@@ -661,11 +663,7 @@ html[data-theme="light"] .btn-danger:hover {
 }
 
 .poster-overlay {
-  position: absolute;
-  inset: auto 0 0;
-  height: 36%;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
-  pointer-events: none;
+  display: none;
 }
 
 .provider-pill {

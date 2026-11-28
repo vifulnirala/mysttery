@@ -265,7 +265,6 @@ async function createWindow() {
   if (isWindows) {
     windowOptions.titleBarStyle = 'hidden';
     windowOptions.titleBarOverlay = getTitleBarOverlayColors(initialTheme);
-    windowOptions.backgroundMaterial = 'mica';
   }
 
   mainWindow = new BrowserWindow(windowOptions);
