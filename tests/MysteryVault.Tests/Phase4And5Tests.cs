@@ -13,7 +13,7 @@ public sealed class Phase4And5Tests
         var store = Path.Combine(Path.GetTempPath(), $"mv-embeds-{Guid.NewGuid():N}.json");
         try
         {
-            var svc = new EmbedProviderService(store, new AppSettings());
+            var svc = new EmbedProviderService(store, new AppSettings { DefaultEmbedServers = [] });
             var count = await svc.ImportFromTextAsync("vidcore,VidCore,https://example.com/movie/{id}", ".csv");
             Assert.Equal(1, count);
 
