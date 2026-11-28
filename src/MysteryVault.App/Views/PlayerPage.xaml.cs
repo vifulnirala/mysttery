@@ -132,7 +132,7 @@ public sealed partial class PlayerPage : Page
         if (EmbedWebView.CoreWebView2 is null) return;
         EmbedWebView.CoreWebView2.Settings.IsScriptEnabled = true;
         EmbedWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;
-        EmbedWebView.CoreWebView2.Settings.AreWebMessageEnabled = true;
+        EmbedWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
     }
 
     private void SandboxToggle_Click(object sender, RoutedEventArgs e) => ApplySandboxSettings();
