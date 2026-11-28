@@ -10,7 +10,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 3000;
 const TORRENT_MAX_PEERS = Math.max(8, Math.min(40, Number(process.env.TORRENT_MAX_PEERS) || 20));
-let torrentCachePath = path.resolve(process.env.MYSTERY_VAULT_TORRENT_PATH || path.join(os.homedir(), '.mystery-vault', 'torrent-cache'));
+const TORRENT_CACHE_CONFIG_DIR = path.join(os.homedir(), '.mystery-vault');
+const TORRENT_CACHE_CONFIG_PATH = path.join(TORRENT_CACHE_CONFIG_DIR, 'torrent-cache-location.json');
+function readTorrentCachePath() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(TORRENT_CACHE_CONFIG_PATH, 'utf8'));
+    if (typeof saved.path === 'string' && path.isAbsolute(saved.path)) return path.resolve(saved.path);
+  } catch (_) {}
+  return path.resolve(process.env.MYSTERY_VAULT_TORRENT_PATH || path.join(os.homedir(), '.mystery-vault', 'torrent-cache'));
+}
+let torrentCachePath = readTorrentCachePath();
 const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
 const app = express();
 
@@ -694,10 +703,10 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
         settled = true;
         reject(err);
       }
-      destroyTorrentEntry(key, entry);
+      void destroyTorrentEntry(key, entry);
     });
 
-    metadataTimeout = setTimeout(() => {
+    metadataTimeout = setTimeout(async () => {
       if (settled) return;
       settled = true;
       console.warn('[Torrent] Metadata discovery timed out');
@@ -1274,6 +1283,10 @@ app.post('/api/torrent-cache/location', async (req, res) => {
   const nextPath = path.join(path.resolve(parent), 'MysteryVaultTorrentCache');
   try {
     await fs.promises.mkdir(nextPath, { recursive: true });
+    await fs.promises.mkdir(TORRENT_CACHE_CONFIG_DIR, { recursive: true });
+    const temporaryConfig = TORRENT_CACHE_CONFIG_PATH + '.tmp';
+    await fs.promises.writeFile(temporaryConfig, JSON.stringify({ path: nextPath }, null, 2), { mode: 0o600 });
+    await fs.promises.rename(temporaryConfig, TORRENT_CACHE_CONFIG_PATH);
     torrentCachePath = nextPath;
     res.json({ path: torrentCachePath });
   } catch (error) { res.status(400).json({ error: error.message || 'Could not use that folder.' }); }
@@ -1327,12 +1340,10 @@ app.get('/api/stream-file', async (req, res) => {
   }
 });
 
-app.post('/api/stop-stream', (req, res) => {
+app.post('/api/stop-stream', async (req, res) => {
   // Closing the player destroys every torrent session so no swarm can continue
   // downloading in the background. A later play action creates a fresh session.
-  for (const [key, entry] of [...activeTorrents.entries()]) {
-    destroyTorrentEntry(key, entry);
-  }
+  await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
   console.log('[Player Closed] All streams and torrent sessions destroyed; background downloading stopped.');
   res.json({ stopped: true, torrentSessionsRetained: false });
 });
@@ -1350,6 +1361,9 @@ memoryLogInterval.unref?.();
 let activeHttpServer = null;
 
 export async function startServer({ host = process.env.HOST || '0.0.0.0', port = Number(process.env.PORT) || DEFAULT_PORT } = {}) {
+  // A previous forced exit may have interrupted store deletion. This directory
+  // is exclusively owned by Mystery Vault, so remove its stale contents on boot.
+  await fs.promises.rm(torrentCachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
   await fs.promises.mkdir(torrentCachePath, { recursive: true });
   if (activeHttpServer?.listening) {
     const address = activeHttpServer.address();
