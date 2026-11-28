@@ -165,7 +165,8 @@ function readEmbedProviders() {
         if (new URL(safePath, base).origin !== base.origin) valid = false;
       }
 
-      if (valid) providers.push({ id, name, base, moviePath, tvPath });
+      const idType = String(env[prefix + 'ID_TYPE'] || '').trim().toLowerCase();
+      if (valid) providers.push({ id, name, base, moviePath, tvPath, idType });
     } catch (_) {
       // Ignore invalid entries; keep valid servers available.
     }
@@ -453,7 +454,8 @@ async function searchYts(query, requestedLimit = 50) {
           movieId: movie.id,
           quality: torrent.quality || null,
           torrentType: torrent.type || null,
-          rating: movie.rating || null
+          rating: movie.rating || null,
+          genres: Array.isArray(movie.genres) ? movie.genres : []
         });
       }
     }
@@ -1078,14 +1080,16 @@ app.post('/api/external-player', async (req, res) => {
       return res.status(400).json({ error: 'TV playback requires a valid season (0–99) and episode (1–999).' });
   }
 
-  let playbackId;
-  try {
-    playbackId = await resolveExternalPlaybackId(mediaType, id, idType);
-  } catch (error) {
-    console.error(`[External Player] ID resolution failed for ${mediaType} ${id}: ${error.message}`);
-    return res.status(502).json({ error: 'Could not resolve the TMDB title to an external playback ID. Try again in a moment.' });
+  let playbackId = id;
+  if (config.idType === 'imdb') {
+    try {
+      playbackId = await resolveExternalPlaybackId(mediaType, id, idType);
+    } catch (error) {
+      console.error(`[External Player] ID resolution failed for ${mediaType} ${id}: ${error.message}`);
+      return res.status(502).json({ error: 'Could not resolve the TMDB title to an external playback ID. Try again in a moment.' });
+    }
+    if (!playbackId) return res.status(404).json({ error: 'No external playback ID is available for this TMDB title.' });
   }
-  if (!playbackId) return res.status(404).json({ error: 'No external playback ID is available for this TMDB title.' });
 
   const template = mediaType === 'movie' ? config.moviePath : config.tvPath;
   const path = template.replaceAll('{id}', encodeURIComponent(playbackId))
@@ -1140,6 +1144,7 @@ app.get('/api/title-search', async (req, res) => {
         overview: String(item.overview || ''),
         posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
         backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
+        genreIds: Array.isArray(item.genre_ids) ? item.genre_ids.map(Number).filter(Number.isFinite) : [],
         popularity: Number(item.popularity || 0)
       }));
     };

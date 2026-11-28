@@ -1717,3 +1717,63 @@ html[data-theme="light"] .btn-danger:hover {
     animation: none !important;
   }
 }
+
+
+/* Watchlist Unified Pivot Controls */
+.pivot-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--win-stroke-strong);
+  border-radius: var(--radius-control);
+  background: var(--win-card);
+}
+
+.pivot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--win-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.pivot-btn:hover {
+  background: var(--win-subtle-hover);
+  color: var(--win-text);
+}
+
+.pivot-btn.active {
+  background: var(--win-accent);
+  color: var(--win-accent-text);
+  font-weight: 600;
+}
+
+.pivot-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.22);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pivot-btn.active .pivot-count {
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--win-accent-text);
+}
+
+.sub-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}

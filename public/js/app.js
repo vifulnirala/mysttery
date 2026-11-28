@@ -36,6 +36,8 @@
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
     const resultSourceFilter = document.getElementById('result-source-filter');
+    const genreFilter = document.getElementById('genre-filter');
+    const timeRangeFilter = document.getElementById('time-range-filter');
     const qualityFilter = document.getElementById('quality-filter');
     const qualityFilterWrap = document.getElementById('quality-filter-wrap');
     let searchResults = [];
@@ -235,9 +237,65 @@
       return match ? `${match[1]}p` : 'unknown';
     }
 
+    const GENRE_MATCHERS = {
+      action: { ids: [28, 10759], names: ['action', 'action & adventure'] },
+      adventure: { ids: [12, 10759], names: ['adventure', 'action & adventure'] },
+      animation: { ids: [16], names: ['animation', 'anime'] },
+      comedy: { ids: [35], names: ['comedy'] },
+      crime: { ids: [80], names: ['crime'] },
+      documentary: { ids: [99], names: ['documentary'] },
+      drama: { ids: [18], names: ['drama'] },
+      family: { ids: [10751], names: ['family', 'kids'] },
+      fantasy: { ids: [14, 10765], names: ['fantasy', 'sci-fi & fantasy'] },
+      horror: { ids: [27], names: ['horror'] },
+      mystery: { ids: [9648], names: ['mystery'] },
+      romance: { ids: [10749], names: ['romance'] },
+      'sci-fi': { ids: [878, 10765], names: ['sci-fi', 'science fiction', 'sci-fi & fantasy'] },
+      thriller: { ids: [53], names: ['thriller'] }
+    };
+
+    function extractReleaseYear(item) {
+      const direct = String(item?.year || '').match(/\b(19\d{2}|20\d{2})\b/);
+      if (direct) return Number(direct[1]);
+      const fromTitle = String(item?.title || '').match(/\b(19\d{2}|20\d{2})\b/);
+      return fromTitle ? Number(fromTitle[1]) : null;
+    }
+
+    function matchesGenre(item, selectedGenre) {
+      if (!selectedGenre || selectedGenre === 'all') return true;
+      const rule = GENRE_MATCHERS[selectedGenre];
+      if (!rule) return true;
+      if (Array.isArray(item.genreIds) && item.genreIds.length) {
+        return item.genreIds.some(id => rule.ids.includes(Number(id)));
+      }
+      if (Array.isArray(item.genres) && item.genres.length) {
+        const lowerGenres = item.genres.map(g => String(g).toLowerCase());
+        return rule.names.some(name => lowerGenres.includes(name));
+      }
+      return false;
+    }
+
+    function matchesTimeRange(item, range) {
+      if (!range || range === 'all') return true;
+      const year = extractReleaseYear(item);
+      if (!year) return false;
+      const currentYear = new Date().getFullYear();
+      if (range === 'this-year') return year === currentYear;
+      if (range === 'last-2') return year >= currentYear - 1;
+      if (range === 'last-5') return year >= currentYear - 4;
+      if (range === '2020s') return year >= 2020;
+      if (range === '2010s') return year >= 2010 && year <= 2019;
+      if (range === '2000s') return year >= 2000 && year <= 2009;
+      if (range === '1990s') return year >= 1990 && year <= 1999;
+      if (range === 'classic') return year < 1990;
+      return true;
+    }
+
     function applyResultFilters() {
       const source = resultSourceFilter.value;
       const quality = qualityFilter.value;
+      const genre = genreFilter ? genreFilter.value : 'all';
+      const timeRange = timeRangeFilter ? timeRangeFilter.value : 'all';
       filteredResults = unifiedResults.filter(entry => {
         const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
         if (!item) return false;
@@ -248,6 +306,8 @@
           if (source === 'apibay' && (entry.type !== 'search' || item.provider !== 'APIBay')) return false;
         }
         if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
+        if (!matchesGenre(item, genre)) return false;
+        if (!matchesTimeRange(item, timeRange)) return false;
         return true;
       });
       renderMoreResults(true);
@@ -548,6 +608,8 @@
       applyResultFilters();
     });
     qualityFilter.addEventListener('change', applyResultFilters);
+    genreFilter?.addEventListener('change', applyResultFilters);
+    timeRangeFilter?.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
