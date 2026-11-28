@@ -7,11 +7,44 @@ namespace MysteryVault.Native.Views;
 
 public sealed partial class HomePage : Page
 {
-    private readonly ProviderSearchService _search = new();
+    private readonly ProviderSearchService _search = new(App.Settings.TmdbReadAccessToken);
+    private readonly DiscoveryService _discovery = new();
     private CancellationTokenSource? _searchCancellation;
     private IReadOnlyList<MediaSearchResult> _lastResults = Array.Empty<MediaSearchResult>();
 
-    public HomePage() => InitializeComponent();
+    public HomePage()
+    {
+        InitializeComponent();
+        Loaded += HomePage_Loaded;
+    }
+
+    private async void HomePage_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var trendingTask = _discovery.GetTrendingAsync();
+            var mysteryTask = _discovery.GetGenreAsync(9648);
+            var romanceTask = _discovery.GetGenreAsync(10749);
+            var horrorTask = _discovery.GetGenreAsync(27);
+            var animationTask = _discovery.GetGenreAsync(16);
+            var comedyTask = _discovery.GetGenreAsync(35);
+            await Task.WhenAll(trendingTask, mysteryTask, romanceTask, horrorTask, animationTask, comedyTask);
+
+            TrendingItems.ItemsSource = trendingTask.Result;
+            MysteryItems.ItemsSource = mysteryTask.Result;
+            RomanceItems.ItemsSource = romanceTask.Result;
+            HorrorItems.ItemsSource = horrorTask.Result;
+            AnimationItems.ItemsSource = animationTask.Result;
+            ComedyItems.ItemsSource = comedyTask.Result;
+
+            if (trendingTask.Result.Count == 0)
+                StatusText.Text = "Add TMDB_API_READ_ACCESS_TOKEN to your environment to load trending and genre shelves.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Discovery could not be loaded: {ex.Message}";
+        }
+    }
 
     private async void SearchButton_Click(object sender, RoutedEventArgs e)
     {
