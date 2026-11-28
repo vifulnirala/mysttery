@@ -34,7 +34,7 @@ jobs:
             }
           }
       - name: Publish x64
-        run: msbuild src/MysteryVault.Native/MysteryVault.Native.csproj /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsPackageType=None /p:PublishDir=artifacts/native-win-x64/ /verbosity:minimal
+        run: msbuild src/MysteryVault.Native/MysteryVault.Native.csproj /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsPackageType=None /p:PublishDir=${{ github.workspace }}/artifacts/native-win-x64/ /verbosity:minimal
       - uses: actions/upload-artifact@v4
         with:
           name: mystery-vault-native-win-x64
