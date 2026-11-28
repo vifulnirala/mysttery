@@ -46,6 +46,13 @@
       <div class="section-head">
         <div><div class="section-kicker">Case results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note">Search all available sources and refine the results below.</p></div>
         <div class="result-controls">
+          <select id="result-source-filter" class="hidden" aria-hidden="true" tabindex="-1">
+            <option value="all">All sources</option>
+            <option value="yts">YTS</option>
+            <option value="archive">Archive</option>
+            <option value="tmdb">TMDB</option>
+            <option value="apibay">APIBay</option>
+          </select>
           <div class="filter-chips" role="group" aria-label="Result source">
             <button type="button" class="filter-chip active" data-source-filter="all">All clues</button>
             <button type="button" class="filter-chip" data-source-filter="yts">YTS</button>
