@@ -2,22 +2,34 @@
 <Page
     x:Class="MysteryVault.App.Views.PlayerPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cfg="using:MysteryVault.Core.Configuration">
     <Grid RowDefinitions="Auto,*">
         <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,0,0,12">
             <Button Content="Back" Click="Back_Click" />
+            <ComboBox x:Name="ServerSelector"
+                      Width="180"
+                      DisplayMemberPath="Name"
+                      Visibility="Collapsed"
+                      SelectionChanged="ServerSelector_SelectionChanged" />
             <ToggleButton x:Name="SandboxToggle"
-                          Content="Embed Sandbox"
-                          IsChecked="True"
+                          Content="Block Popups"
+                          IsChecked="False"
                           Click="SandboxToggle_Click" />
-            <TextBlock x:Name="PlayerStatusText" VerticalAlignment="Center" Opacity="0.8" />
+            <Button x:Name="OpenExternalBtn"
+                    Content="Open in Browser"
+                    Visibility="Collapsed"
+                    Click="OpenExternal_Click" />
+            <TextBlock x:Name="PlayerStatusText" VerticalAlignment="Center" Opacity="0.85" />
         </StackPanel>
 
         <Grid Grid.Row="1">
             <MediaPlayerElement x:Name="VideoPlayer"
                                 AreTransportControlsEnabled="True"
+                                IsHitTestVisible="False"
                                 Visibility="Collapsed" />
             <WebView2 x:Name="EmbedWebView"
+                      IsHitTestVisible="False"
                       Visibility="Collapsed" />
         </Grid>
     </Grid>

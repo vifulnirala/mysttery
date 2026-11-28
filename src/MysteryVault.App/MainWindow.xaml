@@ -12,6 +12,7 @@
                         Background="Transparent"
                         SelectionChanged="NavView_SelectionChanged">
             <NavigationView.MenuItems>
+                <NavigationViewItem Content="Home" Tag="home" Icon="Home" />
                 <NavigationViewItem Content="Library" Tag="library" Icon="Library" />
                 <NavigationViewItem Content="Search" Tag="search" Icon="Find" />
                 <NavigationViewItem Content="Watchlist" Tag="watchlist" Icon="Bookmarks" />

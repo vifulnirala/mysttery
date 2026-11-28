@@ -28,8 +28,10 @@ public sealed partial class MainWindow : Window
             }
             if (args.SelectedItemContainer is not NavigationViewItem item) return;
             var tag = item.Tag?.ToString();
-            if (tag == "library")
+            if (tag == "home")
                 ContentFrame.Navigate(typeof(HomePage));
+            else if (tag == "library")
+                ContentFrame.Navigate(typeof(LibraryPage));
             else if (tag == "search")
                 ContentFrame.Navigate(typeof(SearchResultsPage));
             else if (tag == "watchlist")

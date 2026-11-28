@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using MonoTorrent;
 using MonoTorrent.Client;
 using MysteryVault.Core.Models;
@@ -8,14 +9,17 @@ namespace MysteryVault.Core.Services;
 
 public interface ITorrentStreamingService : IAsyncDisposable
 {
+    event EventHandler<string>? StatusChanged;
     Task<IReadOnlyList<TorrentFileEntry>> GetFilesAsync(string magnetUri, CancellationToken ct = default);
     Task<Uri> StartHttpStreamAsync(string magnetUri, int? fileIndex = null, CancellationToken ct = default);
     Task StopAsync();
 }
 
-public sealed class TorrentStreamingService : ITorrentStreamingService
+public sealed partial class TorrentStreamingService : ITorrentStreamingService
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".webm", ".avi", ".mov"];
+    private static readonly HttpClient TorrentDownloadClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+
     private readonly ICacheManagerService _cache;
     private ClientEngine? _engine;
     private TorrentManager? _activeManager;
@@ -23,6 +27,8 @@ public sealed class TorrentStreamingService : ITorrentStreamingService
     private CancellationTokenSource? _serverCts;
     private Stream? _activeStream;
     private string _activeMime = "video/mp4";
+
+    public event EventHandler<string>? StatusChanged;
 
     public TorrentStreamingService(ICacheManagerService cache)
     {
@@ -38,7 +44,8 @@ public sealed class TorrentStreamingService : ITorrentStreamingService
         {
             CacheDirectory = cacheDir,
             AllowLocalPeerDiscovery = true,
-            AllowPortForwarding = true
+            AllowPortForwarding = true,
+            DhtEndPoint = new IPEndPoint(IPAddress.Any, 0)
         }.ToSettings();
         _engine = new ClientEngine(settings);
         return _engine;
@@ -71,8 +78,9 @@ public sealed class TorrentStreamingService : ITorrentStreamingService
                 ? "video/webm"
                 : "video/mp4";
 
+        StatusChanged?.Invoke(this, $"Starting stream for {Path.GetFileName(target.Path)}...");
         await manager.StartAsync();
-        _activeStream = await manager.StreamProvider!.CreateStreamAsync(target, prebuffer: true, ct);
+        _activeStream = await manager.StreamProvider!.CreateStreamAsync(target, prebuffer: false, ct);
 
         var port = GetAvailablePort();
         _serverCts = new CancellationTokenSource();
@@ -189,8 +197,30 @@ public sealed class TorrentStreamingService : ITorrentStreamingService
     {
         await StopAsync();
         var engine = GetOrCreateEngine();
+        var cacheDir = _cache.GetCacheDirectory();
+
+        var hashMatch = BtihRegex().Match(magnetUri);
+        if (hashMatch.Success)
+        {
+            var hash = hashMatch.Groups[1].Value.ToUpperInvariant();
+            try
+            {
+                StatusChanged?.Invoke(this, "Fetching .torrent metadata...");
+                var torrentBytes = await TorrentDownloadClient.GetByteArrayAsync($"https://yts.lt/torrent/download/{hash}", ct);
+                var torrent = await Torrent.LoadAsync(torrentBytes);
+                var mgr = await engine.AddStreamingAsync(torrent, cacheDir);
+                _activeManager = mgr;
+                return mgr;
+            }
+            catch
+            {
+                // Fall back to magnet + DHT/trackers
+            }
+        }
+
+        StatusChanged?.Invoke(this, "Resolving magnet metadata via peers...");
         var magnet = MagnetLink.Parse(magnetUri);
-        var manager = await engine.AddStreamingAsync(magnet, _cache.GetCacheDirectory());
+        var manager = await engine.AddStreamingAsync(magnet, cacheDir);
         _activeManager = manager;
         if (!manager.HasMetadata)
         {
@@ -207,4 +237,7 @@ public sealed class TorrentStreamingService : ITorrentStreamingService
         _engine?.Dispose();
         _engine = null;
     }
+
+    [GeneratedRegex("xt=urn:btih:([A-Fa-f0-9]{40})", RegexOptions.IgnoreCase)]
+    private static partial Regex BtihRegex();
 }

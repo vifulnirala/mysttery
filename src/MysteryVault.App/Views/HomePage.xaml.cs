@@ -11,7 +11,6 @@ public sealed partial class HomePage : Page
 {
     private readonly IWatchlistService _watchlist;
     private readonly ITmdbClientService _tmdb;
-    private readonly IEmbedProviderService _embeds;
     public HomeViewModel ViewModel { get; }
 
     public HomePage()
@@ -19,7 +18,6 @@ public sealed partial class HomePage : Page
         ViewModel = App.Current.Services.GetRequiredService<HomeViewModel>();
         _watchlist = App.Current.Services.GetRequiredService<IWatchlistService>();
         _tmdb = App.Current.Services.GetRequiredService<ITmdbClientService>();
-        _embeds = App.Current.Services.GetRequiredService<IEmbedProviderService>();
         InitializeComponent();
     }
 
@@ -31,21 +29,6 @@ public sealed partial class HomePage : Page
             StatusInfoBar.Message = ViewModel.StatusMessage;
             StatusInfoBar.IsOpen = true;
         }
-    }
-
-    private void HeroSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
-        => NavigateSearch(args.QueryText);
-
-    private void QuickChip_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Content is string chip)
-            NavigateSearch(chip);
-    }
-
-    private void NavigateSearch(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query)) return;
-        Frame?.Navigate(typeof(SearchResultsPage), query);
     }
 
     private async void MediaItem_Click(object sender, ItemClickEventArgs e)
@@ -75,7 +58,7 @@ public sealed partial class HomePage : Page
             if (isTmdb)
                 await LaunchEmbedForItemAsync(item);
             else
-                NavigateSearch(item.Title);
+                Frame?.Navigate(typeof(SearchResultsPage), item.Title);
         }
         else if (result == ContentDialogResult.Secondary)
         {
@@ -97,22 +80,8 @@ public sealed partial class HomePage : Page
             (season, episode) = picked.Value;
         }
 
-        var providers = await _embeds.GetAllAsync();
-        var provider = providers.FirstOrDefault();
-        if (provider is null)
-        {
-            NavigateSearch(item.Title);
-            return;
-        }
-
         var playbackId = await _tmdb.GetExternalImdbIdAsync(item.Id, item.Type);
-        var template = item.Type == MediaType.Tv ? provider.TvUrlTemplate : provider.MovieUrlTemplate;
-        var url = template
-            .Replace("{id}", Uri.EscapeDataString(playbackId))
-            .Replace("{season}", season.ToString())
-            .Replace("{episode}", episode.ToString());
-
-        Frame?.Navigate(typeof(PlayerPage), url);
+        Frame?.Navigate(typeof(PlayerPage), new EmbedPlaybackRequest(item.Title, playbackId, item.Type, season, episode));
     }
 
     private async Task<(int Season, int Episode)?> PickEpisodeAsync(MediaItem item)

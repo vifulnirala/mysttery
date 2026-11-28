@@ -12,7 +12,6 @@ public sealed partial class SearchResultsPage : Page
 {
     private readonly IWatchlistService _watchlist;
     private readonly ITmdbClientService _tmdb;
-    private readonly IEmbedProviderService _embeds;
     public SearchViewModel ViewModel { get; }
 
     public SearchResultsPage()
@@ -20,7 +19,6 @@ public sealed partial class SearchResultsPage : Page
         ViewModel = App.Current.Services.GetRequiredService<SearchViewModel>();
         _watchlist = App.Current.Services.GetRequiredService<IWatchlistService>();
         _tmdb = App.Current.Services.GetRequiredService<ITmdbClientService>();
-        _embeds = App.Current.Services.GetRequiredService<IEmbedProviderService>();
         InitializeComponent();
     }
 
@@ -79,19 +77,9 @@ public sealed partial class SearchResultsPage : Page
         {
             if (isTmdb)
             {
-                var providers = await _embeds.GetAllAsync();
-                var provider = providers.FirstOrDefault();
-                if (provider is not null)
-                {
-                    var playbackId = await _tmdb.GetExternalImdbIdAsync(item.Id, item.Type);
-                    var template = item.Type == MediaType.Tv ? provider.TvUrlTemplate : provider.MovieUrlTemplate;
-                    var url = template
-                        .Replace("{id}", Uri.EscapeDataString(playbackId))
-                        .Replace("{season}", "1")
-                        .Replace("{episode}", "1");
-                    Frame?.Navigate(typeof(PlayerPage), url);
-                    return;
-                }
+                var playbackId = await _tmdb.GetExternalImdbIdAsync(item.Id, item.Type);
+                Frame?.Navigate(typeof(PlayerPage), new EmbedPlaybackRequest(item.Title, playbackId, item.Type));
+                return;
             }
             ViewModel.Query = item.Title;
             await RunSearchAsync();

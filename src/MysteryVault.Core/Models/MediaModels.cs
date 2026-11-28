@@ -50,3 +50,11 @@ public sealed record WatchlistEntry(
     string? PosterUrl,
     int? ReleaseYear,
     DateTimeOffset AddedAtUtc);
+
+public sealed record EmbedPlaybackRequest(
+    string Title,
+    string PlaybackId,
+    MediaType Type,
+    int Season = 1,
+    int Episode = 1,
+    string? PreferredProviderId = null);

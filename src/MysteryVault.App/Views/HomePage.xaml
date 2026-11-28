@@ -36,87 +36,26 @@
 
     <ScrollViewer>
         <StackPanel Spacing="28" Padding="0,0,0,40">
-            <!-- Centered Hero matching original Mystery Vault -->
-            <StackPanel Spacing="14" HorizontalAlignment="Center" MaxWidth="780" Margin="0,12,0,8">
-                <Border HorizontalAlignment="Center"
-                        CornerRadius="999"
-                        Padding="12,5"
-                        Background="{StaticResource MvSurfaceBrush}"
-                        BorderBrush="{StaticResource MvBorderBrush}"
-                        BorderThickness="1">
-                    <TextBlock Text="MYSTERY VAULT · NATIVE EDITION"
-                               Foreground="{StaticResource MvAccent2Brush}"
-                               FontSize="11"
-                               FontWeight="Bold"
-                               CharacterSpacing="80" />
-                </Border>
-                <TextBlock Text="Uncover Every Mystery."
-                           HorizontalAlignment="Center"
-                           TextAlignment="Center"
-                           FontSize="46"
-                           FontWeight="Bold" />
-                <TextBlock Text="Stream TMDB titles directly in the embed player or search verified torrent clues."
-                           HorizontalAlignment="Center"
-                           TextAlignment="Center"
-                           Foreground="{StaticResource MvMutedBrush}"
-                           FontSize="15" />
-
-                <Border Padding="8"
-                        CornerRadius="18"
-                        Background="{StaticResource MvSurfaceBrush}"
-                        BorderBrush="{StaticResource MvBorderBrush}"
-                        BorderThickness="1">
-                    <AutoSuggestBox x:Name="HeroSearchBox"
-                                    PlaceholderText="Search movies, shows, or Scooby-Doo..."
-                                    QueryIcon="Find"
-                                    Width="560"
-                                    QuerySubmitted="HeroSearchBox_QuerySubmitted" />
-                </Border>
-
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                    <Button Content="Scooby-Doo" CornerRadius="12" Click="QuickChip_Click" />
-                    <Button Content="Avatar" CornerRadius="12" Click="QuickChip_Click" />
-                    <Button Content="Interstellar" CornerRadius="12" Click="QuickChip_Click" />
-                    <Button Content="Inception" CornerRadius="12" Click="QuickChip_Click" />
-                </StackPanel>
-
-                <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" HorizontalAlignment="Center" />
+            <StackPanel Spacing="8">
+                <TextBlock Text="Home" Style="{StaticResource TitleLargeTextBlockStyle}" />
+                <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" HorizontalAlignment="Left" />
                 <InfoBar x:Name="StatusInfoBar" IsOpen="False" IsClosable="True" />
             </StackPanel>
 
             <StackPanel Spacing="10">
-                <TextBlock Text="Midnight Shelf (Legal Catalog)" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <GridView ItemsSource="{x:Bind ViewModel.MidnightShelf}"
+                <TextBlock Text="Midnight Shelf (Curated Catalog)" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView ItemsSource="{x:Bind ViewModel.MidnightShelf}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
                           IsItemClickEnabled="True"
                           SelectionMode="None"
-                          ItemClick="MediaItem_Click">
-                    <GridView.ItemTemplate>
-                        <DataTemplate x:DataType="models:MediaItem">
-                            <Border Width="236"
-                                    Height="118"
-                                    Margin="0,0,10,8"
-                                    Padding="12"
-                                    CornerRadius="16"
-                                    Background="{StaticResource MvSurfaceBrush}"
-                                    BorderBrush="{StaticResource MvBorderBrush}"
-                                    BorderThickness="1">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="{x:Bind Title}"
-                                               FontWeight="SemiBold"
-                                               TextTrimming="CharacterEllipsis"
-                                               TextWrapping="Wrap"
-                                               MaxLines="2" />
-                                    <TextBlock Text="{x:Bind ReleaseYear}" Foreground="{StaticResource MvMutedBrush}" FontSize="12" />
-                                    <TextBlock Text="{x:Bind Overview}"
-                                               Foreground="{StaticResource MvMutedBrush}"
-                                               FontSize="12"
-                                               TextTrimming="CharacterEllipsis"
-                                               MaxLines="1" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </GridView.ItemTemplate>
-                </GridView>
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
             </StackPanel>
 
             <StackPanel Spacing="10">

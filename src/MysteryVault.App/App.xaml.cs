@@ -19,9 +19,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             LogCrash("AppDomain.UnhandledException", e.ExceptionObject as Exception);
         UnhandledException += (_, e) =>
-        {
             LogCrash("Application.UnhandledException", e.Exception);
-        };
 
         InitializeComponent();
         Services = ConfigureServices();
@@ -40,18 +38,24 @@ public partial class App : Application
         Directory.CreateDirectory(appDataDir);
 
         var catalogPath = Path.Combine(AppContext.BaseDirectory, "Assets", "scooby_doo_catalog.json");
+        var thumbCachePath = Path.Combine(appDataDir, "catalog-thumbnails.json");
+        var homeCachePath = Path.Combine(appDataDir, "home-cache.json");
         var watchlistPath = Path.Combine(appDataDir, "watchlist.json");
         var embedStorePath = Path.Combine(appDataDir, "embed-servers.json");
 
         services.AddSingleton<ICacheManagerService>(_ => new CacheManagerService(appDataDir));
         services.AddSingleton<ITmdbClientService, TmdbClientService>();
-        services.AddSingleton<ILocalCatalogService>(_ => new LocalCatalogService(catalogPath));
+        services.AddSingleton<ILocalCatalogService>(sp =>
+            new LocalCatalogService(catalogPath, thumbCachePath, sp.GetRequiredService<ITmdbClientService>()));
         services.AddSingleton<ITorrentSearchService, TorrentSearchService>();
         services.AddSingleton<IWatchlistService>(_ => new WatchlistService(watchlistPath));
         services.AddSingleton<IEmbedProviderService>(_ => new EmbedProviderService(embedStorePath, settings));
         services.AddSingleton<ITorrentStreamingService, TorrentStreamingService>();
 
-        services.AddTransient<HomeViewModel>();
+        services.AddTransient(sp => new HomeViewModel(
+            sp.GetRequiredService<ITmdbClientService>(),
+            sp.GetRequiredService<ILocalCatalogService>(),
+            homeCachePath));
         services.AddTransient<SearchViewModel>();
         services.AddTransient<WatchlistViewModel>();
         services.AddTransient<SettingsViewModel>();
