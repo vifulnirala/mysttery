@@ -14,7 +14,24 @@
       <ListView x:Name="SearchResults" SelectionMode="Single" DisplayMemberPath="Title" />
       <Button Grid.Row="1" x:Name="AddToWatchlistButton" Content="Add selected title to Watchlist" HorizontalAlignment="Left" Click="AddToWatchlistButton_Click"/>
     </Grid>
-    <StackPanel Spacing="8"><TextBlock Text="Trending this week" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="TMDB trending shelf will be connected next." Opacity="0.65"/></StackPanel>
-    <StackPanel Spacing="8"><TextBlock Text="Mystery · Romance · Horror · Animation · Comedy" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="Genre shelves will be connected next." Opacity="0.65"/></StackPanel>
+    <StackPanel Spacing="8">
+      <TextBlock Text="Trending this week" FontSize="22" FontWeight="SemiBold"/>
+      <ListView x:Name="TrendingItems" Height="150" SelectionMode="None">
+        <ListView.ItemsPanel><ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListView.ItemsPanel>
+        <ListView.ItemTemplate><DataTemplate><Border Width="180" Padding="12" Margin="0,0,10,0" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"><StackPanel Spacing="6"><TextBlock Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"/><TextBlock Text="{Binding ReleaseDate}" Opacity="0.65"/></StackPanel></Border></DataTemplate></ListView.ItemTemplate>
+      </ListView>
+    </StackPanel>
+    <StackPanel Spacing="8">
+      <TextBlock Text="Mystery" FontSize="20" FontWeight="SemiBold"/>
+      <ListView x:Name="MysteryItems" Height="130" SelectionMode="None" DisplayMemberPath="Title"/>
+      <TextBlock Text="Romance" FontSize="20" FontWeight="SemiBold"/>
+      <ListView x:Name="RomanceItems" Height="130" SelectionMode="None" DisplayMemberPath="Title"/>
+      <TextBlock Text="Horror" FontSize="20" FontWeight="SemiBold"/>
+      <ListView x:Name="HorrorItems" Height="130" SelectionMode="None" DisplayMemberPath="Title"/>
+      <TextBlock Text="Animation" FontSize="20" FontWeight="SemiBold"/>
+      <ListView x:Name="AnimationItems" Height="130" SelectionMode="None" DisplayMemberPath="Title"/>
+      <TextBlock Text="Comedy" FontSize="20" FontWeight="SemiBold"/>
+      <ListView x:Name="ComedyItems" Height="130" SelectionMode="None" DisplayMemberPath="Title"/>
+    </StackPanel>
   </StackPanel></ScrollViewer>
 </Page>
