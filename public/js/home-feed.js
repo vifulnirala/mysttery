@@ -379,11 +379,8 @@
     feeds.forEach(loadGenreFeed);
   }
 
-  // Attach looping left/right scroll buttons and low-CPU automatic horizontal scrolling to every shelf (.feed-row).
-  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const autoScrollShelves = [];
-
-  document.querySelectorAll('.section').forEach((section, shelfIndex) => {
+  // Attach looping left/right scroll buttons to every horizontal shelf (.feed-row).
+  document.querySelectorAll('.section').forEach(section => {
     const row = section.querySelector('.feed-row');
     const head = section.querySelector('.section-head');
     if (!row || !head || head.querySelector('.shelf-scroll-controls')) return;
@@ -403,100 +400,23 @@
     next.setAttribute('aria-label', 'Scroll right');
     next.textContent = '›';
 
-    const state = {
-      section,
-      row,
-      isVisible: false,
-      pausedUntil: 0,
-      hovered: false,
-      autoEnabled: section.classList.contains('home-feed-section'),
-      tickOffset: shelfIndex % 3
-    };
-
-    const advanceRow = (dir, cardStep = 0) => {
+    const scrollRow = dir => {
       const maxScroll = row.scrollWidth - row.clientWidth;
       if (maxScroll <= 12) return;
-      const step = cardStep || Math.max(360, Math.round(row.clientWidth * 0.72));
+      const step = Math.max(360, Math.round(row.clientWidth * 0.72));
       if (dir > 0) {
-        if (row.scrollLeft >= maxScroll - 10) {
-          row.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          row.scrollBy({ left: step, behavior: 'smooth' });
-        }
+        if (row.scrollLeft >= maxScroll - 10) row.scrollTo({ left: 0, behavior: 'smooth' });
+        else row.scrollBy({ left: step, behavior: 'smooth' });
       } else {
-        if (row.scrollLeft <= 10) {
-          row.scrollTo({ left: maxScroll, behavior: 'smooth' });
-        } else {
-          row.scrollBy({ left: -step, behavior: 'smooth' });
-        }
+        if (row.scrollLeft <= 10) row.scrollTo({ left: maxScroll, behavior: 'smooth' });
+        else row.scrollBy({ left: -step, behavior: 'smooth' });
       }
     };
 
-    prev.addEventListener('click', () => {
-      state.pausedUntil = Date.now() + 8000;
-      advanceRow(-1);
-    });
-    next.addEventListener('click', () => {
-      state.pausedUntil = Date.now() + 8000;
-      advanceRow(1);
-    });
-
-    row.addEventListener('mouseenter', () => { state.hovered = true; });
-    row.addEventListener('mouseleave', () => { state.hovered = false; });
-    row.addEventListener('focusin', () => { state.hovered = true; });
-    row.addEventListener('focusout', () => { state.hovered = false; });
-    row.addEventListener('wheel', () => { state.pausedUntil = Date.now() + 8000; }, { passive: true });
-    row.addEventListener('pointerdown', () => { state.pausedUntil = Date.now() + 8000; }, { passive: true });
+    prev.addEventListener('click', () => scrollRow(-1));
+    next.addEventListener('click', () => scrollRow(1));
 
     controls.append(prev, next);
     head.append(controls);
-
-    if (state.autoEnabled && !prefersReducedMotion) {
-      state.advance = () => advanceRow(1, 380);
-      autoScrollShelves.push(state);
-    }
   });
-
-  // Single lightweight interval shared across all visible genre shelves (zero CPU when off-screen or hidden).
-  if (autoScrollShelves.length && 'IntersectionObserver' in window) {
-    const contentPane = document.querySelector('.content-pane');
-    const shelfByEl = new Map();
-    const visObserver = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        const shelf = shelfByEl.get(entry.target);
-        if (shelf) shelf.isVisible = entry.isIntersecting;
-      });
-    }, { root: contentPane || null, threshold: 0.15 });
-
-    autoScrollShelves.forEach(shelf => {
-      shelfByEl.set(shelf.section, shelf);
-      visObserver.observe(shelf.section);
-    });
-
-    let windowFocused = document.hasFocus();
-    let globalPauseUntil = 0;
-    window.addEventListener('blur', () => { windowFocused = false; });
-    window.addEventListener('focus', () => { windowFocused = true; });
-    if (contentPane) {
-      contentPane.addEventListener('scroll', () => {
-        globalPauseUntil = Date.now() + 2500;
-      }, { passive: true });
-    }
-
-    let rrIndex = 0;
-    setInterval(() => {
-      if (!windowFocused || document.visibilityState !== 'visible') return;
-      const now = Date.now();
-      if (now < globalPauseUntil) return;
-      if (document.querySelector('.modal.open')) return;
-
-      const eligible = autoScrollShelves.filter(
-        shelf => shelf.isVisible && !shelf.hovered && now >= shelf.pausedUntil
-      );
-      if (!eligible.length) return;
-      const target = eligible[rrIndex % eligible.length];
-      rrIndex = (rrIndex + 1) % eligible.length;
-      target.advance();
-    }, 4200);
-  }
 })();
