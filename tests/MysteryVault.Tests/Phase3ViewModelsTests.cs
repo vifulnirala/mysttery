@@ -56,6 +56,9 @@ public sealed class Phase3ViewModelsTests
 
         public Task<IReadOnlyList<TvEpisode>> GetTvEpisodesAsync(string tmdbId, int seasonNumber, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<TvEpisode>>(Array.Empty<TvEpisode>());
+
+        public Task<string> GetExternalImdbIdAsync(string tmdbId, MediaType type, CancellationToken ct = default)
+            => Task.FromResult(tmdbId);
     }
 
     private sealed class FakeCatalogService : ILocalCatalogService
