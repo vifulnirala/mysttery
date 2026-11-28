@@ -1,0 +1,16 @@
+<Page x:Class="MysteryVault.Native.Views.HomePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer><StackPanel Padding="32" Spacing="24">
+    <StackPanel Spacing="6">
+      <TextBlock Text="MYSTERY VAULT" FontSize="12" FontWeight="Bold" CharacterSpacing="180" Foreground="{ThemeResource AccentBrush}"/>
+      <TextBlock Text="Your next mystery starts here." FontSize="36" FontWeight="Bold"/>
+      <TextBlock Text="Search movies, series and available media sources." Opacity="0.7"/>
+    </StackPanel>
+    <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBox x:Name="SearchBox" PlaceholderText="Search movies, TV shows, or torrents…"/>
+      <Button Grid.Column="1" Content="Search" MinWidth="120" Click="SearchButton_Click"/>
+    </Grid>
+    <TextBlock x:Name="StatusText" Text="Native WinUI 3 shell. Provider services are the next migration stage." TextWrapping="Wrap" Opacity="0.7"/>
+    <StackPanel Spacing="8"><TextBlock Text="Trending this week" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="TMDB trending shelf will be connected in the discovery-services phase." Opacity="0.65"/></StackPanel>
+    <StackPanel Spacing="8"><TextBlock Text="Mystery · Romance · Horror · Animation · Comedy" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="Genre shelves will be connected in the discovery-services phase." Opacity="0.65"/></StackPanel>
+  </StackPanel></ScrollViewer>
+</Page>

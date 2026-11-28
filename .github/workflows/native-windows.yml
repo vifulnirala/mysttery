@@ -1,0 +1,29 @@
+name: Native Windows (WinUI 3)
+on:
+  push:
+    branches: [native-windows-winui3]
+  pull_request:
+    branches: [native-windows-winui3]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore src/MysteryVault.Native/MysteryVault.Native.csproj
+      - name: Build x64
+        run: dotnet build src/MysteryVault.Native/MysteryVault.Native.csproj --configuration Release --platform x64 --no-restore
+      - name: Publish x64
+        run: dotnet publish src/MysteryVault.Native/MysteryVault.Native.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/native-win-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mystery-vault-native-win-x64
+          path: artifacts/native-win-x64/**
+          if-no-files-found: error
+          retention-days: 14
