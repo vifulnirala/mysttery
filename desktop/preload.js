@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mysteryVault', Object.freeze({
   getDnsSettings: () => ipcRenderer.invoke('mystery-vault:dns:get'),
+  chooseTorrentCacheDirectory: () => ipcRenderer.invoke('mystery-vault:torrent-cache:choose-directory'),
   setDnsEndpoint: endpoint => ipcRenderer.invoke('mystery-vault:dns:set', endpoint),
   getWatchlist: () => ipcRenderer.invoke('mystery-vault:watchlist:get'),
   saveWatchlist: items => ipcRenderer.invoke('mystery-vault:watchlist:set', items)
