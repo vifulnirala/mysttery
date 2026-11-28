@@ -326,9 +326,10 @@
 }
 
 /* Watchlist and desktop navigation */
-.topbar-actions{display:flex;align-items:center;gap:12px;margin-left:auto}
+.topbar-actions{display:flex;align-items:center;gap:12px;margin-left:0}
 .nav-link{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 15px;border:1px solid var(--border,#27304b);border-radius:12px;color:inherit;text-decoration:none;background:rgba(255,255,255,.04);font-weight:700}
 .nav-link:hover{background:rgba(255,255,255,.08)}
+.nav-link.active{border-color:rgba(103,232,249,.42);background:rgba(38,76,126,.34);color:var(--text)}
 .watchlist-toggle{position:absolute;right:10px;top:10px;width:38px;height:38px;border:1px solid rgba(255,255,255,.2);border-radius:50%;background:rgba(8,12,25,.75);color:#fff;font-size:21px;cursor:pointer;z-index:3;backdrop-filter:blur(8px)}
 .watchlist-toggle.active{color:#ffd75e;border-color:rgba(255,215,94,.55)}
 .watchlist-toggle:hover{transform:scale(1.05)}
