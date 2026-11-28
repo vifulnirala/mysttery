@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="MysteryVault.App.Views.WatchlistPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:MysteryVault.Core.Models"
+    Loaded="Page_Loaded">
+    <StackPanel Spacing="16">
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock Text="Watchlist" Style="{StaticResource TitleLargeTextBlockStyle}" />
+            <Button Content="Clear All" Click="ClearAll_Click" VerticalAlignment="Center" />
+        </StackPanel>
+        <GridView ItemsSource="{x:Bind ViewModel.Items}" SelectionMode="None">
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="models:WatchlistEntry">
+                    <StackPanel Width="220" Padding="10" Spacing="4">
+                        <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" />
+                        <TextBlock Text="{x:Bind ReleaseYear}" Opacity="0.7" FontSize="12" />
+                    </StackPanel>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+    </StackPanel>
+</Page>

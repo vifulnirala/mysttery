@@ -10,11 +10,16 @@
     <NavigationView x:Name="NavView"
                     PaneDisplayMode="Top"
                     IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="True">
+                    IsSettingsVisible="False"
+                    SelectionChanged="NavView_SelectionChanged">
         <NavigationView.MenuItems>
             <NavigationViewItem Content="Library" Tag="library" Icon="Library" />
+            <NavigationViewItem Content="Search" Tag="search" Icon="Find" />
             <NavigationViewItem Content="Watchlist" Tag="watchlist" Icon="Bookmarks" />
         </NavigationView.MenuItems>
+        <NavigationView.FooterMenuItems>
+            <NavigationViewItem x:Name="ThemeToggleItem" Content="Toggle Theme" Icon="Brightness" Tapped="ThemeToggleItem_Tapped" SelectsOnInvoked="False" />
+        </NavigationView.FooterMenuItems>
         <Frame x:Name="ContentFrame" Padding="24" />
     </NavigationView>
 </Window>

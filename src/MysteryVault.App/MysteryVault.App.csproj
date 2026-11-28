@@ -23,4 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MysteryVault.Core\MysteryVault.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\scooby_doo_catalog.json" Link="Assets\scooby_doo_catalog.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
