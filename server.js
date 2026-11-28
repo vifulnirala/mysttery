@@ -1268,7 +1268,7 @@ app.get('/api/discover', async (req, res) => {
           title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
           year: String((mediaType === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
           overview: String(item.overview || ''),
-          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w185${item.poster_path}` : null,
           backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
           popularity: Number(item.popularity || 0)
         }));
@@ -1279,7 +1279,7 @@ app.get('/api/discover', async (req, res) => {
     if (!movies.length && !shows.length && movieOutcome.status === 'rejected' && showOutcome.status === 'rejected') {
       throw movieOutcome.reason || showOutcome.reason;
     }
-    const payload = setCachedValue(cacheKey, { results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 20).map(({ popularity, ...item }) => item) }, 15 * 60 * 1000);
+    const payload = setCachedValue(cacheKey, { results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 14).map(({ popularity, ...item }) => item) }, 15 * 60 * 1000);
     res.set('Cache-Control', 'public, max-age=300');
     res.json(payload);
   } catch (error) {
@@ -1307,14 +1307,14 @@ app.get('/api/trending', async (_req, res) => {
     const today = new Date().toISOString().slice(0, 10);
     const results = (Array.isArray(data.results) ? data.results : [])
       .filter(item => ['movie', 'tv'].includes(item.media_type) && (item.media_type !== 'movie' || !item.release_date || item.release_date <= today))
-      .slice(0, 20)
+      .slice(0, 14)
       .map(item => ({
         tmdbId: String(item.id),
         mediaType: item.media_type,
         title: String(item.media_type === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
         year: String((item.media_type === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
         overview: String(item.overview || ''),
-        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w185${item.poster_path}` : null,
         backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null
       }));
     const payload = setCachedValue(cacheKey, { results }, 15 * 60 * 1000);

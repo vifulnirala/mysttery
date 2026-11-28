@@ -106,8 +106,7 @@
     const spotlightContent = spotlightBanner.querySelector('.spotlight-content');
     if (spotlightContent) {
       spotlightContent.classList.remove('is-switching');
-      void spotlightContent.offsetWidth;
-      spotlightContent.classList.add('is-switching');
+      requestAnimationFrame(() => spotlightContent.classList.add('is-switching'));
     }
     if (spotlightBadgeText) spotlightBadgeText.textContent = slide.badge || 'FEATURED';
     if (spotlightLead) spotlightLead.textContent = slide.lead || '';
@@ -368,7 +367,7 @@
           loadGenreFeed(feed);
         }
       });
-    }, { root: contentPane || null, rootMargin: '260px 0px' });
+    }, { root: contentPane || null, rootMargin: '120px 0px' });
 
     feeds.forEach(feed => {
       const target = feed.section || feed.grid;
@@ -474,18 +473,30 @@
       visObserver.observe(shelf.section);
     });
 
-    let tick = 0;
+    let windowFocused = document.hasFocus();
+    let globalPauseUntil = 0;
+    window.addEventListener('blur', () => { windowFocused = false; });
+    window.addEventListener('focus', () => { windowFocused = true; });
+    if (contentPane) {
+      contentPane.addEventListener('scroll', () => {
+        globalPauseUntil = Date.now() + 2500;
+      }, { passive: true });
+    }
+
+    let rrIndex = 0;
     setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      if (document.querySelector('.modal.open')) return;
+      if (!windowFocused || document.visibilityState !== 'visible') return;
       const now = Date.now();
-      const phase = tick % 3;
-      tick += 1;
-      autoScrollShelves.forEach(shelf => {
-        if (!shelf.isVisible || shelf.hovered || now < shelf.pausedUntil) return;
-        if (shelf.tickOffset !== phase) return;
-        shelf.advance();
-      });
-    }, 1400);
+      if (now < globalPauseUntil) return;
+      if (document.querySelector('.modal.open')) return;
+
+      const eligible = autoScrollShelves.filter(
+        shelf => shelf.isVisible && !shelf.hovered && now >= shelf.pausedUntil
+      );
+      if (!eligible.length) return;
+      const target = eligible[rrIndex % eligible.length];
+      rrIndex = (rrIndex + 1) % eligible.length;
+      target.advance();
+    }, 4200);
   }
 })();
