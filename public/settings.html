@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#202020">
+  <meta name="description" content="Manage Mystery Vault player servers and app-only DNS settings.">
+  <title>Mystery Vault — Settings</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="win-titlebar">
+    <div class="win-titlebar-brand">
+      <span class="win-app-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.5 9.75 6.25 14.5 8 9.75 9.75 8 14.5 6.25 9.75 1.5 8 6.25 6.25 8 1.5Z"/></svg>
+      </span>
+      <span class="win-titlebar-name">Mystery Vault</span>
+    </div>
+  </header>
+
+  <div class="app-frame">
+    <aside class="nav-rail" aria-label="Main navigation">
+      <nav class="nav-group">
+        <a class="nav-link" href="/">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.47 1.65a.75.75 0 0 1 1.06 0l5.75 5.5a.75.75 0 0 1-1.04 1.08L12.5 7.5v5.75A1.25 1.25 0 0 1 11.25 14.5h-6.5A1.25 1.25 0 0 1 3.5 13.25V7.5l-.74.73a.75.75 0 1 1-1.04-1.08l5.75-5.5ZM5 6.06V13h6V6.06L8 3.2 5 6.06Z"/></svg>
+          <span>Library</span>
+        </a>
+        <a class="nav-link" href="/watchlist.html">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.75 2A1.75 1.75 0 0 0 2 3.75v10.5a.75.75 0 0 0 1.22.58L8 11.01l4.78 3.82A.75.75 0 0 0 14 14.25V3.75A1.75 1.75 0 0 0 12.25 2h-8.5Zm0 1.5h8.5c.14 0 .25.11.25.25v8.94L8.47 9.47a.75.75 0 0 0-.94 0L3.5 12.69V3.75c0-.14.11-.25.25-.25Z"/></svg>
+          <span>Watchlist</span>
+        </a>
+      </nav>
+      <div class="nav-footer">
+        <a class="nav-link active" href="/settings.html" aria-current="page">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.5 1.75a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v.82c.46.13.9.31 1.3.55l.58-.58a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 0 1 0 1.06l-.58.58c.24.4.42.84.55 1.3h.82a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-.82c-.13.46-.31.9-.55 1.3l.58.58a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 0 1-1.06 0l-.58-.58c-.4.24-.84.42-1.3.55v.82a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75v-.82a5.5 5.5 0 0 1-1.3-.55l-.58.58a.75.75 0 0 1-1.06 0L2.5 12.44a.75.75 0 0 1 0-1.06l.58-.58a5.5 5.5 0 0 1-.55-1.3h-.82a.75.75 0 0 1-.75-.75v-1.5a.75.75 0 0 1 .75-.75h.82c.13-.46.31-.9.55-1.3l-.58-.58a.75.75 0 0 1 0-1.06L3.56 2.5a.75.75 0 0 1 1.06 0l.58.58c.4-.24.84-.42 1.3-.55v-.82ZM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>
+          <span>Settings</span>
+        </a>
+        <button class="nav-link theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">
+          <span>Light mode</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="content-pane">
+      <div class="page-container settings-container">
+        <section class="page-head">
+          <div>
+            <h1>Settings</h1>
+            <p class="page-subtitle">Manage playback providers, local torrent storage, and app-scoped DNS filtering.</p>
+          </div>
+        </section>
+
+        <section class="settings-card" aria-labelledby="server-manager-title">
+          <div class="settings-card-head">
+            <h2 id="server-manager-title">Player servers</h2>
+            <p class="section-note">Import a <code>.env</code>, key/value CSV, or provider-table CSV with columns: <code>id</code>, <code>name</code>, <code>base_url</code>, <code>movie_path_template</code>, <code>tv_path_template</code>. Saved locally on this PC.</p>
+          </div>
+          <div class="settings-card-body">
+            <form id="server-import-form" class="settings-row-form">
+              <label class="embed-field" for="server-config-file">
+                <span>Server configuration file (.env or .csv)</span>
+                <input id="server-config-file" type="file" accept=".env,.txt,.csv,text/plain,text/csv" required>
+              </label>
+              <div class="settings-actions">
+                <button class="btn btn-primary" type="submit">Import servers</button>
+              </div>
+            </form>
+            <p id="server-manager-status" class="embed-status" role="status" aria-live="polite"></p>
+            <div id="managed-server-list" class="managed-server-list"></div>
+          </div>
+        </section>
+
+        <section class="settings-card" aria-labelledby="torrent-cache-title">
+          <div class="settings-card-head">
+            <h2 id="torrent-cache-title">Torrent cache</h2>
+            <p class="section-note">Downloaded pieces used during torrent playback are temporary. Choose which drive stores them and clear cached data when needed.</p>
+          </div>
+          <div class="settings-card-body">
+            <div class="settings-path-row">
+              <span class="settings-path-label">Current location</span>
+              <code id="torrent-cache-path" class="path-code">Loading…</code>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-primary" id="torrent-cache-location" type="button">Choose storage folder</button>
+              <button class="btn btn-danger" id="torrent-cache-clear" type="button">Clear torrent cache</button>
+            </div>
+            <p id="torrent-cache-status" class="embed-status" role="status" aria-live="polite"></p>
+            <p class="settings-footnote">Mystery Vault manages a dedicated <code>MysteryVaultTorrentCache</code> folder inside the selected location. Clearing stops active torrent sessions first.</p>
+          </div>
+        </section>
+
+        <section class="settings-card" aria-labelledby="dns-settings-title">
+          <div class="settings-card-head">
+            <h2 id="dns-settings-title">DNS settings</h2>
+            <p class="section-note">Use AdGuard DNS to block many ad, tracker, and known malicious domains inside Mystery Vault.</p>
+          </div>
+          <div class="settings-card-body">
+            <form id="dns-settings-form" class="settings-row-form">
+              <label class="embed-field" for="dns-endpoint">
+                <span>DNS-over-HTTPS endpoint</span>
+                <input id="dns-endpoint" type="url" inputmode="url" autocomplete="url" spellcheck="false" value="https://dns.adguard-dns.com/dns-query" required>
+              </label>
+              <div class="settings-actions">
+                <button class="btn btn-primary" type="submit">Apply DNS</button>
+                <button class="btn btn-secondary" id="dns-use-adguard" type="button">Use AdGuard DNS</button>
+              </div>
+            </form>
+            <p id="dns-settings-status" class="embed-status" role="status" aria-live="polite">Default: AdGuard DNS (94.140.14.14). App-only; Windows network settings are not changed.</p>
+            <p class="settings-footnote">Custom entries must be HTTPS DNS-over-HTTPS URLs, not plain IP addresses. DNS filtering blocks many ad domains, but cannot remove every ad embedded in a video stream.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/shell.js" defer></script>
+  <script src="/js/settings.js" defer></script>
+</body>
+</html>

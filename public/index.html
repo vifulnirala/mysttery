@@ -3,112 +3,312 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b1020">
+  <meta name="theme-color" content="#202020">
   <meta name="description" content="Search available torrents and stream video files.">
-  <title>Mystery Vault — Discover & Stream</title>
-    <link rel="stylesheet" href="/css/styles.css">
+  <title>Mystery Vault — Library</title>
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-  <main class="shell">
-    <nav class="topbar" aria-label="Main navigation">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">✦</div>
-        <div><div class="brand-name">MYSTERY VAULT</div><div class="brand-caption">Discover something worth watching</div></div>
+  <header class="win-titlebar">
+    <div class="win-titlebar-brand">
+      <span class="win-app-icon" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.5 9.75 6.25 14.5 8 9.75 9.75 8 14.5 6.25 9.75 1.5 8 6.25 6.25 8 1.5Z"/></svg>
+      </span>
+      <span class="win-titlebar-name">Mystery Vault</span>
+    </div>
+  </header>
+
+  <div class="app-frame">
+    <aside class="nav-rail" aria-label="Main navigation">
+      <nav class="nav-group">
+        <a class="nav-link active" href="/" aria-current="page">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.47 1.65a.75.75 0 0 1 1.06 0l5.75 5.5a.75.75 0 0 1-1.04 1.08L12.5 7.5v5.75A1.25 1.25 0 0 1 11.25 14.5h-6.5A1.25 1.25 0 0 1 3.5 13.25V7.5l-.74.73a.75.75 0 1 1-1.04-1.08l5.75-5.5ZM5 6.06V13h6V6.06L8 3.2 5 6.06Z"/></svg>
+          <span>Library</span>
+        </a>
+        <a class="nav-link" href="/watchlist.html">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.75 2A1.75 1.75 0 0 0 2 3.75v10.5a.75.75 0 0 0 1.22.58L8 11.01l4.78 3.82A.75.75 0 0 0 14 14.25V3.75A1.75 1.75 0 0 0 12.25 2h-8.5Zm0 1.5h8.5c.14 0 .25.11.25.25v8.94L8.47 9.47a.75.75 0 0 0-.94 0L3.5 12.69V3.75c0-.14.11-.25.25-.25Z"/></svg>
+          <span>Watchlist</span>
+        </a>
+      </nav>
+      <div class="nav-footer">
+        <a class="nav-link" href="/settings.html">
+          <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.5 1.75a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v.82c.46.13.9.31 1.3.55l.58-.58a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 0 1 0 1.06l-.58.58c.24.4.42.84.55 1.3h.82a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-.82c-.13.46-.31.9-.55 1.3l.58.58a.75.75 0 0 1 0 1.06l-1.06 1.06a.75.75 0 0 1-1.06 0l-.58-.58c-.4.24-.84.42-1.3.55v.82a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1-.75-.75v-.82a5.5 5.5 0 0 1-1.3-.55l-.58.58a.75.75 0 0 1-1.06 0L2.5 12.44a.75.75 0 0 1 0-1.06l.58-.58a5.5 5.5 0 0 1-.55-1.3h-.82a.75.75 0 0 1-.75-.75v-1.5a.75.75 0 0 1 .75-.75h.82c.13-.46.31-.9.55-1.3l-.58-.58a.75.75 0 0 1 0-1.06L3.56 2.5a.75.75 0 0 1 1.06 0l.58.58c.4-.24.84-.42 1.3-.55v-.82ZM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>
+          <span>Settings</span>
+        </a>
+        <button class="nav-link theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">
+          <span>Light mode</span>
+        </button>
       </div>
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">☼ <span>Light mode</span></button>
-    </nav>
+    </aside>
 
-    <section class="hero">
-      <div class="eyebrow"><span aria-hidden="true">✧</span> Your next watch starts here</div>
-      <h1><span class="gradient-text">Find it. Stream it.</span></h1>
-      <p class="hero-copy">Search the catalog and available torrent sources in one place. Pick a result to inspect its files before playback begins.</p>
-      <form class="search-panel" id="search-form" role="search">
-        <input type="search" id="search" autocomplete="off" placeholder="Search movies, TV shows, or torrents…" aria-label="Search movies, TV shows, or torrents">
-        <button class="btn btn-primary" type="submit">⌕ &nbsp; Search</button>
-      </form>
-      <div id="status-banner" class="status" role="status" aria-live="polite"></div>
-    </section>
+    <main class="content-pane">
+      <div class="page-container">
+        <section class="search-header" aria-label="Search library">
+          <div class="page-title-row">
+            <div>
+              <h1>Library</h1>
+              <p class="page-subtitle">Search movies, TV series, curated picks, and available torrent sources.</p>
+            </div>
+          </div>
 
-    <section id="search-results-section" class="section hidden" aria-labelledby="results-title">
-      <div class="section-head">
-        <div><div class="section-kicker">Search results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note">YTS results are shown first.</p></div>
-        <div class="result-controls">
-          <label class="filter-field"><span>Source</span>
-            <select id="result-source-filter" class="select-control" aria-label="Filter results by source">
-              <option value="all">All sources</option><option value="search">YTS torrents</option><option value="tmdb">TMDB titles</option>
+          <form class="search-panel" id="search-form" role="search">
+            <span class="search-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16"><path fill="currentColor" d="M6.75 2a4.75 4.75 0 1 0 2.9 8.51l3.07 3.07a.75.75 0 1 0 1.06-1.06l-3.07-3.07A4.75 4.75 0 0 0 6.75 2ZM3.5 6.75a3.25 3.25 0 1 1 6.5 0 3.25 3.25 0 0 1-6.5 0Z"/></svg>
+            </span>
+            <input type="search" id="search" autocomplete="off" placeholder="Search movies, TV shows, or paste a magnet link…" aria-label="Search movies, TV shows, or torrents">
+            <button class="btn btn-primary" type="submit">Search</button>
+          </form>
+
+          <div class="quick-searches" aria-label="Quick searches">
+            <span class="quick-label">Quick search:</span>
+            <button type="button" class="query-chip" data-query="Scooby-Doo">Scooby-Doo</button>
+            <button type="button" class="query-chip" data-query="Avatar">Avatar</button>
+            <button type="button" class="query-chip" data-query="Interstellar">Interstellar</button>
+            <button type="button" class="query-chip" data-query="Inception">Inception</button>
+          </div>
+
+          <div id="status-banner" class="status" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="spotlight-banner" id="featured-spotlight" aria-label="Featured spotlight">
+          <img class="spotlight-backdrop" id="spotlight-backdrop" alt="" decoding="async">
+          <div class="spotlight-scrim" aria-hidden="true"></div>
+          <div class="spotlight-content">
+            <div class="spotlight-badge" id="spotlight-badge">
+              <span aria-hidden="true">✦</span>
+              <span id="spotlight-badge-text">SCOOBY VAULT</span>
+            </div>
+            <h2 class="spotlight-title" id="spotlight-title">
+              <span class="spotlight-title-lead" id="spotlight-title-lead">The New</span>
+              <span class="spotlight-title-accent" id="spotlight-title-accent">Scooby-Doo Movies</span>
+            </h2>
+            <p class="spotlight-desc" id="spotlight-desc">Discover curated Scooby-Doo mysteries, monsters, and midnight stories handpicked for the vault.</p>
+            <div class="spotlight-actions">
+              <button class="btn spotlight-cta" id="spotlight-cta" type="button">
+                <span aria-hidden="true">▶</span>
+                <span id="spotlight-cta-label">Explore Now</span>
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
+          </div>
+          <div class="spotlight-nav">
+            <div class="spotlight-dots" id="spotlight-dots" role="tablist" aria-label="Featured slides"></div>
+            <div class="spotlight-arrows">
+              <button class="spotlight-arrow" id="spotlight-prev" type="button" aria-label="Previous featured title">‹</button>
+              <button class="spotlight-arrow" id="spotlight-next" type="button" aria-label="Next featured title">›</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="continue-watching-section" class="section hidden" aria-labelledby="continue-watching-title">
+          <div class="section-head section-head-row">
+            <h2 id="continue-watching-title" class="section-heading-play"><span class="heading-play-icon" aria-hidden="true">▶</span> Continue Watching</h2>
+            <a class="see-all-link" href="/watchlist.html#continue-watching">See All <span aria-hidden="true">›</span></a>
+          </div>
+          <div class="continue-row" id="home-continue-grid"></div>
+        </section>
+
+        <section id="search-results-section" class="section hidden" aria-labelledby="results-title">
+          <div class="section-head">
+            <div>
+              <h2 id="results-title">Search results</h2>
+              <p class="section-note" id="results-note">Search all available sources and refine the results below.</p>
+            </div>
+          </div>
+          <div class="result-controls">
+            <select id="result-source-filter" class="hidden" aria-hidden="true" tabindex="-1">
+              <option value="all">All sources</option>
+              <option value="yts">YTS</option>
+              <option value="archive">Archive</option>
+              <option value="tmdb">TMDB</option>
+              <option value="apibay">APIBay</option>
             </select>
-          </label>
-          <label class="filter-field" id="quality-filter-wrap"><span>Picture quality</span>
-            <select id="quality-filter" class="select-control" aria-label="Filter YTS results by picture quality">
-              <option value="all">All qualities</option>
-            </select>
-          </label>
-          <label class="filter-field"><span>Show per page</span>
-            <select id="page-size" class="select-control" aria-label="Number of search results to show at a time">
-              <option value="10">10 results</option><option value="20">20 results</option><option value="30">30 results</option><option value="50">50 results</option>
-            </select>
-          </label>
-        </div>
-      </div>
-      <div class="grid" id="torrent-grid" aria-live="polite"></div>
-      <div class="load-more-wrap"><button class="btn btn-secondary hidden" id="load-more" type="button">Load more results ↓</button></div>
-    </section>
+            <div class="filter-chips" role="group" aria-label="Filter by source">
+              <button type="button" class="filter-chip active" data-source-filter="all">All</button>
+              <button type="button" class="filter-chip" data-source-filter="yts">YTS</button>
+              <button type="button" class="filter-chip" data-source-filter="archive">Archive</button>
+              <button type="button" class="filter-chip" data-source-filter="tmdb">TMDB</button>
+              <button type="button" class="filter-chip" data-source-filter="apibay">APIBay</button>
+            </div>
+            <div class="result-selectors">
+              <label class="filter-field">
+                <span>Genre</span>
+                <select id="genre-filter" class="select-control" aria-label="Filter search results by genre">
+                  <option value="all">All genres</option>
+                  <option value="action">Action</option>
+                  <option value="adventure">Adventure</option>
+                  <option value="animation">Animation</option>
+                  <option value="comedy">Comedy</option>
+                  <option value="crime">Crime</option>
+                  <option value="documentary">Documentary</option>
+                  <option value="drama">Drama</option>
+                  <option value="family">Family</option>
+                  <option value="fantasy">Fantasy</option>
+                  <option value="horror">Horror</option>
+                  <option value="mystery">Mystery</option>
+                  <option value="romance">Romance</option>
+                  <option value="sci-fi">Sci-Fi</option>
+                  <option value="thriller">Thriller</option>
+                </select>
+              </label>
+              <label class="filter-field">
+                <span>Time range</span>
+                <select id="time-range-filter" class="select-control" aria-label="Filter search results by release time range">
+                  <option value="all">Any time</option>
+                  <option value="this-year">This year</option>
+                  <option value="last-2">Last 2 years</option>
+                  <option value="last-5">Last 5 years</option>
+                  <option value="2020s">2020s</option>
+                  <option value="2010s">2010s</option>
+                  <option value="2000s">2000s</option>
+                  <option value="1990s">1990s</option>
+                  <option value="classic">Before 1990</option>
+                </select>
+              </label>
+              <label class="filter-field" id="quality-filter-wrap">
+                <span>Quality</span>
+                <select id="quality-filter" class="select-control" aria-label="Filter torrent results by picture quality">
+                  <option value="all">All qualities</option>
+                </select>
+              </label>
+              <label class="filter-field">
+                <span>Show</span>
+                <select id="page-size" class="select-control" aria-label="Number of search results to show at a time">
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="30">30</option>
+                  <option value="50">50</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="grid" id="torrent-grid" aria-live="polite"></div>
+          <div class="load-more-wrap">
+            <button class="btn btn-secondary hidden" id="load-more" type="button">Load more results</button>
+          </div>
+        </section>
 
-    <section class="section" aria-labelledby="catalog-title">
-      <div class="section-head">
-        <div><div class="section-kicker">Hand-picked</div><h2 id="catalog-title">Curated library</h2><p class="section-note">Quick picks to test the streaming setup.</p></div>
-      </div>
-      <div class="grid" id="catalog-grid"></div>
-    </section>
+        <section class="section" id="curated-section" aria-labelledby="catalog-title">
+          <div class="section-head">
+            <div>
+              <h2 id="catalog-title">Curated picks</h2>
+              <p class="section-note">Hand-picked classics and sample streams ready for instant playback.</p>
+            </div>
+          </div>
+          <div class="grid feed-row" id="catalog-grid"></div>
+        </section>
 
-    <section class="section" aria-label="External playback">
-      <div class="embed-panel">
-        <form id="external-player-form" class="embed-form">
-          <label class="embed-field">Media type
-            <select id="external-media-type" class="select-control"><option value="movie">Movie</option><option value="tv">TV episode</option></select>
-          </label>
-          <label class="embed-field">IMDb / TMDB ID
-            <input id="external-media-id" type="text" required maxlength="80" pattern="[A-Za-z0-9._:-]{1,80}" placeholder="e.g. tt1234567 or 12345" autocomplete="off">
-          </label>
-          <label class="embed-field external-tv-field hidden">Season
-            <input id="external-season" type="number" min="0" max="99" value="1">
-          </label>
-          <label class="embed-field external-tv-field hidden">Episode
-            <input id="external-episode" type="number" min="1" max="999" value="1">
-          </label>
-          <button class="btn btn-primary" type="submit">Play selected title/episode</button>
-        </form>
-        <p class="embed-status" id="external-provider-status" role="status" aria-live="polite"></p>
+        <section class="section home-feed-section" id="trending-section">
+          <div class="section-head">
+            <div>
+              <h2>Trending this week</h2>
+              <p class="section-note">Popular movies and series from TMDB.</p>
+            </div>
+          </div>
+          <div class="grid feed-row" id="trending-grid"><div class="empty">Loading trending picks…</div></div>
+        </section>
+
+        <section class="section home-feed-section" id="genre-mystery-section">
+          <div class="section-head"><div><h2>Mystery</h2></div></div>
+          <div class="grid feed-row" id="genre-mystery-grid"><div class="empty">Scroll to load mystery picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-action-section">
+          <div class="section-head"><div><h2>Action</h2></div></div>
+          <div class="grid feed-row" id="genre-action-grid"><div class="empty">Scroll to load action picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-scifi-section">
+          <div class="section-head"><div><h2>Sci-Fi</h2></div></div>
+          <div class="grid feed-row" id="genre-scifi-grid"><div class="empty">Scroll to load sci-fi picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-thriller-section">
+          <div class="section-head"><div><h2>Thriller</h2></div></div>
+          <div class="grid feed-row" id="genre-thriller-grid"><div class="empty">Scroll to load thriller picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-fantasy-section">
+          <div class="section-head"><div><h2>Fantasy</h2></div></div>
+          <div class="grid feed-row" id="genre-fantasy-grid"><div class="empty">Scroll to load fantasy picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-adventure-section">
+          <div class="section-head"><div><h2>Adventure</h2></div></div>
+          <div class="grid feed-row" id="genre-adventure-grid"><div class="empty">Scroll to load adventure picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-romance-section">
+          <div class="section-head"><div><h2>Romance</h2></div></div>
+          <div class="grid feed-row" id="genre-romance-grid"><div class="empty">Scroll to load romance picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-horror-section">
+          <div class="section-head"><div><h2>Horror</h2></div></div>
+          <div class="grid feed-row" id="genre-horror-grid"><div class="empty">Scroll to load horror picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-animation-section">
+          <div class="section-head"><div><h2>Animation</h2></div></div>
+          <div class="grid feed-row" id="genre-animation-grid"><div class="empty">Scroll to load animation picks…</div></div>
+        </section>
+        <section class="section home-feed-section" id="genre-comedy-section">
+          <div class="section-head"><div><h2>Comedy</h2></div></div>
+          <div class="grid feed-row" id="genre-comedy-grid"><div class="empty">Scroll to load comedy picks…</div></div>
+        </section>
+
+        <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
       </div>
-    </section>
-    <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
-  </main>
+    </main>
+  </div>
 
   <div class="modal" id="file-modal" role="dialog" aria-modal="true" aria-labelledby="modal-torrent-title">
     <div class="modal-panel">
-      <div class="modal-head"><div><h2 id="modal-torrent-title">Choose a video file</h2><p>Select the video file you want to stream from this source.</p></div><button class="icon-btn" id="file-close" type="button" aria-label="Close file picker">×</button></div>
+      <div class="modal-head">
+        <div>
+          <h2 id="modal-torrent-title">Choose a video file</h2>
+          <p>Select the video file you want to stream from this source.</p>
+        </div>
+        <button class="icon-btn" id="file-close" type="button" aria-label="Close file picker">✕</button>
+      </div>
       <div class="file-list" id="file-list-container"></div>
-      <div class="modal-foot"><button class="btn btn-secondary" id="file-cancel" type="button">Cancel</button></div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" id="file-cancel" type="button">Cancel</button>
+      </div>
     </div>
   </div>
 
   <div class="modal episode-picker-modal" id="episode-picker-modal" role="dialog" aria-modal="true" aria-labelledby="episode-picker-title">
     <div class="modal-panel episode-picker-panel">
-      <div class="modal-head"><div><h2 id="episode-picker-title">Choose an episode</h2><p>Select a season and episode to start playback.</p></div><button class="icon-btn" id="episode-picker-close" type="button" aria-label="Close episode picker">×</button></div>
+      <div class="modal-head">
+        <div>
+          <h2 id="episode-picker-title">Choose an episode</h2>
+          <p>Select a season and episode to start playback.</p>
+        </div>
+        <button class="icon-btn" id="episode-picker-close" type="button" aria-label="Close episode picker">✕</button>
+      </div>
       <div id="episode-picker-content" class="episode-picker-content"></div>
     </div>
   </div>
 
   <div class="modal" id="player-modal" role="dialog" aria-modal="true" aria-labelledby="now-playing">
-    <div class="modal-panel">
-      <div class="modal-head player-head"><div><h2 id="now-playing">Now playing</h2><p>Playback is streamed while the player is open.</p></div><button class="icon-btn" id="player-close" type="button" aria-label="Close video player">×</button></div>
+    <div class="modal-panel player-panel">
+      <div class="modal-head player-head">
+        <div>
+          <h2 id="now-playing">Now playing</h2>
+          <p>Playback is streamed while the player is open.</p>
+        </div>
+        <button class="icon-btn" id="player-close" type="button" aria-label="Close video player">✕</button>
+      </div>
       <video id="video-element" controls playsinline preload="metadata"></video>
-      <iframe id="external-player-frame" class="hidden" title="External video player" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <iframe id="external-player-frame" class="hidden"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+        title="External video player"
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"></iframe>
       <div class="external-player-controls hidden" id="external-player-controls">
+        <label class="sandbox-toggle">
+          <input type="checkbox" id="external-sandbox-toggle" checked>
+          <span>Enable player sandbox</span>
+        </label>
         <div class="external-server-control" id="external-server-control">
           <label for="external-server-select">Player server</label>
           <select id="external-server-select" class="select-control"></select>
           <span id="external-server-status" role="status" aria-live="polite"></span>
+          <span id="external-provider-status" role="status" aria-live="polite"></span>
         </div>
         <div class="external-episode-control hidden" id="external-episode-control">
           <label for="player-season">Season</label>
@@ -118,22 +318,15 @@
           <button class="btn btn-secondary" id="player-episode-apply" type="button">Go to episode</button>
           <span id="player-episode-status" role="status" aria-live="polite"></span>
         </div>
-        <iframe id="external-player-frame"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-          allowfullscreen
-          referrerpolicy="strict-origin-when-cross-origin"
-          class="hidden"
-          title="External video player"></iframe>
-      <div class="external-server-control hidden" id="external-server-control">
-        <label for="external-server-select">Player server</label>
-        <select id="external-server-select" class="select-control"></select>
-        <span id="external-server-status" role="status" aria-live="polite"></span>
       </div>
-      <div class="player-foot"><span id="player-tip">Tip: use a smaller 720p release with healthy seed availability for faster starts.</span><button class="btn btn-secondary" id="player-close-bottom" type="button">Close player</button></div>
+      <div class="player-foot">
+        <span id="player-tip">Tip: use a smaller 720p release with healthy seed availability for faster starts.</span>
+      </div>
     </div>
   </div>
 
-    <script src="/js/app.js" defer></script>
+  <script src="/js/shell.js" defer></script>
+  <script src="/js/app.js" defer></script>
+  <script src="/js/home-feed.js" defer></script>
 </body>
 </html>

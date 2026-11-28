@@ -16,6 +16,10 @@
     const externalServerSelect = document.getElementById('external-server-select');
     const externalServerStatus = document.getElementById('external-server-status');
     const externalEpisodeControl = document.getElementById('external-episode-control');
+    const sandboxToggle = document.getElementById('external-sandbox-toggle');
+    const SANDBOX_KEY = 'mystery-vault-player-sandbox';
+    let sandboxEnabled = localStorage.getItem(SANDBOX_KEY) !== 'false';
+    if (sandboxToggle) sandboxToggle.checked = sandboxEnabled;
     const playerSeasonInput = document.getElementById('player-season');
     const playerEpisodeInput = document.getElementById('player-episode');
     const playerEpisodeStatus = document.getElementById('player-episode-status');
@@ -27,9 +31,13 @@
     let activeExternalServerId = null;
     const playerTip = document.getElementById('player-tip');
     let currentPlaybackMode = 'torrent';
+    let activeTorrentMeta = null;
+    let lastProgressSaveAt = 0;
     const loadMoreButton = document.getElementById('load-more');
     const pageSizeSelect = document.getElementById('page-size');
     const resultSourceFilter = document.getElementById('result-source-filter');
+    const genreFilter = document.getElementById('genre-filter');
+    const timeRangeFilter = document.getElementById('time-range-filter');
     const qualityFilter = document.getElementById('quality-filter');
     const qualityFilterWrap = document.getElementById('quality-filter-wrap');
     let searchResults = [];
@@ -41,7 +49,7 @@
     let searchController = null;
     let tmdbController = null;
     let selectionController = null;
-    const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="285" fill="#a78bfa" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#aab4ce" font-family="sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
+    const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#2b2b2b"/><text x="200" y="285" fill="#60cdff" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#a8a8a8" font-family="Segoe UI, sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
 
     function setStatus(message, kind = '') {
       statusBanner.textContent = message;
@@ -51,7 +59,7 @@
       return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     }
     function posterUrl(value) {
-      return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : POSTER_FALLBACK;
+      return window.MysteryVaultImages?.hasRealImage(value) ? value : POSTER_FALLBACK;
     }
     function showModal(modal) { modal.classList.add('open'); document.body.style.overflow = 'hidden'; }
     function hideModal(modal) {
@@ -61,6 +69,49 @@
     function formatSize(size) {
       const n = Number(size);
       return Number.isFinite(n) && n > 0 ? `${n.toLocaleString()} MB` : 'Size unknown';
+    }
+    const WATCHLIST_KEY = 'mystery-vault-watchlist-v1';
+    let watchlistCache = null;
+    let watchlistIdSet = null;
+    function setWatchlistCache(items) {
+      watchlistCache = Array.isArray(items) ? items : [];
+      watchlistIdSet = new Set(watchlistCache.map(item => item.id));
+    }
+    function getWatchlist() {
+      if (Array.isArray(watchlistCache)) return watchlistCache;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]');
+        setWatchlistCache(Array.isArray(parsed) ? parsed : []);
+      } catch (_) {
+        setWatchlistCache([]);
+      }
+      return watchlistCache;
+    }
+    function saveWatchlist(items) {
+      setWatchlistCache(items);
+      localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlistCache));
+      if (window.mysteryVault?.saveWatchlist) {
+        void window.mysteryVault.saveWatchlist(watchlistCache).catch(error => console.warn('Could not persist watchlist:', error));
+      }
+    }
+    function makeWatchlistItem(item, type) {
+      const isTmdb = type === 'tmdb';
+      return { id: isTmdb ? `tmdb:${item.mediaType}:${item.tmdbId}` : `${type}:${item.id || item.source || item.magnet}`, title: item.title || 'Untitled', year: item.year || '',
+        poster: posterUrl(isTmdb ? item.posterUrl : item.poster), type, mediaType: item.mediaType || null, tmdbId: item.tmdbId || null,
+        source: item.source || item.magnet || null, provider: item.provider || (isTmdb ? 'TMDB' : type === 'catalog' ? 'Curated' : 'Torrent'),
+        quality: item.quality || null, torrentType: item.torrentType || null };
+    }
+    function isWatchlisted(id) {
+      if (!watchlistIdSet) getWatchlist();
+      return watchlistIdSet.has(id);
+    }
+    function toggleWatchlist(item) {
+      const items = [...getWatchlist()];
+      const index = items.findIndex(existing => existing.id === item.id);
+      if (index >= 0) items.splice(index, 1);
+      else items.unshift(item);
+      saveWatchlist(items);
+      return index < 0;
     }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
@@ -77,9 +128,20 @@
         : isTmdb
           ? (item.mediaType === 'movie' ? 'Play movie' : 'View seasons')
           : (item.quality ? escapeHtml(item.quality) : `${Number(item.score || 0)} score`);
+      const watchlistItem = makeWatchlistItem(item, type);
+      const watchlisted = isWatchlisted(watchlistItem.id);
+      const rawPoster = type === 'tmdb' ? item.posterUrl : item.poster;
+      const needsTmdb = !window.MysteryVaultImages?.hasRealImage(rawPoster) && Boolean(item.tmdbId || item.imdb);
+      const tmdbAttrs = [
+        item.tmdbId ? `data-tmdb-id="${escapeHtml(item.tmdbId)}"` : '',
+        item.imdb ? `data-imdb-id="${escapeHtml(item.imdb)}"` : '',
+        item.mediaType ? `data-media-type="${escapeHtml(item.mediaType)}"` : '',
+        needsTmdb ? 'data-needs-tmdb-image="1"' : ''
+      ].filter(Boolean).join(' ');
       return `<article class="card" tabindex="0" role="button" data-card-type="${type}" data-index="${index}" aria-label="Select ${title}">
-        <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
-          <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span></div>
+        <div class="poster-wrap"><img src="${poster}" alt="" loading="lazy" decoding="async" ${tmdbAttrs} onerror="this.onerror=null;this.src='${POSTER_FALLBACK}'"><div class="poster-overlay"></div>
+          <span class="provider-pill">${escapeHtml(provider)}</span><span class="play-hint" aria-hidden="true">▶</span>
+          <button class="watchlist-toggle${watchlisted ? ' active' : ''}" type="button" data-watchlist-id="${escapeHtml(watchlistItem.id)}" aria-label="${watchlisted ? 'Remove from watchlist' : 'Add to watchlist'}" title="${watchlisted ? 'Remove from watchlist' : 'Add to watchlist'}">${watchlisted ? '★' : '☆'}</button></div>
         <div class="card-info"><div class="card-title">${title}</div><div class="meta-row"><span>${metaLeft}</span><span class="meta-tag">${metaRight}</span></div></div>
       </article>`;
     }
@@ -93,6 +155,7 @@
           ? items.map((item, index) => cardMarkup(item, index, 'catalog')).join('')
           : '<div class="empty">No curated titles are available right now.</div>';
         catalogGrid._items = items;
+        window.MysteryVaultImages?.hydrateMissingImages(catalogGrid);
       } catch (error) {
         catalogGrid.innerHTML = '<div class="empty">Could not load the curated library. Check that the server is running.</div>';
       }
@@ -115,13 +178,17 @@
       tmdbController?.abort();
       searchController = wantsTorrents ? new AbortController() : null;
       tmdbController = wantsTmdb ? new AbortController() : null;
+      const searchFormEl = document.getElementById('search-form');
+      searchFormEl?.classList.add('is-searching');
       searchSection.classList.remove('hidden');
       loadMoreButton.classList.add('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching torrent sources and TMDB…</div>';
+      torrentGrid.innerHTML = Array.from({ length: 8 }, () =>
+        '<div class="skeleton-card" aria-hidden="true"><div class="skeleton-poster"></div><div class="skeleton-lines"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>'
+      ).join('');
       searchResults = [];
       tmdbResults = [];
       unifiedResults = [];
-      setStatus(`Searching torrent sources and TMDB for “${query}”…`);
+      setStatus(`Searching torrent sources, APIBay and TMDB for “${query}”…`);
 
       const tasks = [];
       if (wantsTorrents) {
@@ -142,6 +209,7 @@
       }
 
       const outcomes = await Promise.allSettled(tasks);
+      searchFormEl?.classList.remove('is-searching');
       if ((searchController?.signal.aborted || !wantsTorrents) &&
           (tmdbController?.signal.aborted || !wantsTmdb)) return;
 
@@ -174,16 +242,81 @@
       return match ? `${match[1]}p` : 'unknown';
     }
 
+    const GENRE_MATCHERS = {
+      action: { ids: [28, 10759], names: ['action', 'action & adventure'] },
+      adventure: { ids: [12, 10759], names: ['adventure', 'action & adventure'] },
+      animation: { ids: [16], names: ['animation', 'anime'] },
+      comedy: { ids: [35], names: ['comedy'] },
+      crime: { ids: [80], names: ['crime'] },
+      documentary: { ids: [99], names: ['documentary'] },
+      drama: { ids: [18], names: ['drama'] },
+      family: { ids: [10751], names: ['family', 'kids'] },
+      fantasy: { ids: [14, 10765], names: ['fantasy', 'sci-fi & fantasy'] },
+      horror: { ids: [27], names: ['horror'] },
+      mystery: { ids: [9648], names: ['mystery'] },
+      romance: { ids: [10749], names: ['romance'] },
+      'sci-fi': { ids: [878, 10765], names: ['sci-fi', 'science fiction', 'sci-fi & fantasy'] },
+      thriller: { ids: [53], names: ['thriller'] }
+    };
+
+    function extractReleaseYear(item) {
+      const direct = String(item?.year || '').match(/\b(19\d{2}|20\d{2})\b/);
+      if (direct) return Number(direct[1]);
+      const fromTitle = String(item?.title || '').match(/\b(19\d{2}|20\d{2})\b/);
+      return fromTitle ? Number(fromTitle[1]) : null;
+    }
+
+    function matchesGenre(item, selectedGenre) {
+      if (!selectedGenre || selectedGenre === 'all') return true;
+      const rule = GENRE_MATCHERS[selectedGenre];
+      if (!rule) return true;
+      if (Array.isArray(item.genreIds) && item.genreIds.length) {
+        return item.genreIds.some(id => rule.ids.includes(Number(id)));
+      }
+      if (Array.isArray(item.genres) && item.genres.length) {
+        const lowerGenres = item.genres.map(g => String(g).toLowerCase());
+        return rule.names.some(name => lowerGenres.includes(name));
+      }
+      return false;
+    }
+
+    function matchesTimeRange(item, range) {
+      if (!range || range === 'all') return true;
+      const year = extractReleaseYear(item);
+      if (!year) return false;
+      const currentYear = new Date().getFullYear();
+      if (range === 'this-year') return year === currentYear;
+      if (range === 'last-2') return year >= currentYear - 1;
+      if (range === 'last-5') return year >= currentYear - 4;
+      if (range === '2020s') return year >= 2020;
+      if (range === '2010s') return year >= 2010 && year <= 2019;
+      if (range === '2000s') return year >= 2000 && year <= 2009;
+      if (range === '1990s') return year >= 1990 && year <= 1999;
+      if (range === 'classic') return year < 1990;
+      return true;
+    }
+
     function applyResultFilters() {
       const source = resultSourceFilter.value;
       const quality = qualityFilter.value;
+      const genre = genreFilter ? genreFilter.value : 'all';
+      const timeRange = timeRangeFilter ? timeRangeFilter.value : 'all';
       filteredResults = unifiedResults.filter(entry => {
-        if (source !== 'all' && entry.type !== source) return false;
-        if (entry.type === 'search' && quality !== 'all' && qualityKey(searchResults[entry.index]) !== quality) return false;
+        const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
+        if (!item) return false;
+        if (source !== 'all') {
+          if (source === 'yts' && item.provider !== 'YTS') return false;
+          if (source === 'archive' && item.provider !== 'Internet Archive') return false;
+          if (source === 'tmdb' && entry.type !== 'tmdb') return false;
+          if (source === 'apibay' && (entry.type !== 'search' || item.provider !== 'APIBay')) return false;
+        }
+        if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
+        if (!matchesGenre(item, genre)) return false;
+        if (!matchesTimeRange(item, timeRange)) return false;
         return true;
       });
       renderMoreResults(true);
-      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb');
+      qualityFilterWrap.classList.toggle('filter-disabled', source === 'tmdb' || !searchResults.length);
     }
 
     function populateQualityFilter() {
@@ -209,6 +342,12 @@
         return item ? cardMarkup(item, entry.index, entry.type) : '';
       }).join('');
       torrentGrid.insertAdjacentHTML('beforeend', markup);
+      const renderedCards = torrentGrid.querySelectorAll('.card:not(.card-reveal)');
+      renderedCards.forEach((cardEl, idx) => {
+        cardEl.classList.add('card-reveal');
+        if (idx < 12) cardEl.style.animationDelay = `${idx * 24}ms`;
+      });
+      window.MysteryVaultImages?.hydrateMissingImages(torrentGrid);
       visibleCount = nextCount;
       loadMoreButton.classList.toggle('hidden', visibleCount >= filteredResults.length);
       loadMoreButton.textContent = `Load more results (${filteredResults.length - visibleCount} left) ↓`;
@@ -219,8 +358,9 @@
       if (!filteredResults.length) torrentGrid.innerHTML = '<div class="empty">No results match these filters. Try changing the source or picture quality.</div>';
     }
 
-    async function handleTorrentSelection(source, title) {
+    async function handleTorrentSelection(source, title, meta = null) {
       currentSource = source;
+      activeTorrentMeta = meta ? { ...meta, source, title } : { source, title };
       if (selectionController) selectionController.abort();
       selectionController = new AbortController();
       setStatus(`Inspecting available video files for “${title}”…`);
@@ -234,7 +374,7 @@
         }
         setStatus('');
         if (data.files.length === 1) {
-          playFile(source, data.files[0].index, data.files[0].name);
+          playFile(source, data.files[0].index, data.files[0].name, activeTorrentMeta);
         } else {
           modalTorrentTitle.textContent = data.torrentName || title;
           fileListContainer.innerHTML = data.files.map(file =>
@@ -253,9 +393,43 @@
       }
     }
 
-    function playFile(source, fileIndex, fileName) {
+    function saveTorrentProgress(force = false) {
+      if (currentPlaybackMode !== 'torrent' || !activeTorrentMeta || !window.MysteryVaultContinue) return;
+      const now = Date.now();
+      if (!force && now - lastProgressSaveAt < 5000) return;
+      lastProgressSaveAt = now;
+      window.MysteryVaultContinue.upsert({
+        id: activeTorrentMeta.id || `torrent:${activeTorrentMeta.source}:${activeTorrentMeta.fileIndex ?? 0}`,
+        mode: 'torrent',
+        title: activeTorrentMeta.title || activeTorrentMeta.fileName || 'Torrent stream',
+        year: activeTorrentMeta.year || '',
+        poster: activeTorrentMeta.poster || '',
+        backdropUrl: activeTorrentMeta.backdropUrl || '',
+        tmdbId: activeTorrentMeta.tmdbId || '',
+        imdbId: activeTorrentMeta.imdb || activeTorrentMeta.imdbId || '',
+        mediaType: activeTorrentMeta.mediaType || '',
+        provider: activeTorrentMeta.provider || 'Torrent',
+        source: activeTorrentMeta.source,
+        fileIndex: activeTorrentMeta.fileIndex,
+        fileName: activeTorrentMeta.fileName || '',
+        currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+        duration: Number.isFinite(video.duration) ? video.duration : 0
+      });
+    }
+
+    video.addEventListener('timeupdate', () => saveTorrentProgress(false));
+    video.addEventListener('pause', () => saveTorrentProgress(true));
+
+    function playFile(source, fileIndex, fileName, meta = null, startTime = 0) {
       hideModal(fileModal);
       currentPlaybackMode = 'torrent';
+      activeTorrentMeta = {
+        ...(meta || activeTorrentMeta || {}),
+        source,
+        fileIndex,
+        fileName: fileName || '',
+        id: (meta && meta.id) || `torrent:${source}:${fileIndex}`
+      };
       externalFrame.removeAttribute('src');
       externalFrame.classList.add('hidden');
       externalPlayerControls.classList.add('hidden');
@@ -269,6 +443,15 @@
       video.removeAttribute('src');
       video.load();
       video.src = `/api/stream-file?source=${encodeURIComponent(source)}&fileIndex=${encodeURIComponent(fileIndex)}`;
+      if (Number(startTime) > 5) {
+        const seekOnLoad = () => {
+          if (Number.isFinite(video.duration) && startTime < video.duration - 10) {
+            try { video.currentTime = startTime; } catch (_) {}
+          }
+        };
+        video.addEventListener('loadedmetadata', seekOnLoad, { once: true });
+      }
+      saveTorrentProgress(true);
       showModal(playerModal);
       const playPromise = video.play();
       if (playPromise && typeof playPromise.catch === 'function') {
@@ -278,6 +461,7 @@
 
     async function closePlayer() {
       const closingMode = currentPlaybackMode;
+      if (closingMode === 'torrent') saveTorrentProgress(true);
       video.pause();
       video.removeAttribute('src');
       video.load();
@@ -298,17 +482,7 @@
       }
     }
 
-    const externalTypeSelect = document.getElementById('external-media-type');
     const externalStatus = document.getElementById('external-provider-status');
-    const externalTvFields = [...document.querySelectorAll('.external-tv-field')];
-    function updateExternalTypeFields() {
-      const isTv = externalTypeSelect.value === 'tv';
-      externalTvFields.forEach(field => field.classList.toggle('hidden', !isTv));
-      document.getElementById('external-season').required = isTv;
-      document.getElementById('external-episode').required = isTv;
-    }
-    externalTypeSelect.addEventListener('change', updateExternalTypeFields);
-    updateExternalTypeFields();
     const externalConfigPromise = fetch('/api/embed-config')
       .then(response => {
         if (!response.ok) throw new Error('Player configuration request failed (' + response.status + ').');
@@ -328,8 +502,8 @@
       });
 
 
-    async function playExternalPlayer(payload, displayTitle = '', serverId = '') {
-      activeExternalPayload = { ...payload }; activeExternalTitle = displayTitle;
+    async function playExternalPlayer(payload, displayTitle = '', serverId = '', meta = null) {
+      activeExternalPayload = { ...payload, ...(meta ? { _meta: meta } : {}) }; activeExternalTitle = displayTitle;
       await externalConfigPromise;
       const requestedServer = serverId || activeExternalServerId || externalProviders[0]?.id || '';
       externalStatus.textContent = 'Preparing external player…';
@@ -344,6 +518,7 @@
         currentPlaybackMode = 'external'; activeExternalServerId = result.providerId;
         video.pause(); video.removeAttribute('src'); video.load(); video.classList.add('hidden');
         externalFrame.classList.remove('hidden'); externalFrame.title = `${result.providerName} external player`;
+        applyExternalSandbox();
         nowPlaying.textContent = displayTitle || `External player · ${payload.id}`;
         playerTip.textContent = `Embedded provider: ${result.providerName}. The provider controls playback and availability.`;
         if (!externalProviders.length) externalProviders = [{ id: result.providerId, name: result.providerName }];
@@ -358,9 +533,35 @@
         // Set src only after opening the modal so a fast iframe load cannot beat the load handler.
         externalFrame.src = result.url;
         externalStatus.textContent = `Opened ${result.providerName}${displayTitle ? ` for ${displayTitle}` : ''}.`;
+        if (window.MysteryVaultContinue && payload?.id && payload?.mediaType) {
+          const itemMeta = meta || activeExternalPayload?._meta || {};
+          window.MysteryVaultContinue.upsert({
+            id: `tmdb:${payload.mediaType}:${payload.id}`,
+            mode: 'external',
+            title: itemMeta.title || displayTitle || `Title ${payload.id}`,
+            year: itemMeta.year || '',
+            poster: itemMeta.posterUrl || itemMeta.poster || '',
+            backdropUrl: itemMeta.backdropUrl || '',
+            tmdbId: String(payload.id),
+            mediaType: payload.mediaType,
+            season: payload.mediaType === 'tv' ? Number(payload.season ?? 1) : null,
+            episode: payload.mediaType === 'tv' ? Number(payload.episode ?? 1) : null,
+            serverId: result.providerId || '',
+            provider: result.providerName || 'TMDB'
+          });
+        }
       } catch (error) { externalStatus.textContent = error.message || 'Could not open external player.'; }
     }
 
+    function applyExternalSandbox() {
+      if (sandboxEnabled) externalFrame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+      else externalFrame.removeAttribute('sandbox');
+    }
+    sandboxToggle?.addEventListener('change', async () => {
+      sandboxEnabled = sandboxToggle.checked;
+      localStorage.setItem(SANDBOX_KEY, String(sandboxEnabled));
+      if (activeExternalPayload && currentPlaybackMode === 'external') await playExternalPlayer(activeExternalPayload, activeExternalTitle, activeExternalServerId || externalServerSelect.value || '');
+    });
     externalFrame.addEventListener('load', () => {
       if (currentPlaybackMode === 'external' && playerModal.classList.contains('open')) {
         externalPlayerControls.classList.remove('hidden');
@@ -387,37 +588,49 @@
       playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
     });
 
-    document.getElementById('external-player-form').addEventListener('submit', async event => {
-      event.preventDefault();
-      const payload = {
-        mediaType: externalTypeSelect.value,
-        id: document.getElementById('external-media-id').value.trim(),
-        season: document.getElementById('external-season').value,
-        episode: document.getElementById('external-episode').value
-      };
-      await playExternalPlayer(payload);
-    });
 
+    document.querySelectorAll('.query-chip').forEach(button => {
+      button.addEventListener('click', () => {
+        searchInput.value = button.dataset.query || button.textContent.trim();
+        void searchTorrents();
+      });
+    });
+    document.querySelectorAll('[data-source-filter]').forEach(button => {
+      button.addEventListener('click', () => {
+        const value = button.dataset.sourceFilter;
+        if (value === 'apibay') {
+          resultSourceFilter.value = 'apibay';
+        } else {
+          resultSourceFilter.value = value;
+        }
+        document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item === button));
+        applyResultFilters();
+      });
+    });
     document.getElementById('search-form').addEventListener('submit', event => {
       event.preventDefault();
       searchTorrents();
     });
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
-    resultSourceFilter.addEventListener('change', applyResultFilters);
+    resultSourceFilter.addEventListener('change', () => {
+      document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item.dataset.sourceFilter === resultSourceFilter.value));
+      applyResultFilters();
+    });
     qualityFilter.addEventListener('change', applyResultFilters);
+    genreFilter?.addEventListener('change', applyResultFilters);
+    timeRangeFilter?.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('episode-picker-close').addEventListener('click', () => hideModal(episodePickerModal));
     episodePickerModal.addEventListener('click', event => { if (event.target === episodePickerModal) hideModal(episodePickerModal); });
     document.getElementById('player-close').addEventListener('click', closePlayer);
-    document.getElementById('player-close-bottom').addEventListener('click', closePlayer);
     fileListContainer.addEventListener('click', event => {
       const button = event.target.closest('[data-file-index]');
       if (!button) return;
       const index = Number(button.dataset.fileIndex);
       const file = (fileListContainer._files || []).find(item => Number(item.index) === index);
-      if (file) playFile(fileListContainer._source, index, file.name);
+      if (file) playFile(fileListContainer._source, index, file.name, activeTorrentMeta);
     });
     async function loadTmdbSeasonEpisodes(card, item, seasonNumber, episodesContainer) {
       episodesContainer.innerHTML = '<div class="empty">Loading episodes…</div>';
@@ -430,6 +643,7 @@
           episodesContainer.innerHTML = '<div class="empty">No episodes are listed for this season.</div>';
           return;
         }
+        const epFragment = document.createDocumentFragment();
         data.episodes.forEach(episode => {
           const button = document.createElement('button');
           button.type = 'button';
@@ -454,19 +668,15 @@
           button.title = episode.overview || episode.name || '';
           button.addEventListener('click', async clickEvent => {
             clickEvent.stopPropagation();
-            document.getElementById('external-media-id').value = item.tmdbId;
-            externalTypeSelect.value = 'tv';
-            updateExternalTypeFields();
-            document.getElementById('external-season').value = seasonNumber;
-            document.getElementById('external-episode').value = episode.episodeNumber;
             hideModal(episodePickerModal);
             await playExternalPlayer({
-              mediaType: 'tv', id: item.tmdbId,
+              mediaType: 'tv', id: item.tmdbId, idType: 'tmdb',
               season: seasonNumber, episode: episode.episodeNumber
-            }, `${item.title} · S${seasonNumber}E${episode.episodeNumber} · ${episode.name || ''}`);
+            }, `${item.title} · S${seasonNumber}E${episode.episodeNumber} · ${episode.name || ''}`, '', item);
           });
-          episodesContainer.append(button);
+          epFragment.append(button);
         });
+        episodesContainer.append(epFragment);
       } catch (error) {
         episodesContainer.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Could not load episodes.')}</div>`;
       }
@@ -516,7 +726,28 @@
       }
     }
 
+    document.addEventListener('click', event => {
+      const button = event.target.closest('.watchlist-toggle');
+      if (!button || button.dataset.homeWatchlist) return;
+      event.stopPropagation();
+      const card = button.closest('[data-card-type]');
+      if (!card) return;
+      const index = Number(card.dataset.index);
+      const type = card.dataset.cardType;
+      const items = type === 'catalog' ? catalogGrid._items : type === 'tmdb' ? tmdbResults : searchResults;
+      const item = items?.[index];
+      if (!item) return;
+      const saved = toggleWatchlist(makeWatchlistItem(item, type));
+      button.classList.toggle('active', saved);
+      button.textContent = saved ? '★' : '☆';
+      button.setAttribute('aria-label', saved ? 'Remove from watchlist' : 'Add to watchlist');
+      button.title = saved ? 'Remove from watchlist' : 'Add to watchlist';
+      setStatus(saved ? 'Added to watchlist.' : 'Removed from watchlist.', 'success');
+    });
     function handleCardActivation(event) {
+      // A watchlist star is an independent control inside a clickable result card.
+      // Do not let its click also launch the movie/series/torrent.
+      if (event.target.closest('.watchlist-toggle')) return;
       if (event.target.closest('.tmdb-series-details')) return;
       const card = event.target.closest('[data-card-type]');
       if (!card) return;
@@ -526,10 +757,7 @@
         const item = tmdbResults[index];
         if (!item) return;
         if (item.mediaType === 'movie') {
-          document.getElementById('external-media-id').value = item.tmdbId;
-          externalTypeSelect.value = 'movie';
-          updateExternalTypeFields();
-          void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId }, item.title);
+          void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId, idType: 'tmdb' }, item.title, '', item);
         } else {
           void expandTmdbShow(card, item);
         }
@@ -537,7 +765,7 @@
       }
       const items = type === 'catalog' ? catalogGrid._items : searchResults;
       const item = items && items[index];
-      if (item) handleTorrentSelection(type === 'catalog' ? item.magnet : item.source, item.title);
+      if (item) handleTorrentSelection(type === 'catalog' ? item.magnet : item.source, item.title, item);
     }
     document.addEventListener('click', handleCardActivation);
     document.addEventListener('keydown', event => {
@@ -547,6 +775,7 @@
       }
       if (event.key === 'Escape') {
         if (playerModal.classList.contains('open')) closePlayer();
+        else if (episodePickerModal.classList.contains('open')) hideModal(episodePickerModal);
         else if (fileModal.classList.contains('open')) hideModal(fileModal);
       }
     });
@@ -557,13 +786,150 @@
       }
     }));
 
-    const themeToggle = document.getElementById('theme-toggle');
-    themeToggle.addEventListener('click', () => {
-      const root = document.documentElement;
-      const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-      root.dataset.theme = next;
-      themeToggle.innerHTML = next === 'dark' ? '☼ <span>Light mode</span>' : '☾ <span>Dark mode</span>';
-      document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
-    });
+    window.MysteryVault = window.MysteryVault || {};
+    window.MysteryVault.isWatchlisted = isWatchlisted;
+    window.MysteryVault.toggleWatchlistItem = (item, type) => {
+      const saved = toggleWatchlist(makeWatchlistItem(item, type));
+      setStatus(saved ? 'Added to watchlist.' : 'Removed from watchlist.', 'success');
+      return saved;
+    };
+    window.MysteryVault.openItem = item => {
+      if (!item?.tmdbId || !item?.mediaType) return;
+      const card = document.createElement('article');
+      card.className = 'card';
+      if (item.mediaType === 'movie') void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId, idType: 'tmdb' }, item.title || 'Movie', '', item);
+      else void expandTmdbShow(card, item);
+    };
 
-    loadCatalog();
+    const continueSection = document.getElementById('continue-watching-section');
+    const homeContinueGrid = document.getElementById('home-continue-grid');
+
+    function resumeContinueItem(entry) {
+      if (!entry) return;
+      if (entry.mode === 'torrent' && entry.source) {
+        if (entry.fileIndex != null) {
+          playFile(entry.source, entry.fileIndex, entry.fileName || entry.title, entry, entry.currentTime || 0);
+        } else {
+          void handleTorrentSelection(entry.source, entry.title, entry);
+        }
+        return;
+      }
+      if (entry.tmdbId && entry.mediaType) {
+        const payload = entry.mediaType === 'tv'
+          ? { mediaType: 'tv', id: entry.tmdbId, idType: 'tmdb', season: entry.season ?? 1, episode: entry.episode ?? 1 }
+          : { mediaType: 'movie', id: entry.tmdbId, idType: 'tmdb' };
+        const title = entry.mediaType === 'tv' && entry.season != null && entry.episode != null
+          ? `${entry.title} · S${entry.season}E${entry.episode}`
+          : entry.title;
+        void playExternalPlayer(payload, title, entry.serverId || '', entry);
+      }
+    }
+
+    function renderHomeContinueWatching() {
+      if (!continueSection || !homeContinueGrid || !window.MysteryVaultContinue) return;
+      const items = window.MysteryVaultContinue.getAll().slice(0, 4);
+      continueSection.classList.toggle('hidden', items.length === 0);
+      homeContinueGrid.replaceChildren();
+      if (!items.length) return;
+      const frag = document.createDocumentFragment();
+      items.forEach(item => {
+        const card = document.createElement('article');
+        card.className = 'continue-card clickable';
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', 'Resume ' + (item.title || 'title'));
+
+        const thumbWrap = document.createElement('div');
+        thumbWrap.className = 'continue-thumb-wrap';
+        const img = document.createElement('img');
+        img.className = 'continue-thumb';
+        const initialArt = window.MysteryVaultImages?.hasRealImage(item.backdropUrl)
+          ? item.backdropUrl
+          : window.MysteryVaultImages?.hasRealImage(item.poster)
+            ? item.poster
+            : POSTER_FALLBACK;
+        img.src = initialArt;
+        img.alt = '';
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        if (item.tmdbId) {
+          img.dataset.tmdbId = item.tmdbId;
+          img.dataset.mediaType = item.mediaType || '';
+          img.dataset.imageKind = 'backdrop';
+        } else if (item.imdbId) {
+          img.dataset.imdbId = item.imdbId;
+          img.dataset.imageKind = 'backdrop';
+        }
+        if (initialArt === POSTER_FALLBACK && (item.tmdbId || item.imdbId)) {
+          img.dataset.needsTmdbImage = '1';
+        }
+        const badge = document.createElement('span');
+        badge.className = 'provider-pill';
+        badge.textContent = item.mediaType === 'tv' && item.season != null && item.episode != null
+          ? `S${item.season} · E${item.episode}`
+          : (item.mode === 'torrent' ? 'Resume stream' : (item.provider || 'TMDB'));
+        const play = document.createElement('span');
+        play.className = 'play-hint';
+        play.setAttribute('aria-hidden', 'true');
+        play.textContent = '▶';
+        thumbWrap.append(img, badge, play);
+
+        if (item.mode === 'torrent' && item.duration > 0 && item.currentTime > 0) {
+          const pct = Math.max(2, Math.min(100, Math.round((item.currentTime / item.duration) * 100)));
+          const bar = document.createElement('div');
+          bar.className = 'continue-progress';
+          bar.innerHTML = `<span style="width:${pct}%"></span>`;
+          thumbWrap.append(bar);
+        }
+
+        const info = document.createElement('div');
+        info.className = 'continue-info';
+        const titleEl = document.createElement('div');
+        titleEl.className = 'continue-title';
+        titleEl.textContent = item.title || 'Untitled';
+        const metaEl = document.createElement('div');
+        metaEl.className = 'continue-meta';
+        metaEl.textContent = [item.year, item.mediaType === 'tv' ? 'TV Series' : item.mediaType === 'movie' ? 'Movie' : item.provider].filter(Boolean).join(' · ');
+        info.append(titleEl, metaEl);
+        card.append(thumbWrap, info);
+
+        const open = () => resumeContinueItem(item);
+        card.addEventListener('click', open);
+        card.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
+        });
+        frag.append(card);
+      });
+      homeContinueGrid.append(frag);
+      window.MysteryVaultImages?.hydrateMissingImages(homeContinueGrid);
+    }
+
+    window.addEventListener('mystery-vault:continue-watching-updated', renderHomeContinueWatching);
+
+    async function initializeApp() {
+      if (window.mysteryVault?.getWatchlist) {
+        try {
+          const storedWatchlist = await window.mysteryVault.getWatchlist();
+          const items = Array.isArray(storedWatchlist)
+            ? storedWatchlist
+            : getWatchlist(); // Migrate any existing browser-local entries on first desktop launch.
+          setWatchlistCache(items);
+          localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
+          if (!Array.isArray(storedWatchlist) && items.length) saveWatchlist(items);
+        } catch (error) {
+          console.warn('Could not load persistent watchlist:', error);
+        }
+      }
+      await window.MysteryVaultContinue?.sync();
+      renderHomeContinueWatching();
+      loadCatalog();
+      const params = new URLSearchParams(location.search);
+      const initialQuery = params.get('q');
+      const resumeId = params.get('resume');
+      if (initialQuery) { searchInput.value = initialQuery; void searchTorrents(); }
+      else if (resumeId && window.MysteryVaultContinue) {
+        const target = window.MysteryVaultContinue.getAll().find(item => item.id === resumeId);
+        if (target) resumeContinueItem(target);
+      }
+    }
+    void initializeApp();

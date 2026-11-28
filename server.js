@@ -1,17 +1,62 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import WebTorrent from 'webtorrent';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 3000;
 const TORRENT_MAX_PEERS = Math.max(8, Math.min(40, Number(process.env.TORRENT_MAX_PEERS) || 20));
-const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
+const TORRENT_CACHE_CONFIG_DIR = path.join(os.homedir(), '.mystery-vault');
+const TORRENT_CACHE_CONFIG_PATH = path.join(TORRENT_CACHE_CONFIG_DIR, 'torrent-cache-location.json');
+function readTorrentCachePath() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(TORRENT_CACHE_CONFIG_PATH, 'utf8'));
+    if (typeof saved.path === 'string' && path.isAbsolute(saved.path)) return path.resolve(saved.path);
+  } catch (_) {}
+  return path.resolve(process.env.MYSTERY_VAULT_TORRENT_PATH || path.join(os.homedir(), '.mystery-vault', 'torrent-cache'));
+}
+let torrentCachePath = readTorrentCachePath();
+// Lazily initialize WebTorrent only when a user opens a torrent so browsing
+// TMDB, Watchlist, or Settings incurs zero DHT/LSD background CPU or sockets.
+let torrentClient = null;
+function getTorrentClient() {
+  if (!torrentClient) {
+    torrentClient = new WebTorrent({
+      maxConns: TORRENT_MAX_PEERS,
+      lsd: false
+    });
+  }
+  return torrentClient;
+}
 const app = express();
 
 app.use(express.json());
-app.use(express.static(path.join(APP_ROOT, 'public')));
+app.use(express.static(path.join(APP_ROOT, 'public'), { etag: true, maxAge: '1h' }));
+
+// Bounded in-memory TTL cache for read-heavy TMDB/discovery endpoints.
+const RESPONSE_CACHE_MAX = 120;
+const responseCache = new Map();
+function getCachedValue(key) {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setCachedValue(key, value, ttlMs) {
+  if (responseCache.size >= RESPONSE_CACHE_MAX && !responseCache.has(key)) {
+    const oldestKey = responseCache.keys().next().value;
+    if (oldestKey !== undefined) responseCache.delete(oldestKey);
+  }
+  responseCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  return value;
+}
 
 // ============================================================================
 // 1. CONFIGURATION & TRACKERS
@@ -73,8 +118,23 @@ async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream 
 
 // Optional licensed external-player adapter. Configure a provider you are authorized
 // to embed; the browser never submits an arbitrary iframe URL to the server.
+const EMBED_CONFIG_DIR = path.join(os.homedir(), '.mystery-vault');
+const EMBED_CONFIG_PATH = path.join(EMBED_CONFIG_DIR, 'embed-servers.json');
+let storedEmbedEnvCache;
+let storedEmbedEnvLoaded = false;
+function readStoredEmbedEnv() {
+  if (storedEmbedEnvLoaded) return storedEmbedEnvCache;
+  storedEmbedEnvLoaded = true;
+  try {
+    storedEmbedEnvCache = JSON.parse(fs.readFileSync(EMBED_CONFIG_PATH, 'utf8'));
+  } catch (_) {
+    storedEmbedEnvCache = null;
+  }
+  return storedEmbedEnvCache;
+}
 function readEmbedProviders() {
-  const ids = String(process.env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
+  const env = readStoredEmbedEnv() || process.env;
+  const ids = String(env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
   const providerIds = ids.length ? ids : ['default'];
   const providers = [];
 
@@ -83,10 +143,10 @@ function readEmbedProviders() {
 
     const prefix = 'EMBED_' + id.toUpperCase() + '_';
     const legacy = id === 'default';
-    const name = process.env[prefix + 'NAME'] || (legacy ? process.env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
-    const baseUrl = process.env[prefix + 'BASE_URL'] || (legacy ? process.env.EMBED_PROVIDER_BASE_URL : '');
-    const moviePath = process.env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_MOVIE_PATH_TEMPLATE : '');
-    const tvPath = process.env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? process.env.EMBED_TV_PATH_TEMPLATE : '');
+    const name = env[prefix + 'NAME'] || (legacy ? env.EMBED_PROVIDER_NAME : '') || (legacy ? 'External player' : id);
+    const baseUrl = env[prefix + 'BASE_URL'] || (legacy ? env.EMBED_PROVIDER_BASE_URL : '');
+    const moviePath = env[prefix + 'MOVIE_PATH_TEMPLATE'] || (legacy ? env.EMBED_MOVIE_PATH_TEMPLATE : '');
+    const tvPath = env[prefix + 'TV_PATH_TEMPLATE'] || (legacy ? env.EMBED_TV_PATH_TEMPLATE : '');
 
     if (!baseUrl || !moviePath || !tvPath || !moviePath.includes('{id}') ||
         !['{id}', '{season}', '{episode}'].every(token => tvPath.includes(token))) continue;
@@ -105,7 +165,8 @@ function readEmbedProviders() {
         if (new URL(safePath, base).origin !== base.origin) valid = false;
       }
 
-      if (valid) providers.push({ id, name, base, moviePath, tvPath });
+      const idType = String(env[prefix + 'ID_TYPE'] || '').trim().toLowerCase();
+      if (valid) providers.push({ id, name, base, moviePath, tvPath, idType });
     } catch (_) {
       // Ignore invalid entries; keep valid servers available.
     }
@@ -129,6 +190,8 @@ const CATALOG = [
     id: 'sintel-sample',
     title: 'Test Stream (Open-Source Sintel)',
     type: 'test',
+    mediaType: 'movie',
+    tmdbId: '45745',
     year: 2010,
     poster: 'https://images.metahub.space/poster/medium/tt1727587/img',
     magnet: 'magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fsintel.torrent'
@@ -137,16 +200,20 @@ const CATALOG = [
     id: 'scooby-zombie-island',
     title: 'Scooby-Doo on Zombie Island (1998)',
     type: 'movie',
+    mediaType: 'movie',
+    tmdbId: '16471',
     year: 1998,
     poster: 'https://archive.org/services/img/scooby-doo-on-zombie-island-1998_202309',
     magnet: 'https://archive.org/download/scooby-doo-on-zombie-island-1998_202309/scooby-doo-on-zombie-island-1998_202309_archive.torrent'
   },
   {
     id: 'scooby doo where are you',
-    title: 'scooby doo where are you',
-    type: 'movie',
-    year: 1998,
-    poster: 'https://archive.org/services/img/scooby-doo-on-zombie-island-1998_202309',
+    title: 'Scooby-Doo, Where Are You!',
+    type: 'tv',
+    mediaType: 'tv',
+    tmdbId: '926',
+    year: 1969,
+    poster: '',
     magnet: 'magnet:?xt=urn:btih:965855465B8DEB6D982630F4C40DFBE5C3FB38D4&dn=Scooby-Doo+Where+Are+You+1969+S01-S03+1080p+Blu-Ray+H265+10bit+AAC-Zero00&tr=http%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2F47.ip-51-68-199.eu%3A6969%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2780%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2710%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2730%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2920%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fopentracker.i2p.rocks%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce'
   }
 ];
@@ -218,13 +285,13 @@ function calculateTitleSimilarity(candidateTitle, userQuery) {
   return Math.min(1.0, (coverage * 0.75) + exactPhraseBonus) * (0.6 + 0.4 * lengthRatio);
 }
 
-function scoreTorrentCandidate(candidate, query = '') {
-  const meta = parseReleaseMetadata(candidate.title);
+function scoreTorrentCandidate(candidate, query = '', precomputedMeta = null, precomputedQueryTokens = null) {
+  const meta = precomputedMeta || parseReleaseMetadata(candidate.title);
   // Score the title once. Previously the cleaned title and raw title were
   // concatenated, duplicating tokens and making long, unrelated titles score well.
-  const similarity = calculateTitleSimilarity(meta.cleanTitle, query);
-  const queryTokens = tokenize(query);
+  const queryTokens = precomputedQueryTokens || tokenize(query);
   const titleTokens = tokenize(meta.cleanTitle);
+  const similarity = calculateTitleSimilarity(meta.cleanTitle, query);
   const normalizedQuery = queryTokens.join(' ');
   const normalizedTitle = titleTokens.join(' ');
   const startsWithQuery = Boolean(normalizedQuery) &&
@@ -272,10 +339,11 @@ function refineAndRankTorrents(candidates, query) {
     return true;
   });
 
+  const queryTokens = tokenize(query);
   const ranked = unique
     .map(c => {
       const meta = parseReleaseMetadata(c.title);
-      const score = scoreTorrentCandidate(c, query);
+      const score = scoreTorrentCandidate(c, query, meta, queryTokens);
       return {
         ...c,
         resolution: meta.resolution,
@@ -290,7 +358,8 @@ function refineAndRankTorrents(candidates, query) {
       return providerPriority || (b.score - a.score);
     });
 
-  console.log(`\n[Search Refinement] Kept ${ranked.length} of ${candidates.length} raw results for "${query}":`);
+  console.log(`
+[Search Refinement] Kept ${ranked.length} of ${candidates.length} raw results for "${query}":`);
   ranked.slice(0, 5).forEach((c, idx) => {
     console.log(`  #${idx + 1} [Score: ${c.score}] [${c.resolution}] ${c.title} (Seeds: ${c.seeders}, Size: ${c.sizeMB}MB)`);
   });
@@ -378,13 +447,15 @@ async function searchYts(query, requestedLimit = 50) {
           sizeMB: sizeMB || 800,
           poster: movie.medium_cover_image ||
             movie.large_cover_image ||
-            'https://via.placeholder.com/300x450?text=YTS',
+            null,
+          imdb: movie.imdb_code || null,
           source: `magnet:?${magnetSource}`,
           provider: 'YTS',
           movieId: movie.id,
           quality: torrent.quality || null,
           torrentType: torrent.type || null,
-          rating: movie.rating || null
+          rating: movie.rating || null,
+          genres: Array.isArray(movie.genres) ? movie.genres : []
         });
       }
     }
@@ -402,6 +473,74 @@ async function searchYts(query, requestedLimit = 50) {
 // ============================================================================
 // 3. INDEXER PROVIDERS
 // ============================================================================
+async function searchApiBay(query, requestedLimit = 50) {
+  const results = [];
+  const baseUrl = process.env.APIBAY_BASE_URL || 'https://apibay.org';
+
+  try {
+    const url = new URL('/q.php', baseUrl);
+    url.searchParams.set('q', query);
+    url.searchParams.set('cat', '200');
+    const torrents = await Promise.race([
+      fetchWithLogarithmicBackoff(url, {
+        timeoutMs: Number(process.env.APIBAY_TIMEOUT_MS) || 10000,
+        headers: { 'User-Agent': 'Mystery-Vault/1.0' }
+      }, 'APIBay').then(async response => {
+        if (!response.ok) throw new Error(`APIBay returned HTTP ${response.status}`);
+        return response.json();
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('API Bay request timed out')), Number(process.env.APIBAY_TIMEOUT_MS) || 10000)
+      )
+    ]);
+
+    const trackers = [
+      'udp://tracker.opentrackr.org:1337/announce',
+      'udp://tracker.openbittorrent.com:6969/announce',
+      'udp://tracker.torrent.eu.org:451/announce'
+    ];
+
+    const limit = Math.max(1, Math.min(50, Number.parseInt(requestedLimit, 10) || 50));
+    for (const torrent of (Array.isArray(torrents) ? torrents : []).slice(0, limit)) {
+      const hash = String(torrent.info_hash || '').trim();
+      if (!/^[a-fA-F0-9]{40}$/.test(hash)) continue;
+
+      const sizeBytes = Number(torrent.size || 0);
+      const sizeMB = sizeBytes > 0 ? Math.round(sizeBytes / (1024 * 1024)) : 0;
+      const releaseName = String(torrent.name || 'API Bay torrent').trim();
+      const magnetSource = [
+        `xt=urn:btih:${hash}`,
+        `dn=${encodeURIComponent(releaseName)}`,
+        ...trackers.map(tracker => `tr=${encodeURIComponent(tracker)}`)
+      ].join('&');
+
+      const added = Number(torrent.added || 0);
+      const year = added > 0 ? new Date(added * 1000).getUTCFullYear() : 'API Bay';
+
+      results.push({
+        title: releaseName,
+        year,
+        seeders: Number(torrent.seeders || 0),
+        leechers: Number(torrent.leechers || 0),
+        sizeMB: sizeMB || 800,
+        poster: null,
+        source: `magnet:?${magnetSource}`,
+        provider: 'APIBay',
+        infoHash: hash,
+        imdb: torrent.imdb || null,
+        category: Number(torrent.category || 0)
+      });
+    }
+
+    console.log(`[APIBay Provider] Found ${results.length} results for "${query}".`);
+  } catch (err) {
+    const cause = err?.cause?.code || err?.cause?.message;
+    console.log(`[APIBay Provider Notice] ${err.message}${cause ? ` (cause: ${cause})` : ''}`);
+  }
+
+  return results;
+}
+
 async function searchTorrentIndexers(query, ytsLimit = 50) {
   const results = [];
 
@@ -447,8 +586,9 @@ async function searchTorrentIndexers(query, ytsLimit = 50) {
     }
   }
 
-  // Search providers concurrently so a slow YTS response doesn't delay Archive results.
+  // Search providers concurrently so one slow upstream does not delay the others.
   const ytsPromise = searchYts(query, ytsLimit);
+  const apiBayPromise = searchApiBay(query, ytsLimit);
   const archivePromise = (async () => {
     const archiveResults = [];
     try {
@@ -486,8 +626,8 @@ async function searchTorrentIndexers(query, ytsLimit = 50) {
     return archiveResults;
   })();
 
-  const [ytsResults, archiveResults] = await Promise.all([ytsPromise, archivePromise]);
-  results.push(...ytsResults, ...archiveResults);
+  const [ytsResults, apiBayResults, archiveResults] = await Promise.all([ytsPromise, apiBayPromise, archivePromise]);
+  results.push(...ytsResults, ...apiBayResults, ...archiveResults);
   return results;
 }
 
@@ -516,14 +656,26 @@ function closeEntryStreams(entry) {
   entry.streamFiles?.clear();
 }
 
-function destroyTorrentEntry(key, entry) {
-  if (entry.statsInterval) clearInterval(entry.statsInterval);
-  entry.statsInterval = null;
-  closeEntryStreams(entry);
-  if (entry.torrent && !entry.torrent.destroyed) {
-    try { entry.torrent.destroy({ destroyStore: true }); } catch (_) {}
-  }
-  if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+async function destroyTorrentEntry(key, entry) {
+  if (!entry) return;
+  if (entry.destroyPromise) return entry.destroyPromise;
+  entry.destroyPromise = (async () => {
+    if (entry.statsInterval) clearInterval(entry.statsInterval);
+    entry.statsInterval = null;
+    closeEntryStreams(entry);
+    if (entry.torrent && !entry.torrent.destroyed) {
+      try {
+        await new Promise((resolve, reject) => {
+          entry.torrent.destroy({ destroyStore: true }, error => error ? reject(error) : resolve());
+        });
+      } catch (error) {
+        console.error(`[Torrent Cleanup] ${String(key).slice(0, 40)}: ${error.message}`);
+      }
+    }
+    if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+    stopCleanupTimerIfIdle();
+  })();
+  return entry.destroyPromise;
 }
 
 // Any torrent session opened for inspection but not actively streaming is
@@ -535,7 +687,7 @@ function stopDynamicTorrents() {
     if (entry.openStreams.size > 0) continue;
     if (now - (entry.lastUsedAt || now) < DYNAMIC_IDLE_TIMEOUT_MS) continue;
     console.log(`[Cleanup] Removing idle torrent session: ${String(key).slice(0, 45)}...`);
-    destroyTorrentEntry(key, entry);
+    void destroyTorrentEntry(key, entry);
   }
 }
 
@@ -566,7 +718,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
   // the previous swarm immediately instead of allowing several 30-second idle
   // sessions to overlap on the 512 MB Render instance.
   for (const [otherKey, otherEntry] of [...activeTorrents.entries()]) {
-    if (otherKey !== key) destroyTorrentEntry(otherKey, otherEntry);
+    if (otherKey !== key) void destroyTorrentEntry(otherKey, otherEntry);
   }
 
   const entry = {
@@ -581,13 +733,14 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
   };
 
   entry.promise = new Promise((resolve, reject) => {
-    console.log(`\n[Torrent] Opening ${isCurated ? 'curated' : 'search'} source on explicit selection: ${String(torrentSource).slice(0, 80)}`);
+    console.log(`
+[Torrent] Opening ${isCurated ? 'curated' : 'search'} source on explicit selection: ${String(torrentSource).slice(0, 80)}`);
 
     let settled = false;
     let metadataTimeout = null;
     let torrent;
     try {
-      torrent = client.add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4 });
+      torrent = getTorrentClient().add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4, path: torrentCachePath, addUID: true, destroyStoreOnDestroy: true });
       entry.torrent = torrent;
     } catch (err) {
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
@@ -604,15 +757,15 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
         settled = true;
         reject(err);
       }
-      destroyTorrentEntry(key, entry);
+      void destroyTorrentEntry(key, entry);
     });
 
-    metadataTimeout = setTimeout(() => {
+    metadataTimeout = setTimeout(async () => {
       if (settled) return;
       settled = true;
       console.warn('[Torrent] Metadata discovery timed out');
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
-      try { torrent.destroy({ destroyStore: true }); } catch (_) {}
+      try { await new Promise(resolve => torrent.destroy({ destroyStore: true }, () => resolve())); } catch (_) {}
       reject(new Error('Torrent metadata discovery timed out. Try a torrent with more seeders.'));
     }, Math.max(15000, Number(process.env.TORRENT_METADATA_TIMEOUT_MS) || 45000));
     metadataTimeout.unref?.();
@@ -635,10 +788,11 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
           entry.statsInterval = null;
           return;
         }
+        if (entry.openStreams.size === 0) return;
         const speedMB = (entry.torrent.downloadSpeed / (1024 * 1024)).toFixed(2);
         const progress = (entry.torrent.progress * 100).toFixed(1);
         console.log(`[Swarm] "${String(entry.torrent.name).slice(0, 25)}" | Peers: ${entry.torrent.numPeers} | Speed: ${speedMB} MB/s | Downloaded: ${progress}% | Active streams: ${entry.openStreams.size} | Curated: ${entry.isCurated}`);
-      }, 10000);
+      }, 15000);
       entry.statsInterval.unref?.();
       resolve(torrent);
     });
@@ -646,10 +800,13 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
 
   activeTorrents.set(key, entry);
   entry.lastUsedAt = Date.now();
+  ensureCleanupTimer();
   return entry.promise;
 }
 
-// Torrent sessions are created only on explicit user selection; no startup warmup.\n\n// General file-based range streaming
+// Torrent sessions are created only on explicit user selection; no startup warmup.
+
+// General file-based range streaming
 function pipeFileToResponse(key, file, req, res) {
   if (!file) {
     if (!res.headersSent) res.status(404).send('No playable video file found in this torrent');
@@ -775,6 +932,109 @@ function pipeFileToResponse(key, file, req, res) {
 // ============================================================================
 // 5. EXPRESS API ROUTES
 // ============================================================================
+function parseCsvRows(content) {
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  const source = String(content || '').replace(/^\uFEFF/, '');
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') { field += '"'; i += 1; }
+      else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"' && field.length === 0) quoted = true;
+    else if (char === ',') { row.push(field.trim()); field = ''; }
+    else if (char === '\n' || char === '\r') {
+      row.push(field.trim()); field = '';
+      if (row.some(cell => cell !== '')) rows.push(row);
+      row = [];
+      if (char === '\r' && source[i + 1] === '\n') i += 1;
+    } else field += char;
+  }
+  row.push(field.trim());
+  if (row.some(cell => cell !== '')) rows.push(row);
+  if (quoted) throw new Error('CSV contains an unterminated quoted field.');
+  return rows;
+}
+
+function parseEmbedImport(content) {
+  const source = String(content || '').replace(/^\uFEFF/, '').trim();
+  const env = {};
+  if (!source) throw new Error('The configuration file is empty.');
+
+  // Keep .env support, including values that contain commas.
+  if (/^\s*(?:#.*)?(?:EMBED_[A-Z0-9_-]+\s*=)/im.test(source)) {
+    for (const rawLine of source.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const equals = line.indexOf('=');
+      if (equals <= 0) continue;
+      const key = line.slice(0, equals).trim();
+      if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
+      env[key.toUpperCase()] = line.slice(equals + 1).trim().replace(/^(['"])(.*)\1$/, '$2').replace(/\\:/g, ':');
+    }
+  } else {
+    const rows = parseCsvRows(source);
+    if (!rows.length) throw new Error('The CSV file contains no rows.');
+    const normalize = value => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const headers = rows[0].map(normalize);
+    const findColumn = aliases => headers.findIndex(value => aliases.includes(value));
+    const idCol = findColumn(['id', 'server_id', 'provider_id']);
+    const nameCol = findColumn(['name', 'server_name', 'provider_name']);
+    const baseCol = findColumn(['base_url', 'baseurl', 'url']);
+    const movieCol = findColumn(['movie_path_template', 'movie_path', 'movie_template']);
+    const tvCol = findColumn(['tv_path_template', 'tv_path', 'series_path_template', 'tv_template']);
+
+    if ([idCol, nameCol, baseCol, movieCol, tvCol].every(index => index >= 0)) {
+      // Tabular CSV: one provider per row.
+      const ids = [];
+      for (const cells of rows.slice(1)) {
+        const id = String(cells[idCol] || '').trim();
+        if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+        const prefix = 'EMBED_' + id.toUpperCase() + '_';
+        env[prefix + 'NAME'] = cells[nameCol] || id;
+        env[prefix + 'BASE_URL'] = cells[baseCol] || '';
+        env[prefix + 'MOVIE_PATH_TEMPLATE'] = cells[movieCol] || '';
+        env[prefix + 'TV_PATH_TEMPLATE'] = cells[tvCol] || '';
+        ids.push(id);
+      }
+      env.EMBED_SERVERS = ids.join(',');
+    } else {
+      // Key/value CSV: EMBED_SERVERS,"vidcore,vidsrc" or EMBED_VIDCORE_NAME,Vidcore.
+      const hasHeader = ['key', 'setting', 'variable', 'env', 'environment_variable'].includes(headers[0]) &&
+        ['value', 'setting_value'].includes(headers[1]);
+      const pairs = hasHeader ? rows.slice(1) : rows;
+      for (const cells of pairs) {
+        const key = String(cells[0] || '').trim();
+        if (!/^EMBED_[A-Z0-9_-]+$/i.test(key)) continue;
+        env[key.toUpperCase()] = cells.slice(1).join(',').trim().replace(/^(['"])(.*)\1$/, '$2').replace(/\\:/g, ':');
+      }
+    }
+  }
+
+  if (!env.EMBED_SERVERS) throw new Error('The file must define EMBED_SERVERS or use a provider table with id, name, base_url, movie_path_template and tv_path_template columns.');
+  const ids = [...new Set(env.EMBED_SERVERS.split(',').map(value => value.trim()).filter(Boolean))], valid = [];
+  for (const id of ids) {
+    if (!/^[a-z0-9_-]{1,32}$/i.test(id)) continue;
+    const prefix = 'EMBED_' + id.toUpperCase() + '_';
+    const base = env[prefix + 'BASE_URL'], movie = env[prefix + 'MOVIE_PATH_TEMPLATE'], tv = env[prefix + 'TV_PATH_TEMPLATE'];
+    if (!env[prefix + 'NAME'] || !base || !movie || !tv || !movie.includes('{id}') ||
+        !['{id}', '{season}', '{episode}'].every(token => tv.includes(token))) continue;
+    try {
+      const url = new URL(base);
+      const safe = template => template.startsWith('/') && !template.startsWith('//') &&
+        new URL(template.replace(/\{(?:id|season|episode)\}/g, 'placeholder'), url).origin === url.origin;
+      if (url.protocol === 'https:' && !url.username && !url.password && safe(movie) && safe(tv)) valid.push(id);
+    } catch (_) {}
+  }
+  if (!valid.length) throw new Error('No valid servers found. Each server needs a name, HTTPS base URL, movie path containing {id}, and TV path containing {id}, {season} and {episode}.');
+  env.EMBED_SERVERS = valid.join(',');
+  return { env, count: valid.length };
+}
+function saveEmbedEnv(env) { fs.mkdirSync(EMBED_CONFIG_DIR,{recursive:true}); fs.writeFileSync(EMBED_CONFIG_PATH,JSON.stringify(env,null,2),{encoding:'utf8',mode:0o600}); storedEmbedEnvCache = env; storedEmbedEnvLoaded = true; }
+app.post('/api/embed-servers/import',(req,res)=>{try{const parsed=parseEmbedImport(req.body?.content);saveEmbedEnv(parsed.env);res.json({count:parsed.count,providers:readEmbedProviders().map(({id,name})=>({id,name}))});}catch(error){res.status(400).json({error:error.message||'Invalid server configuration.'});}});
+app.delete('/api/embed-servers/:id',(req,res)=>{const id=String(req.params.id||'');if(!/^[a-z0-9_-]{1,32}$/i.test(id))return res.status(400).json({error:'Invalid server ID.'});const env=readStoredEmbedEnv()||Object.fromEntries(Object.entries(process.env).filter(([key])=>key.startsWith('EMBED_')));const original=String(env.EMBED_SERVERS||'').split(',').map(value=>value.trim()).filter(Boolean);if(!original.includes(id))return res.status(404).json({error:'Server not found.'});env.EMBED_SERVERS=original.filter(value=>value!==id).join(',');saveEmbedEnv(env);res.json({removed:id,providers:readEmbedProviders().map(({id,name})=>({id,name}))});});
+
 app.get('/api/embed-config', (_req, res) => {
   const providers = readEmbedProviders();
   res.json({ enabled: providers.length > 0, providerName: providers[0]?.name || null,
@@ -782,11 +1042,36 @@ app.get('/api/embed-config', (_req, res) => {
     providers: providers.map(({ id, name }) => ({ id, name })) });
 });
 
-app.post('/api/external-player', (req, res) => {
+async function resolveExternalPlaybackId(mediaType, id, idType = '') {
+  // TMDB search results contain numeric TMDB IDs, while the configured external
+  // players commonly expect IMDb IDs (the old manual player explicitly asked
+  // for an IMDb ID). Resolve numeric TMDB IDs to IMDb IDs server-side so the
+  // browser never needs to know or expose the TMDB credentials.
+  if (String(idType).toLowerCase() !== 'tmdb' && !/^\d{1,12}$/.test(id)) return id;
+  if (!TMDB_API_READ_ACCESS_TOKEN) return id;
+  const cacheKey = `ext:${mediaType}:${id}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) return cached;
+  const endpoint = mediaType === 'tv' ? 'tv' : 'movie';
+  const response = await fetchWithLogarithmicBackoff(
+    `https://api.themoviedb.org/3/${endpoint}/${encodeURIComponent(id)}/external_ids`,
+    {
+      headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+      timeoutMs: 10000
+    },
+    `TMDB ${mediaType} external IDs`
+  );
+  if (!response.ok) throw new Error(`TMDB ${mediaType} external ID lookup failed: HTTP ${response.status}`);
+  const data = await response.json();
+  return setCachedValue(cacheKey, String(data?.imdb_id || id).trim(), 60 * 60 * 1000);
+}
+
+app.post('/api/external-player', async (req, res) => {
   const config = getEmbedProviderConfig(String(req.body?.serverId || ''));
   if (!config) return res.status(503).json({ error: 'No valid external player servers are configured. Check EMBED_SERVERS and EMBED_<ID>_* variables.' });
   const mediaType = req.body?.mediaType === 'tv' ? 'tv' : req.body?.mediaType === 'movie' ? 'movie' : null;
   const id = String(req.body?.id || '').trim();
+  const idType = String(req.body?.idType || '').trim();
   if (!mediaType || !/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return res.status(400).json({ error: 'Provide a valid IMDb/TMDB-style ID and choose movie or TV.' });
   let season = null, episode = null;
   if (mediaType === 'tv') {
@@ -794,14 +1079,26 @@ app.post('/api/external-player', (req, res) => {
     if (!Number.isInteger(season) || season < 0 || season > 99 || !Number.isInteger(episode) || episode < 1 || episode > 999)
       return res.status(400).json({ error: 'TV playback requires a valid season (0–99) and episode (1–999).' });
   }
+
+  let playbackId = id;
+  if (config.idType === 'imdb') {
+    try {
+      playbackId = await resolveExternalPlaybackId(mediaType, id, idType);
+    } catch (error) {
+      console.error(`[External Player] ID resolution failed for ${mediaType} ${id}: ${error.message}`);
+      return res.status(502).json({ error: 'Could not resolve the TMDB title to an external playback ID. Try again in a moment.' });
+    }
+    if (!playbackId) return res.status(404).json({ error: 'No external playback ID is available for this TMDB title.' });
+  }
+
   const template = mediaType === 'movie' ? config.moviePath : config.tvPath;
-  const path = template.replaceAll('{id}', encodeURIComponent(id))
+  const path = template.replaceAll('{id}', encodeURIComponent(playbackId))
     .replaceAll('{season}', encodeURIComponent(String(season ?? '')))
     .replaceAll('{episode}', encodeURIComponent(String(episode ?? '')));
   try {
     const url = new URL(path, config.base);
     if (url.origin !== config.base.origin || url.protocol !== 'https:') return res.status(500).json({ error: 'Configured embed path must remain on the configured HTTPS provider origin.' });
-    res.json({ url: url.toString(), providerName: config.name, providerId: config.id, mediaType });
+    res.json({ url: url.toString(), providerName: config.name, providerId: config.id, mediaType, playbackId });
   } catch (_) { res.status(500).json({ error: 'The configured provider path is invalid.' }); }
 });
 
@@ -813,6 +1110,12 @@ app.get('/api/title-search', async (req, res) => {
     return res.status(503).json({ error: 'TMDB search is not configured. Set TMDB_API_READ_ACCESS_TOKEN on the server and restart it.' });
   }
 
+  const cacheKey = `title-search:${query.toLowerCase()}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=120');
+    return res.json(cached);
+  }
   // Search movies and TV shows concurrently so the user never needs to choose a type first.
   try {
     const searchOne = async mediaType => {
@@ -839,7 +1142,9 @@ app.get('/api/title-search', async (req, res) => {
         title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
         year: String((mediaType === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
         overview: String(item.overview || ''),
-        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w185${item.poster_path}` : null,
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+        backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
+        genreIds: Array.isArray(item.genre_ids) ? item.genre_ids.map(Number).filter(Number.isFinite) : [],
         popularity: Number(item.popularity || 0)
       }));
     };
@@ -849,7 +1154,9 @@ app.get('/api/title-search', async (req, res) => {
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, 16)
       .map(({ popularity, ...item }) => item);
-    res.json({ results });
+    const payload = setCachedValue(cacheKey, { results }, 5 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=120');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB title search error:', error.message);
     res.status(502).json({ error: 'Could not search both movies and TV shows on TMDB. Try again in a moment.' });
@@ -862,6 +1169,12 @@ app.get('/api/tv/:id/seasons', async (req, res) => {
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
   const id = String(req.params.id || '');
   if (!/^\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Invalid TMDB TV ID.' });
+  const cacheKey = `tv-seasons:${id}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=600');
+    return res.json(cached);
+  }
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
@@ -869,13 +1182,15 @@ app.get('/api/tv/:id/seasons', async (req, res) => {
     }, 'TMDB TV seasons');
     if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
     const data = await response.json();
-    res.json({
+    const payload = setCachedValue(cacheKey, {
       seasons: (Array.isArray(data.seasons) ? data.seasons : []).map(season => ({
         seasonNumber: Number(season.season_number),
         name: String(season.name || `Season ${season.season_number}`),
         episodeCount: Number(season.episode_count || 0)
       }))
-    });
+    }, 30 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB season list error:', error.message);
     res.status(502).json({ error: 'Could not load seasons from TMDB. Please try again.' });
@@ -890,6 +1205,12 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
   if (!/^\d{1,12}$/.test(id) || !Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 99) {
     return res.status(400).json({ error: 'Invalid TV series or season number.' });
   }
+  const cacheKey = `tv-episodes:${id}:${seasonNumber}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=600');
+    return res.json(cached);
+  }
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
@@ -897,17 +1218,199 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
     }, 'TMDB TV episodes');
     if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
     const data = await response.json();
-    res.json({
+    const payload = setCachedValue(cacheKey, {
       episodes: (Array.isArray(data.episodes) ? data.episodes : []).map(episode => ({
         episodeNumber: Number(episode.episode_number),
         name: String(episode.name || 'Untitled episode'),
         overview: String(episode.overview || '')
       }))
-    });
+    }, 30 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB episode list error:', error.message);
     res.status(502).json({ error: 'Could not load episode names from TMDB. Please try again.' });
   }
+});
+
+// Home discovery feeds used by the desktop home page. These mirror the mobile port's TMDB shelves.
+app.get('/api/discover', async (req, res) => {
+  const genreId = Number.parseInt(String(req.query.genreId || ''), 10);
+  if (!Number.isInteger(genreId) || genreId < 1 || genreId > 999999) return res.status(400).json({ error: 'Choose a valid genre.' });
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB discovery is not configured.' });
+  const cacheKey = `discover:${genreId}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json(cached);
+  }
+  try {
+    const discoverOne = async mediaType => {
+      const url = new URL(`https://api.themoviedb.org/3/discover/${mediaType}`);
+      url.searchParams.set('with_genres', String(genreId));
+      url.searchParams.set('sort_by', 'popularity.desc');
+      url.searchParams.set('include_adult', 'false');
+      url.searchParams.set('language', 'en-US');
+      url.searchParams.set('page', '1');
+      const response = await fetchWithLogarithmicBackoff(url, {
+        headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+        timeoutMs: 10000
+      }, `TMDB ${mediaType} genre discovery`);
+      if (!response.ok) throw new Error(`TMDB ${mediaType} discovery failed: HTTP ${response.status}`);
+      const data = await response.json();
+      const today = new Date().toISOString().slice(0, 10);
+      return (Array.isArray(data.results) ? data.results : [])
+        .filter(item => mediaType !== 'movie' || !item.release_date || item.release_date <= today)
+        .slice(0, 12)
+        .map(item => ({
+          tmdbId: String(item.id),
+          mediaType,
+          title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
+          year: String((mediaType === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
+          overview: String(item.overview || ''),
+          posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w185${item.poster_path}` : null,
+          backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
+          popularity: Number(item.popularity || 0)
+        }));
+    };
+    const [movieOutcome, showOutcome] = await Promise.allSettled([discoverOne('movie'), discoverOne('tv')]);
+    const movies = movieOutcome.status === 'fulfilled' ? movieOutcome.value : [];
+    const shows = showOutcome.status === 'fulfilled' ? showOutcome.value : [];
+    if (!movies.length && !shows.length && movieOutcome.status === 'rejected' && showOutcome.status === 'rejected') {
+      throw movieOutcome.reason || showOutcome.reason;
+    }
+    const payload = setCachedValue(cacheKey, { results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 14).map(({ popularity, ...item }) => item) }, 15 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(payload);
+  } catch (error) {
+    console.error('TMDB genre discovery error:', error.message);
+    res.status(502).json({ error: 'Could not load this genre from TMDB. Try again in a moment.' });
+  }
+});
+
+app.get('/api/trending', async (_req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const cacheKey = 'trending:week';
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json(cached);
+  }
+  try {
+    const response = await fetchWithLogarithmicBackoff(
+      'https://api.themoviedb.org/3/trending/all/week?language=en-US',
+      { headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' }, timeoutMs: 10000 },
+      'TMDB trending'
+    );
+    if (!response.ok) throw new Error(`TMDB trending failed: HTTP ${response.status}`);
+    const data = await response.json();
+    const today = new Date().toISOString().slice(0, 10);
+    const results = (Array.isArray(data.results) ? data.results : [])
+      .filter(item => ['movie', 'tv'].includes(item.media_type) && (item.media_type !== 'movie' || !item.release_date || item.release_date <= today))
+      .slice(0, 14)
+      .map(item => ({
+        tmdbId: String(item.id),
+        mediaType: item.media_type,
+        title: String(item.media_type === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
+        year: String((item.media_type === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
+        overview: String(item.overview || ''),
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w185${item.poster_path}` : null,
+        backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null
+      }));
+    const payload = setCachedValue(cacheKey, { results }, 15 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(payload);
+  } catch (error) {
+    console.error('TMDB trending error:', error.message);
+    res.status(502).json({ error: 'Could not load trending titles.' });
+  }
+});
+
+
+// Resolve poster and backdrop artwork from a TMDB ID (or IMDb ID via /find) with a 6-hour cache.
+async function fetchTmdbArtworkById(tmdbId, preferredType = '') {
+  const cleanId = String(tmdbId || '').trim();
+  if (!/^\d{1,12}$/.test(cleanId) || !TMDB_API_READ_ACCESS_TOKEN) return null;
+  const types = preferredType === 'tv' ? ['tv', 'movie'] : preferredType === 'movie' ? ['movie', 'tv'] : ['movie', 'tv'];
+  const cacheKey = `tmdb-art:${types[0]}:${cleanId}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached !== null) return cached;
+
+  for (const mediaType of types) {
+    try {
+      const response = await fetchWithLogarithmicBackoff(
+        `https://api.themoviedb.org/3/${mediaType}/${encodeURIComponent(cleanId)}?language=en-US`,
+        {
+          headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+          timeoutMs: 8000
+        },
+        `TMDB ${mediaType} artwork`
+      );
+      if (!response.ok) continue;
+      const data = await response.json();
+      const result = {
+        tmdbId: cleanId,
+        mediaType,
+        posterUrl: data.poster_path ? `https://image.tmdb.org/t/p/w342${data.poster_path}` : null,
+        backdropUrl: data.backdrop_path ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}` : null,
+        overview: String(data.overview || '')
+      };
+      if (result.posterUrl || result.backdropUrl) {
+        return setCachedValue(cacheKey, result, 6 * 60 * 60 * 1000);
+      }
+    } catch (_) {}
+  }
+  return setCachedValue(cacheKey, { tmdbId: cleanId, mediaType: types[0], posterUrl: null, backdropUrl: null, overview: '' }, 15 * 60 * 1000);
+}
+
+async function fetchTmdbArtworkByImdb(imdbId) {
+  const cleanImdb = String(imdbId || '').trim();
+  if (!/^tt\d{5,12}$/i.test(cleanImdb) || !TMDB_API_READ_ACCESS_TOKEN) return null;
+  const cacheKey = `tmdb-imdb-art:${cleanImdb.toLowerCase()}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached !== null) return cached;
+
+  try {
+    const response = await fetchWithLogarithmicBackoff(
+      `https://api.themoviedb.org/3/find/${encodeURIComponent(cleanImdb)}?external_source=imdb_id&language=en-US`,
+      {
+        headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+        timeoutMs: 8000
+      },
+      'TMDB IMDb artwork find'
+    );
+    if (response.ok) {
+      const data = await response.json();
+      const movie = Array.isArray(data.movie_results) ? data.movie_results[0] : null;
+      const tv = Array.isArray(data.tv_results) ? data.tv_results[0] : null;
+      const match = movie || tv;
+      if (match) {
+        return setCachedValue(cacheKey, {
+          tmdbId: String(match.id),
+          mediaType: movie ? 'movie' : 'tv',
+          posterUrl: match.poster_path ? `https://image.tmdb.org/t/p/w342${match.poster_path}` : null,
+          backdropUrl: match.backdrop_path ? `https://image.tmdb.org/t/p/w1280${match.backdrop_path}` : null,
+          overview: String(match.overview || '')
+        }, 6 * 60 * 60 * 1000);
+      }
+    }
+  } catch (_) {}
+  return setCachedValue(cacheKey, { tmdbId: null, mediaType: null, posterUrl: null, backdropUrl: null, overview: '' }, 15 * 60 * 1000);
+}
+
+app.get('/api/tmdb-image', async (req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const tmdbId = String(req.query.tmdbId || '').trim();
+  const imdbId = String(req.query.imdbId || '').trim();
+  const mediaType = req.query.mediaType === 'tv' ? 'tv' : req.query.mediaType === 'movie' ? 'movie' : '';
+
+  let result = null;
+  if (tmdbId) result = await fetchTmdbArtworkById(tmdbId, mediaType);
+  else if (imdbId) result = await fetchTmdbArtworkByImdb(imdbId);
+  else return res.status(400).json({ error: 'Provide tmdbId or imdbId.' });
+
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json(result || { tmdbId: tmdbId || null, mediaType: mediaType || null, posterUrl: null, backdropUrl: null });
 });
 
 app.get('/api/library', (req, res) => {
@@ -923,7 +1426,8 @@ app.get('/api/torrent-search', async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Search query is required' });
   const requestedLimit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 50));
 
-  console.log(`\n[Search] Querying indexers for: "${query}" (YTS limit ${requestedLimit})...`);
+  console.log(`
+[Search] Querying indexers for: "${query}" (YTS limit ${requestedLimit})...`);
   const candidates = await searchTorrentIndexers(query, requestedLimit);
   const { best, results } = refineAndRankTorrents(candidates, query);
 
@@ -963,6 +1467,55 @@ app.get('/api/torrent-files', async (req, res) => {
   }
 });
 
+function isLoopbackRequest(req) {
+  const address = String(req.socket.remoteAddress || '');
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+app.get('/api/torrent-cache', (req, res) => {
+  if (!isLoopbackRequest(req)) return res.sendStatus(403);
+  res.json({ path: torrentCachePath, activeSessions: activeTorrents.size });
+});
+app.post('/api/torrent-cache/location', async (req, res) => {
+  if (!isLoopbackRequest(req)) return res.sendStatus(403);
+  if (activeTorrents.size) return res.status(409).json({ error: 'Stop playback before changing the torrent cache location.' });
+  const parent = String(req.body?.parentDirectory || '').trim();
+  if (!path.isAbsolute(parent)) return res.status(400).json({ error: 'Choose a valid absolute folder path.' });
+  const nextPath = path.join(path.resolve(parent), 'MysteryVaultTorrentCache');
+  try {
+    await fs.promises.mkdir(nextPath, { recursive: true });
+    await fs.promises.mkdir(TORRENT_CACHE_CONFIG_DIR, { recursive: true });
+    const temporaryConfig = TORRENT_CACHE_CONFIG_PATH + '.tmp';
+    await fs.promises.writeFile(temporaryConfig, JSON.stringify({ path: nextPath }, null, 2), { mode: 0o600 });
+    await fs.promises.rename(temporaryConfig, TORRENT_CACHE_CONFIG_PATH);
+    const previousPath = torrentCachePath;
+    torrentCachePath = nextPath;
+    let previousCacheCleaned = true;
+    if (previousPath !== nextPath) {
+      // Both locations are dedicated Mystery Vault cache roots; remove old
+      // leftovers so moving from C: actually reclaims the previous disk space.
+      try {
+        await fs.promises.rm(previousPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+      } catch (cleanupError) {
+        previousCacheCleaned = false;
+        console.warn('[Torrent Cache] New location saved, but old cache could not be removed:', cleanupError.message);
+      }
+    }
+    res.json({ path: torrentCachePath, previousCacheCleaned });
+  } catch (error) { res.status(400).json({ error: error.message || 'Could not use that folder.' }); }
+});
+app.post('/api/torrent-cache/clear', async (req, res) => {
+  if (!isLoopbackRequest(req)) return res.sendStatus(403);
+  try {
+    await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
+    await fs.promises.rm(torrentCachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+    await fs.promises.mkdir(torrentCachePath, { recursive: true });
+    res.json({ cleared: true, path: torrentCachePath });
+  } catch (error) {
+    console.error('[Torrent Cache] Clear failed:', error);
+    res.status(500).json({ error: error.message || 'Could not clear torrent cache.' });
+  }
+});
+
 // Stream a specific curated media item
 app.get('/api/stream/:id', async (req, res) => {
   const media = CATALOG.find(item => item.id === req.params.id);
@@ -999,25 +1552,40 @@ app.get('/api/stream-file', async (req, res) => {
   }
 });
 
-app.post('/api/stop-stream', (req, res) => {
+app.post('/api/stop-stream', async (req, res) => {
   // Closing the player destroys every torrent session so no swarm can continue
   // downloading in the background. A later play action creates a fresh session.
-  for (const [key, entry] of [...activeTorrents.entries()]) {
-    destroyTorrentEntry(key, entry);
-  }
+  await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
   console.log('[Player Closed] All streams and torrent sessions destroyed; background downloading stopped.');
   res.json({ stopped: true, torrentSessionsRetained: false });
 });
 
-// Reap idle dynamic sessions periodically, without affecting active playback.
-const dynamicCleanupInterval = setInterval(stopDynamicTorrents, 15 * 1000);
-dynamicCleanupInterval.unref?.();
+// Reap idle dynamic sessions only while at least one torrent session is active.
+// When idle, zero background intervals wake the Node event loop.
+let dynamicCleanupInterval = null;
+function ensureCleanupTimer() {
+  if (dynamicCleanupInterval) return;
+  dynamicCleanupInterval = setInterval(() => {
+    stopDynamicTorrents();
+    stopCleanupTimerIfIdle();
+  }, 15 * 1000);
+  dynamicCleanupInterval.unref?.();
+}
+function stopCleanupTimerIfIdle() {
+  if (activeTorrents.size === 0 && dynamicCleanupInterval) {
+    clearInterval(dynamicCleanupInterval);
+    dynamicCleanupInterval = null;
+  }
+}
 
-const memoryLogInterval = setInterval(() => {
-  const m = process.memoryUsage();
-  console.log(`[Memory] RSS ${(m.rss / 1048576).toFixed(1)} MB | Heap ${(m.heapUsed / 1048576).toFixed(1)} MB | External ${(m.external / 1048576).toFixed(1)} MB | ArrayBuffers ${(m.arrayBuffers / 1048576).toFixed(1)} MB | Torrents ${activeTorrents.size} | Peer cap ${TORRENT_MAX_PEERS}`);
-}, 30000);
-memoryLogInterval.unref?.();
+let memoryLogInterval = null;
+if (process.env.DEBUG_MEMORY_LOG === '1') {
+  memoryLogInterval = setInterval(() => {
+    const m = process.memoryUsage();
+    console.log(`[Memory] RSS ${(m.rss / 1048576).toFixed(1)} MB | Heap ${(m.heapUsed / 1048576).toFixed(1)} MB | External ${(m.external / 1048576).toFixed(1)} MB | ArrayBuffers ${(m.arrayBuffers / 1048576).toFixed(1)} MB | Torrents ${activeTorrents.size} | Peer cap ${TORRENT_MAX_PEERS}`);
+  }, 30000);
+  memoryLogInterval.unref?.();
+}
 
 let activeHttpServer = null;
 
@@ -1026,6 +1594,10 @@ export async function startServer({ host = process.env.HOST || '0.0.0.0', port =
     const address = activeHttpServer.address();
     return { server: activeHttpServer, host, port: address.port, close: closeServer };
   }
+  // A previous forced exit may have interrupted store deletion. This directory
+  // is exclusively owned by Mystery Vault, so remove its stale contents on boot.
+  await fs.promises.rm(torrentCachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+  await fs.promises.mkdir(torrentCachePath, { recursive: true });
   activeHttpServer = await new Promise((resolve, reject) => {
     const server = app.listen(port, host);
     server.once('error', reject);
@@ -1034,17 +1606,20 @@ export async function startServer({ host = process.env.HOST || '0.0.0.0', port =
   const address = activeHttpServer.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
   console.log(`Server listening on http://${host}:${actualPort}`);
-  console.log(`[Torrent Lifecycle] One bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
+  console.log(`[Torrent Lifecycle] Cache: ${torrentCachePath}; one bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
   return { server: activeHttpServer, host, port: actualPort, close: closeServer };
 }
 
 export async function closeServer() {
-  clearInterval(dynamicCleanupInterval);
-  clearInterval(memoryLogInterval);
-  for (const [key, entry] of [...activeTorrents.entries()]) destroyTorrentEntry(key, entry);
+  if (dynamicCleanupInterval) { clearInterval(dynamicCleanupInterval); dynamicCleanupInterval = null; }
+  if (memoryLogInterval) { clearInterval(memoryLogInterval); memoryLogInterval = null; }
+  await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
   if (activeHttpServer?.listening) await new Promise(resolve => activeHttpServer.close(() => resolve()));
   activeHttpServer = null;
-  try { await client.destroy(); } catch (_) {}
+  if (torrentClient) {
+    try { await torrentClient.destroy(); } catch (_) {}
+    torrentClient = null;
+  }
 }
 
 // Keep the normal web-server command working; importing this module from Electron
