@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -17,14 +18,19 @@ public sealed partial class PlayerPage : Page
     private EmbedPlaybackRequest? _embedRequest;
     private Uri? _currentEmbedUri;
     private bool _isLoadingServers;
+    private bool _webViewInitialized;
 
     public PlayerPage()
     {
         _streaming = App.Current.Services.GetRequiredService<ITorrentStreamingService>();
         _embeds = App.Current.Services.GetRequiredService<IEmbedProviderService>();
-        _streaming.StatusChanged += (_, msg) =>
-            DispatcherQueue.TryEnqueue(() => PlayerStatusText.Text = msg);
+        _streaming.StatusChanged += OnStreamingStatusChanged;
         InitializeComponent();
+    }
+
+    private void OnStreamingStatusChanged(object? sender, string msg)
+    {
+        DispatcherQueue.TryEnqueue(() => PlayerStatusText.Text = msg);
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -46,6 +52,35 @@ public sealed partial class PlayerPage : Page
                 await PlayEmbedAsync(embedUri);
             }
         }
+    }
+
+    protected override async void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        await StopAllPlaybackAsync();
+    }
+
+    private async Task StopAllPlaybackAsync()
+    {
+        try
+        {
+            VideoPlayer.MediaPlayer?.Pause();
+            VideoPlayer.Source = null;
+        }
+        catch { }
+
+        try
+        {
+            if (EmbedWebView.CoreWebView2 is not null)
+            {
+                EmbedWebView.CoreWebView2.Stop();
+                EmbedWebView.Source = new Uri("about:blank");
+            }
+        }
+        catch { }
+
+        _streaming.StatusChanged -= OnStreamingStatusChanged;
+        await _streaming.StopAsync();
     }
 
     private async Task InitializeEmbedServersAsync(EmbedPlaybackRequest req)
@@ -115,16 +150,37 @@ public sealed partial class PlayerPage : Page
         VideoPlayer.IsHitTestVisible = false;
         EmbedWebView.Visibility = Visibility.Visible;
         EmbedWebView.IsHitTestVisible = true;
+
         await EmbedWebView.EnsureCoreWebView2Async();
-        ApplySandboxSettings();
-        EmbedWebView.CoreWebView2.NewWindowRequested += (_, args) =>
+        if (!_webViewInitialized)
         {
-            if (SandboxToggle.IsChecked == true)
-                args.Handled = true;
-        };
+            _webViewInitialized = true;
+            EmbedWebView.CoreWebView2.NewWindowRequested += (_, args) =>
+            {
+                if (SandboxToggle.IsChecked == true)
+                    args.Handled = true;
+            };
+            EmbedWebView.CoreWebView2.ContainsFullScreenElementChanged += (_, _) =>
+            {
+                DispatcherQueue.TryEnqueue(ToggleAppFullScreen);
+            };
+        }
+
+        ApplySandboxSettings();
         EmbedWebView.Source = embedUri;
         EmbedWebView.Focus(FocusState.Programmatic);
         PlayerStatusText.Text = label ?? $"Embed Player: {embedUri.Host}";
+    }
+
+    private void ToggleAppFullScreen()
+    {
+        if (EmbedWebView.CoreWebView2 is null) return;
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.Current.MainWindowInstance);
+        var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+        var appWindow = AppWindow.GetFromWindowId(windowId);
+        appWindow.SetPresenter(EmbedWebView.CoreWebView2.ContainsFullScreenElement
+            ? AppWindowPresenterKind.FullScreen
+            : AppWindowPresenterKind.Default);
     }
 
     private void ApplySandboxSettings()
@@ -133,6 +189,7 @@ public sealed partial class PlayerPage : Page
         EmbedWebView.CoreWebView2.Settings.IsScriptEnabled = true;
         EmbedWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = true;
         EmbedWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
+        EmbedWebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = true;
     }
 
     private void SandboxToggle_Click(object sender, RoutedEventArgs e) => ApplySandboxSettings();
@@ -145,8 +202,7 @@ public sealed partial class PlayerPage : Page
 
     private async void Back_Click(object sender, RoutedEventArgs e)
     {
-        VideoPlayer.MediaPlayer?.Pause();
-        await _streaming.StopAsync();
+        await StopAllPlaybackAsync();
         if (Frame.CanGoBack) Frame.GoBack();
     }
 }

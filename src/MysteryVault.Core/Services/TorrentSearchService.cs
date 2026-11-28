@@ -11,7 +11,9 @@ public sealed class TorrentSearchService : ITorrentSearchService
         "udp://tracker.opentrackr.org:1337/announce",
         "udp://tracker.openbittorrent.com:80/announce",
         "udp://p4p.arenabg.com:1337/announce",
-        "udp://tracker.torrent.eu.org:451/announce"
+        "udp://tracker.torrent.eu.org:451/announce",
+        "udp://tracker.leechers-paradise.org:6969/announce",
+        "http://tracker.opentrackr.org:1337/announce"
     ];
 
     private readonly HttpClient _http;

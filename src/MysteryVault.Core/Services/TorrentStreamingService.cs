@@ -45,6 +45,9 @@ public sealed partial class TorrentStreamingService : ITorrentStreamingService
             CacheDirectory = cacheDir,
             AllowLocalPeerDiscovery = true,
             AllowPortForwarding = true,
+            MaximumConnections = 150,
+            MaximumHalfOpenConnections = 32,
+            ConnectionTimeout = TimeSpan.FromSeconds(5),
             DhtEndPoint = new IPEndPoint(IPAddress.Any, 0)
         }.ToSettings();
         _engine = new ClientEngine(settings);
@@ -78,7 +81,7 @@ public sealed partial class TorrentStreamingService : ITorrentStreamingService
                 ? "video/webm"
                 : "video/mp4";
 
-        StatusChanged?.Invoke(this, $"Starting stream for {Path.GetFileName(target.Path)}...");
+        StatusChanged?.Invoke(this, $"Connecting to peers for {Path.GetFileName(target.Path)}...");
         await manager.StartAsync();
         _activeStream = await manager.StreamProvider!.CreateStreamAsync(target, prebuffer: false, ct);
 
@@ -133,7 +136,10 @@ public sealed partial class TorrentStreamingService : ITorrentStreamingService
                         ctx.Response.StatusCode = 200;
                     }
 
-                    var buffer = new byte[64 * 1024];
+                    if (string.Equals(ctx.Request.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+                        return;
+
+                    var buffer = new byte[128 * 1024];
                     var pos = start;
                     var remaining = count;
                     while (remaining > 0 && !ct.IsCancellationRequested)

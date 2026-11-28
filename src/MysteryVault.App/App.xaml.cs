@@ -9,7 +9,7 @@ namespace MysteryVault.App;
 
 public partial class App : Application
 {
-    private Window? _window;
+    public Window? MainWindowInstance { get; private set; }
 
     public new static App Current => (App)Application.Current;
     public IServiceProvider Services { get; }
@@ -85,8 +85,8 @@ public partial class App : Application
     {
         try
         {
-            _window = new MainWindow();
-            _window.Activate();
+            MainWindowInstance = new MainWindow();
+            MainWindowInstance.Activate();
         }
         catch (Exception ex)
         {
