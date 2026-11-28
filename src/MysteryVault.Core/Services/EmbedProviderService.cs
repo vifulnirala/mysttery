@@ -41,9 +41,8 @@ public sealed partial class EmbedProviderService : IEmbedProviderService
             throw new ArgumentException("Server configuration content is empty.");
 
         var imported = new List<EmbedServerDefinition>();
-        foreach (var rawLine in content.ReplaceLineEndings("
-").Split("
-", StringSplitOptions.RemoveEmptyEntries))
+        using var reader = new StringReader(content);
+        while (reader.ReadLine() is { } rawLine)
         {
             var line = rawLine.Trim();
             if (line.StartsWith('#') || string.IsNullOrWhiteSpace(line)) continue;
