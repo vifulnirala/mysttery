@@ -420,14 +420,43 @@
       playerEpisodeStatus.textContent = `Selected Season ${season}, Episode ${episode}.`;
     });
 
+
+    document.querySelectorAll('.query-chip').forEach(button => {
+      button.addEventListener('click', () => {
+        searchInput.value = button.dataset.query || button.textContent.trim();
+        void searchTorrents();
+      });
+    });
+    document.querySelectorAll('[data-source-filter]').forEach(button => {
+      button.addEventListener('click', () => {
+        const value = button.dataset.sourceFilter;
+        if (value === 'apibay') {
+          apiBayFilter.value = 'apibay';
+          resultSourceFilter.value = 'all';
+        } else {
+          apiBayFilter.value = 'all';
+          resultSourceFilter.value = value;
+        }
+        document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item === button));
+        applyResultFilters();
+      });
+    });
     document.getElementById('search-form').addEventListener('submit', event => {
       event.preventDefault();
       searchTorrents();
     });
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
-    resultSourceFilter.addEventListener('change', applyResultFilters);
-    apiBayFilter.addEventListener('change', applyResultFilters);
+    resultSourceFilter.addEventListener('change', () => {
+      apiBayFilter.value = 'all';
+      document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item.dataset.sourceFilter === resultSourceFilter.value));
+      applyResultFilters();
+    });
+    apiBayFilter.addEventListener('change', () => {
+      if (apiBayFilter.value === 'apibay') resultSourceFilter.value = 'all';
+      document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item.dataset.sourceFilter === 'apibay' && apiBayFilter.value === 'apibay' || item.dataset.sourceFilter === resultSourceFilter.value && apiBayFilter.value !== 'apibay'));
+      applyResultFilters();
+    });
     qualityFilter.addEventListener('change', applyResultFilters);
     document.getElementById('file-close').addEventListener('click', () => hideModal(fileModal));
     document.getElementById('file-cancel').addEventListener('click', () => hideModal(fileModal));
