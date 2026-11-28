@@ -1,21 +1,5 @@
 'use strict';
 
-const root = document.documentElement;
-const themeToggle = document.getElementById('theme-toggle');
-const savedTheme = localStorage.getItem('mystery-vault-theme') || 'dark';
-root.dataset.theme = savedTheme;
-if (themeToggle) {
-  themeToggle.innerHTML = savedTheme === 'dark' ? '☼ <span>Light mode</span>' : '☾ <span>Dark mode</span>';
-  themeToggle.addEventListener('click', () => {
-    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-    root.dataset.theme = next;
-    localStorage.setItem('mystery-vault-theme', next);
-    themeToggle.innerHTML = next === 'dark' ? '☼ <span>Light mode</span>' : '☾ <span>Dark mode</span>';
-    const themeColor = document.querySelector('meta[name="theme-color"]');
-    if (themeColor) themeColor.content = next === 'dark' ? '#0b1020' : '#f4f6fc';
-  });
-}
-
 // External player server management.
 const serverList = document.getElementById('managed-server-list');
 const serverStatus = document.getElementById('server-manager-status');
@@ -34,6 +18,7 @@ async function refreshManagedServers() {
     serverList.append(empty);
     return;
   }
+  const fragment = document.createDocumentFragment();
   providers.forEach(provider => {
     const row = document.createElement('div');
     row.className = 'managed-server-row';
@@ -42,7 +27,7 @@ async function refreshManagedServers() {
     const id = document.createElement('span');
     id.textContent = provider.id;
     const remove = document.createElement('button');
-    remove.className = 'btn btn-secondary';
+    remove.className = 'btn btn-danger';
     remove.type = 'button';
     remove.textContent = 'Remove';
     remove.addEventListener('click', async () => {
@@ -60,8 +45,9 @@ async function refreshManagedServers() {
       }
     });
     row.append(name, id, remove);
-    serverList.append(row);
+    fragment.append(row);
   });
+  serverList.append(fragment);
 }
 
 document.getElementById('server-import-form').addEventListener('submit', async event => {
@@ -134,12 +120,12 @@ async function loadDnsSettings() {
 }
 void loadDnsSettings();
 
-
 // Torrent cache controls for the local Windows desktop app.
 const torrentCachePath = document.getElementById('torrent-cache-path');
 const torrentCacheStatus = document.getElementById('torrent-cache-status');
 const chooseTorrentCache = document.getElementById('torrent-cache-location');
 const clearTorrentCache = document.getElementById('torrent-cache-clear');
+
 async function refreshTorrentCache() {
   if (!torrentCachePath) return;
   try {
@@ -153,39 +139,53 @@ async function refreshTorrentCache() {
     torrentCacheStatus.textContent = error.message || 'Could not read cache location.';
   }
 }
-if (chooseTorrentCache) chooseTorrentCache.addEventListener('click', async () => {
-  if (!window.mysteryVault?.chooseTorrentCacheDirectory) {
-    torrentCacheStatus.textContent = 'Folder selection is available in the Windows desktop app.';
-    return;
-  }
-  chooseTorrentCache.disabled = true;
-  try {
-    const selected = await window.mysteryVault.chooseTorrentCacheDirectory();
-    if (selected.canceled) return;
-    const response = await fetch('/api/torrent-cache/location', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parentDirectory: selected.path })
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not change cache location.');
-    torrentCachePath.textContent = result.path;
-    torrentCacheStatus.textContent = result.previousCacheCleaned === false ? 'Location updated, but the old cache could not be deleted. Clear it manually from the previous location.' : 'Location updated. Old cache removed; new torrent sessions will use this folder.';
-  } catch (error) {
-    torrentCacheStatus.textContent = error.message || 'Could not change cache location.';
-  } finally { chooseTorrentCache.disabled = false; }
-});
-if (clearTorrentCache) clearTorrentCache.addEventListener('click', async () => {
-  if (!confirm('Stop all active torrent sessions and delete Mystery Vault temporary torrent data?')) return;
-  clearTorrentCache.disabled = true;
-  torrentCacheStatus.textContent = 'Stopping sessions and clearing cache…';
-  try {
-    const response = await fetch('/api/torrent-cache/clear', { method: 'POST' });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not clear cache.');
-    torrentCachePath.textContent = result.path;
-    torrentCacheStatus.textContent = 'Torrent cache cleared.';
-  } catch (error) {
-    torrentCacheStatus.textContent = error.message || 'Could not clear cache.';
-  } finally { clearTorrentCache.disabled = false; }
-});
+
+if (chooseTorrentCache) {
+  chooseTorrentCache.addEventListener('click', async () => {
+    if (!window.mysteryVault?.chooseTorrentCacheDirectory) {
+      torrentCacheStatus.textContent = 'Folder selection is available in the Windows desktop app.';
+      return;
+    }
+    chooseTorrentCache.disabled = true;
+    try {
+      const selected = await window.mysteryVault.chooseTorrentCacheDirectory();
+      if (selected.canceled) return;
+      const response = await fetch('/api/torrent-cache/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentDirectory: selected.path })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not change cache location.');
+      torrentCachePath.textContent = result.path;
+      torrentCacheStatus.textContent = result.previousCacheCleaned === false
+        ? 'Location updated, but the old cache could not be deleted. Clear it manually from the previous location.'
+        : 'Location updated. Old cache removed; new torrent sessions will use this folder.';
+    } catch (error) {
+      torrentCacheStatus.textContent = error.message || 'Could not change cache location.';
+    } finally {
+      chooseTorrentCache.disabled = false;
+    }
+  });
+}
+
+if (clearTorrentCache) {
+  clearTorrentCache.addEventListener('click', async () => {
+    if (!confirm('Stop all active torrent sessions and delete Mystery Vault temporary torrent data?')) return;
+    clearTorrentCache.disabled = true;
+    torrentCacheStatus.textContent = 'Stopping sessions and clearing cache…';
+    try {
+      const response = await fetch('/api/torrent-cache/clear', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not clear cache.');
+      torrentCachePath.textContent = result.path;
+      torrentCacheStatus.textContent = 'Torrent cache cleared.';
+    } catch (error) {
+      torrentCacheStatus.textContent = error.message || 'Could not clear cache.';
+    } finally {
+      clearTorrentCache.disabled = false;
+    }
+  });
+}
+
 void refreshTorrentCache();

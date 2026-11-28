@@ -45,7 +45,7 @@
     let searchController = null;
     let tmdbController = null;
     let selectionController = null;
-    const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#18213a"/><text x="200" y="285" fill="#a78bfa" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#aab4ce" font-family="sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
+    const POSTER_FALLBACK = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600"><rect width="400" height="600" fill="#2b2b2b"/><text x="200" y="285" fill="#60cdff" font-size="54" text-anchor="middle">✦</text><text x="200" y="340" fill="#a8a8a8" font-family="Segoe UI, sans-serif" font-size="20" text-anchor="middle">No poster available</text></svg>');
 
     function setStatus(message, kind = '') {
       statusBanner.textContent = message;
@@ -67,11 +67,27 @@
       return Number.isFinite(n) && n > 0 ? `${n.toLocaleString()} MB` : 'Size unknown';
     }
     const WATCHLIST_KEY = 'mystery-vault-watchlist-v1';
-    function getWatchlist() { try { const parsed = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); return Array.isArray(parsed) ? parsed : []; } catch (_) { return []; } }
+    let watchlistCache = null;
+    let watchlistIdSet = null;
+    function setWatchlistCache(items) {
+      watchlistCache = Array.isArray(items) ? items : [];
+      watchlistIdSet = new Set(watchlistCache.map(item => item.id));
+    }
+    function getWatchlist() {
+      if (Array.isArray(watchlistCache)) return watchlistCache;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]');
+        setWatchlistCache(Array.isArray(parsed) ? parsed : []);
+      } catch (_) {
+        setWatchlistCache([]);
+      }
+      return watchlistCache;
+    }
     function saveWatchlist(items) {
-      localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
+      setWatchlistCache(items);
+      localStorage.setItem(WATCHLIST_KEY, JSON.stringify(watchlistCache));
       if (window.mysteryVault?.saveWatchlist) {
-        void window.mysteryVault.saveWatchlist(items).catch(error => console.warn('Could not persist watchlist:', error));
+        void window.mysteryVault.saveWatchlist(watchlistCache).catch(error => console.warn('Could not persist watchlist:', error));
       }
     }
     function makeWatchlistItem(item, type) {
@@ -81,8 +97,18 @@
         source: item.source || item.magnet || null, provider: item.provider || (isTmdb ? 'TMDB' : type === 'catalog' ? 'Curated' : 'Torrent'),
         quality: item.quality || null, torrentType: item.torrentType || null };
     }
-    function isWatchlisted(id) { return getWatchlist().some(item => item.id === id); }
-    function toggleWatchlist(item) { const items = getWatchlist(); const index = items.findIndex(existing => existing.id === item.id); if (index >= 0) items.splice(index, 1); else items.unshift(item); saveWatchlist(items); return index < 0; }
+    function isWatchlisted(id) {
+      if (!watchlistIdSet) getWatchlist();
+      return watchlistIdSet.has(id);
+    }
+    function toggleWatchlist(item) {
+      const items = [...getWatchlist()];
+      const index = items.findIndex(existing => existing.id === item.id);
+      if (index >= 0) items.splice(index, 1);
+      else items.unshift(item);
+      saveWatchlist(items);
+      return index < 0;
+    }
     function cardMarkup(item, index, type) {
       const title = escapeHtml(item.title);
       const poster = escapeHtml(posterUrl(type === 'tmdb' ? item.posterUrl : item.poster));
@@ -471,6 +497,7 @@
           episodesContainer.innerHTML = '<div class="empty">No episodes are listed for this season.</div>';
           return;
         }
+        const epFragment = document.createDocumentFragment();
         data.episodes.forEach(episode => {
           const button = document.createElement('button');
           button.type = 'button';
@@ -501,8 +528,9 @@
               season: seasonNumber, episode: episode.episodeNumber
             }, `${item.title} · S${seasonNumber}E${episode.episodeNumber} · ${episode.name || ''}`);
           });
-          episodesContainer.append(button);
+          epFragment.append(button);
         });
+        episodesContainer.append(epFragment);
       } catch (error) {
         episodesContainer.innerHTML = `<div class="empty">${escapeHtml(error.message || 'Could not load episodes.')}</div>`;
       }
@@ -554,7 +582,7 @@
 
     document.addEventListener('click', event => {
       const button = event.target.closest('.watchlist-toggle');
-      if (!button) return;
+      if (!button || button.dataset.homeWatchlist) return;
       event.stopPropagation();
       const card = button.closest('[data-card-type]');
       if (!card) return;
@@ -601,6 +629,7 @@
       }
       if (event.key === 'Escape') {
         if (playerModal.classList.contains('open')) closePlayer();
+        else if (episodePickerModal.classList.contains('open')) hideModal(episodePickerModal);
         else if (fileModal.classList.contains('open')) hideModal(fileModal);
       }
     });
@@ -611,18 +640,13 @@
       }
     }));
 
-    const themeToggle = document.getElementById('theme-toggle');
-    themeToggle.addEventListener('click', () => {
-      const root = document.documentElement;
-      const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-      root.dataset.theme = next;
-      themeToggle.innerHTML = next === 'dark' ? '☼ <span>Light mode</span>' : '☾ <span>Dark mode</span>';
-      document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
-    });
-
-
-
     window.MysteryVault = window.MysteryVault || {};
+    window.MysteryVault.isWatchlisted = isWatchlisted;
+    window.MysteryVault.toggleWatchlistItem = (item, type) => {
+      const saved = toggleWatchlist(makeWatchlistItem(item, type));
+      setStatus(saved ? 'Added to watchlist.' : 'Removed from watchlist.', 'success');
+      return saved;
+    };
     window.MysteryVault.openItem = item => {
       if (!item?.tmdbId || !item?.mediaType) return;
       const card = document.createElement('article');
@@ -638,6 +662,7 @@
           const items = Array.isArray(storedWatchlist)
             ? storedWatchlist
             : getWatchlist(); // Migrate any existing browser-local entries on first desktop launch.
+          setWatchlistCache(items);
           localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
           if (!Array.isArray(storedWatchlist) && items.length) saveWatchlist(items);
         } catch (error) {

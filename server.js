@@ -20,11 +20,43 @@ function readTorrentCachePath() {
   return path.resolve(process.env.MYSTERY_VAULT_TORRENT_PATH || path.join(os.homedir(), '.mystery-vault', 'torrent-cache'));
 }
 let torrentCachePath = readTorrentCachePath();
-const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
+// Lazily initialize WebTorrent only when a user opens a torrent so browsing
+// TMDB, Watchlist, or Settings incurs zero DHT/LSD background CPU or sockets.
+let torrentClient = null;
+function getTorrentClient() {
+  if (!torrentClient) {
+    torrentClient = new WebTorrent({
+      maxConns: TORRENT_MAX_PEERS,
+      lsd: false
+    });
+  }
+  return torrentClient;
+}
 const app = express();
 
 app.use(express.json());
-app.use(express.static(path.join(APP_ROOT, 'public')));
+app.use(express.static(path.join(APP_ROOT, 'public'), { etag: true, maxAge: '1h' }));
+
+// Bounded in-memory TTL cache for read-heavy TMDB/discovery endpoints.
+const RESPONSE_CACHE_MAX = 120;
+const responseCache = new Map();
+function getCachedValue(key) {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setCachedValue(key, value, ttlMs) {
+  if (responseCache.size >= RESPONSE_CACHE_MAX && !responseCache.has(key)) {
+    const oldestKey = responseCache.keys().next().value;
+    if (oldestKey !== undefined) responseCache.delete(oldestKey);
+  }
+  responseCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  return value;
+}
 
 // ============================================================================
 // 1. CONFIGURATION & TRACKERS
@@ -88,7 +120,18 @@ async function fetchWithLogarithmicBackoff(url, options = {}, label = 'upstream 
 // to embed; the browser never submits an arbitrary iframe URL to the server.
 const EMBED_CONFIG_DIR = path.join(os.homedir(), '.mystery-vault');
 const EMBED_CONFIG_PATH = path.join(EMBED_CONFIG_DIR, 'embed-servers.json');
-function readStoredEmbedEnv() { try { return JSON.parse(fs.readFileSync(EMBED_CONFIG_PATH, 'utf8')); } catch (_) { return null; } }
+let storedEmbedEnvCache;
+let storedEmbedEnvLoaded = false;
+function readStoredEmbedEnv() {
+  if (storedEmbedEnvLoaded) return storedEmbedEnvCache;
+  storedEmbedEnvLoaded = true;
+  try {
+    storedEmbedEnvCache = JSON.parse(fs.readFileSync(EMBED_CONFIG_PATH, 'utf8'));
+  } catch (_) {
+    storedEmbedEnvCache = null;
+  }
+  return storedEmbedEnvCache;
+}
 function readEmbedProviders() {
   const env = readStoredEmbedEnv() || process.env;
   const ids = String(env.EMBED_SERVERS || '').split(',').map(value => value.trim()).filter(Boolean);
@@ -235,13 +278,13 @@ function calculateTitleSimilarity(candidateTitle, userQuery) {
   return Math.min(1.0, (coverage * 0.75) + exactPhraseBonus) * (0.6 + 0.4 * lengthRatio);
 }
 
-function scoreTorrentCandidate(candidate, query = '') {
-  const meta = parseReleaseMetadata(candidate.title);
+function scoreTorrentCandidate(candidate, query = '', precomputedMeta = null, precomputedQueryTokens = null) {
+  const meta = precomputedMeta || parseReleaseMetadata(candidate.title);
   // Score the title once. Previously the cleaned title and raw title were
   // concatenated, duplicating tokens and making long, unrelated titles score well.
-  const similarity = calculateTitleSimilarity(meta.cleanTitle, query);
-  const queryTokens = tokenize(query);
+  const queryTokens = precomputedQueryTokens || tokenize(query);
   const titleTokens = tokenize(meta.cleanTitle);
+  const similarity = calculateTitleSimilarity(meta.cleanTitle, query);
   const normalizedQuery = queryTokens.join(' ');
   const normalizedTitle = titleTokens.join(' ');
   const startsWithQuery = Boolean(normalizedQuery) &&
@@ -289,10 +332,11 @@ function refineAndRankTorrents(candidates, query) {
     return true;
   });
 
+  const queryTokens = tokenize(query);
   const ranked = unique
     .map(c => {
       const meta = parseReleaseMetadata(c.title);
-      const score = scoreTorrentCandidate(c, query);
+      const score = scoreTorrentCandidate(c, query, meta, queryTokens);
       return {
         ...c,
         resolution: meta.resolution,
@@ -620,6 +664,7 @@ async function destroyTorrentEntry(key, entry) {
       }
     }
     if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+    stopCleanupTimerIfIdle();
   })();
   return entry.destroyPromise;
 }
@@ -686,7 +731,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
     let metadataTimeout = null;
     let torrent;
     try {
-      torrent = client.add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4, path: torrentCachePath, addUID: true, destroyStoreOnDestroy: true });
+      torrent = getTorrentClient().add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4, path: torrentCachePath, addUID: true, destroyStoreOnDestroy: true });
       entry.torrent = torrent;
     } catch (err) {
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
@@ -734,10 +779,11 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
           entry.statsInterval = null;
           return;
         }
+        if (entry.openStreams.size === 0) return;
         const speedMB = (entry.torrent.downloadSpeed / (1024 * 1024)).toFixed(2);
         const progress = (entry.torrent.progress * 100).toFixed(1);
         console.log(`[Swarm] "${String(entry.torrent.name).slice(0, 25)}" | Peers: ${entry.torrent.numPeers} | Speed: ${speedMB} MB/s | Downloaded: ${progress}% | Active streams: ${entry.openStreams.size} | Curated: ${entry.isCurated}`);
-      }, 10000);
+      }, 15000);
       entry.statsInterval.unref?.();
       resolve(torrent);
     });
@@ -745,6 +791,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
 
   activeTorrents.set(key, entry);
   entry.lastUsedAt = Date.now();
+  ensureCleanupTimer();
   return entry.promise;
 }
 
@@ -975,7 +1022,7 @@ function parseEmbedImport(content) {
   env.EMBED_SERVERS = valid.join(',');
   return { env, count: valid.length };
 }
-function saveEmbedEnv(env) { fs.mkdirSync(EMBED_CONFIG_DIR,{recursive:true}); fs.writeFileSync(EMBED_CONFIG_PATH,JSON.stringify(env,null,2),{encoding:'utf8',mode:0o600}); }
+function saveEmbedEnv(env) { fs.mkdirSync(EMBED_CONFIG_DIR,{recursive:true}); fs.writeFileSync(EMBED_CONFIG_PATH,JSON.stringify(env,null,2),{encoding:'utf8',mode:0o600}); storedEmbedEnvCache = env; storedEmbedEnvLoaded = true; }
 app.post('/api/embed-servers/import',(req,res)=>{try{const parsed=parseEmbedImport(req.body?.content);saveEmbedEnv(parsed.env);res.json({count:parsed.count,providers:readEmbedProviders().map(({id,name})=>({id,name}))});}catch(error){res.status(400).json({error:error.message||'Invalid server configuration.'});}});
 app.delete('/api/embed-servers/:id',(req,res)=>{const id=String(req.params.id||'');if(!/^[a-z0-9_-]{1,32}$/i.test(id))return res.status(400).json({error:'Invalid server ID.'});const env=readStoredEmbedEnv()||Object.fromEntries(Object.entries(process.env).filter(([key])=>key.startsWith('EMBED_')));const original=String(env.EMBED_SERVERS||'').split(',').map(value=>value.trim()).filter(Boolean);if(!original.includes(id))return res.status(404).json({error:'Server not found.'});env.EMBED_SERVERS=original.filter(value=>value!==id).join(',');saveEmbedEnv(env);res.json({removed:id,providers:readEmbedProviders().map(({id,name})=>({id,name}))});});
 
@@ -991,8 +1038,11 @@ async function resolveExternalPlaybackId(mediaType, id, idType = '') {
   // players commonly expect IMDb IDs (the old manual player explicitly asked
   // for an IMDb ID). Resolve numeric TMDB IDs to IMDb IDs server-side so the
   // browser never needs to know or expose the TMDB credentials.
-  if (String(idType).toLowerCase() !== 'tmdb' && !/^\\d{1,12}$/.test(id)) return id;
+  if (String(idType).toLowerCase() !== 'tmdb' && !/^\d{1,12}$/.test(id)) return id;
   if (!TMDB_API_READ_ACCESS_TOKEN) return id;
+  const cacheKey = `ext:${mediaType}:${id}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) return cached;
   const endpoint = mediaType === 'tv' ? 'tv' : 'movie';
   const response = await fetchWithLogarithmicBackoff(
     `https://api.themoviedb.org/3/${endpoint}/${encodeURIComponent(id)}/external_ids`,
@@ -1004,7 +1054,7 @@ async function resolveExternalPlaybackId(mediaType, id, idType = '') {
   );
   if (!response.ok) throw new Error(`TMDB ${mediaType} external ID lookup failed: HTTP ${response.status}`);
   const data = await response.json();
-  return String(data?.imdb_id || id).trim();
+  return setCachedValue(cacheKey, String(data?.imdb_id || id).trim(), 60 * 60 * 1000);
 }
 
 app.post('/api/external-player', async (req, res) => {
@@ -1049,6 +1099,12 @@ app.get('/api/title-search', async (req, res) => {
     return res.status(503).json({ error: 'TMDB search is not configured. Set TMDB_API_READ_ACCESS_TOKEN on the server and restart it.' });
   }
 
+  const cacheKey = `title-search:${query.toLowerCase()}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=120');
+    return res.json(cached);
+  }
   // Search movies and TV shows concurrently so the user never needs to choose a type first.
   try {
     const searchOne = async mediaType => {
@@ -1085,7 +1141,9 @@ app.get('/api/title-search', async (req, res) => {
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, 16)
       .map(({ popularity, ...item }) => item);
-    res.json({ results });
+    const payload = setCachedValue(cacheKey, { results }, 5 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=120');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB title search error:', error.message);
     res.status(502).json({ error: 'Could not search both movies and TV shows on TMDB. Try again in a moment.' });
@@ -1098,6 +1156,12 @@ app.get('/api/tv/:id/seasons', async (req, res) => {
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
   const id = String(req.params.id || '');
   if (!/^\d{1,12}$/.test(id)) return res.status(400).json({ error: 'Invalid TMDB TV ID.' });
+  const cacheKey = `tv-seasons:${id}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=600');
+    return res.json(cached);
+  }
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
@@ -1105,13 +1169,15 @@ app.get('/api/tv/:id/seasons', async (req, res) => {
     }, 'TMDB TV seasons');
     if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
     const data = await response.json();
-    res.json({
+    const payload = setCachedValue(cacheKey, {
       seasons: (Array.isArray(data.seasons) ? data.seasons : []).map(season => ({
         seasonNumber: Number(season.season_number),
         name: String(season.name || `Season ${season.season_number}`),
         episodeCount: Number(season.episode_count || 0)
       }))
-    });
+    }, 30 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB season list error:', error.message);
     res.status(502).json({ error: 'Could not load seasons from TMDB. Please try again.' });
@@ -1126,6 +1192,12 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
   if (!/^\d{1,12}$/.test(id) || !Number.isInteger(seasonNumber) || seasonNumber < 0 || seasonNumber > 99) {
     return res.status(400).json({ error: 'Invalid TV series or season number.' });
   }
+  const cacheKey = `tv-episodes:${id}:${seasonNumber}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=600');
+    return res.json(cached);
+  }
   try {
     const response = await fetchWithLogarithmicBackoff(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}?language=en-US`, {
       headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
@@ -1133,13 +1205,15 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
     }, 'TMDB TV episodes');
     if (!response.ok) throw new Error(`TMDB returned HTTP ${response.status}`);
     const data = await response.json();
-    res.json({
+    const payload = setCachedValue(cacheKey, {
       episodes: (Array.isArray(data.episodes) ? data.episodes : []).map(episode => ({
         episodeNumber: Number(episode.episode_number),
         name: String(episode.name || 'Untitled episode'),
         overview: String(episode.overview || '')
       }))
-    });
+    }, 30 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB episode list error:', error.message);
     res.status(502).json({ error: 'Could not load episode names from TMDB. Please try again.' });
@@ -1151,6 +1225,12 @@ app.get('/api/discover', async (req, res) => {
   const genreId = Number.parseInt(String(req.query.genreId || ''), 10);
   if (!Number.isInteger(genreId) || genreId < 1 || genreId > 9999) return res.status(400).json({ error: 'Choose a valid genre.' });
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB discovery is not configured.' });
+  const cacheKey = `discover:${genreId}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json(cached);
+  }
   try {
     const discoverOne = async mediaType => {
       const url = new URL(`https://api.themoviedb.org/3/discover/${mediaType}`);
@@ -1180,7 +1260,9 @@ app.get('/api/discover', async (req, res) => {
         }));
     };
     const [movies, shows] = await Promise.all([discoverOne('movie'), discoverOne('tv')]);
-    res.json({ results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 20).map(({ popularity, ...item }) => item) });
+    const payload = setCachedValue(cacheKey, { results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 20).map(({ popularity, ...item }) => item) }, 15 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB genre discovery error:', error.message);
     res.status(502).json({ error: 'Could not load this genre from TMDB. Try again in a moment.' });
@@ -1189,6 +1271,12 @@ app.get('/api/discover', async (req, res) => {
 
 app.get('/api/trending', async (_req, res) => {
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const cacheKey = 'trending:week';
+  const cached = getCachedValue(cacheKey);
+  if (cached) {
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json(cached);
+  }
   try {
     const response = await fetchWithLogarithmicBackoff(
       'https://api.themoviedb.org/3/trending/all/week?language=en-US',
@@ -1209,7 +1297,9 @@ app.get('/api/trending', async (_req, res) => {
         overview: String(item.overview || ''),
         posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null
       }));
-    res.json({ results });
+    const payload = setCachedValue(cacheKey, { results }, 15 * 60 * 1000);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(payload);
   } catch (error) {
     console.error('TMDB trending error:', error.message);
     res.status(502).json({ error: 'Could not load trending titles.' });
@@ -1363,15 +1453,32 @@ app.post('/api/stop-stream', async (req, res) => {
   res.json({ stopped: true, torrentSessionsRetained: false });
 });
 
-// Reap idle dynamic sessions periodically, without affecting active playback.
-const dynamicCleanupInterval = setInterval(stopDynamicTorrents, 15 * 1000);
-dynamicCleanupInterval.unref?.();
+// Reap idle dynamic sessions only while at least one torrent session is active.
+// When idle, zero background intervals wake the Node event loop.
+let dynamicCleanupInterval = null;
+function ensureCleanupTimer() {
+  if (dynamicCleanupInterval) return;
+  dynamicCleanupInterval = setInterval(() => {
+    stopDynamicTorrents();
+    stopCleanupTimerIfIdle();
+  }, 15 * 1000);
+  dynamicCleanupInterval.unref?.();
+}
+function stopCleanupTimerIfIdle() {
+  if (activeTorrents.size === 0 && dynamicCleanupInterval) {
+    clearInterval(dynamicCleanupInterval);
+    dynamicCleanupInterval = null;
+  }
+}
 
-const memoryLogInterval = setInterval(() => {
-  const m = process.memoryUsage();
-  console.log(`[Memory] RSS ${(m.rss / 1048576).toFixed(1)} MB | Heap ${(m.heapUsed / 1048576).toFixed(1)} MB | External ${(m.external / 1048576).toFixed(1)} MB | ArrayBuffers ${(m.arrayBuffers / 1048576).toFixed(1)} MB | Torrents ${activeTorrents.size} | Peer cap ${TORRENT_MAX_PEERS}`);
-}, 30000);
-memoryLogInterval.unref?.();
+let memoryLogInterval = null;
+if (process.env.DEBUG_MEMORY_LOG === '1') {
+  memoryLogInterval = setInterval(() => {
+    const m = process.memoryUsage();
+    console.log(`[Memory] RSS ${(m.rss / 1048576).toFixed(1)} MB | Heap ${(m.heapUsed / 1048576).toFixed(1)} MB | External ${(m.external / 1048576).toFixed(1)} MB | ArrayBuffers ${(m.arrayBuffers / 1048576).toFixed(1)} MB | Torrents ${activeTorrents.size} | Peer cap ${TORRENT_MAX_PEERS}`);
+  }, 30000);
+  memoryLogInterval.unref?.();
+}
 
 let activeHttpServer = null;
 
@@ -1397,12 +1504,15 @@ export async function startServer({ host = process.env.HOST || '0.0.0.0', port =
 }
 
 export async function closeServer() {
-  clearInterval(dynamicCleanupInterval);
-  clearInterval(memoryLogInterval);
+  if (dynamicCleanupInterval) { clearInterval(dynamicCleanupInterval); dynamicCleanupInterval = null; }
+  if (memoryLogInterval) { clearInterval(memoryLogInterval); memoryLogInterval = null; }
   await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
   if (activeHttpServer?.listening) await new Promise(resolve => activeHttpServer.close(() => resolve()));
   activeHttpServer = null;
-  try { await client.destroy(); } catch (_) {}
+  if (torrentClient) {
+    try { await torrentClient.destroy(); } catch (_) {}
+    torrentClient = null;
+  }
 }
 
 // Keep the normal web-server command working; importing this module from Electron
