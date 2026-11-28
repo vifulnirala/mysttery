@@ -14,7 +14,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          global-json-file: global.json
+      - name: Verify pinned .NET SDK
+        run: |
+          dotnet --version
+          dotnet --info
       - name: Restore
         run: dotnet restore src/MysteryVault.Native/MysteryVault.Native.csproj
       - name: Build x64
