@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PORT = 3000;
 const TORRENT_MAX_PEERS = Math.max(8, Math.min(40, Number(process.env.TORRENT_MAX_PEERS) || 20));
+let torrentCachePath = path.resolve(process.env.MYSTERY_VAULT_TORRENT_PATH || path.join(os.homedir(), '.mystery-vault', 'torrent-cache'));
 const client = new WebTorrent({ maxConns: TORRENT_MAX_PEERS });
 const app = express();
 
@@ -593,14 +594,25 @@ function closeEntryStreams(entry) {
   entry.streamFiles?.clear();
 }
 
-function destroyTorrentEntry(key, entry) {
-  if (entry.statsInterval) clearInterval(entry.statsInterval);
-  entry.statsInterval = null;
-  closeEntryStreams(entry);
-  if (entry.torrent && !entry.torrent.destroyed) {
-    try { entry.torrent.destroy({ destroyStore: true }); } catch (_) {}
-  }
-  if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+async function destroyTorrentEntry(key, entry) {
+  if (!entry) return;
+  if (entry.destroyPromise) return entry.destroyPromise;
+  entry.destroyPromise = (async () => {
+    if (entry.statsInterval) clearInterval(entry.statsInterval);
+    entry.statsInterval = null;
+    closeEntryStreams(entry);
+    if (entry.torrent && !entry.torrent.destroyed) {
+      try {
+        await new Promise((resolve, reject) => {
+          entry.torrent.destroy({ destroyStore: true }, error => error ? reject(error) : resolve());
+        });
+      } catch (error) {
+        console.error(`[Torrent Cleanup] ${String(key).slice(0, 40)}: ${error.message}`);
+      }
+    }
+    if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
+  })();
+  return entry.destroyPromise;
 }
 
 // Any torrent session opened for inspection but not actively streaming is
@@ -612,7 +624,7 @@ function stopDynamicTorrents() {
     if (entry.openStreams.size > 0) continue;
     if (now - (entry.lastUsedAt || now) < DYNAMIC_IDLE_TIMEOUT_MS) continue;
     console.log(`[Cleanup] Removing idle torrent session: ${String(key).slice(0, 45)}...`);
-    destroyTorrentEntry(key, entry);
+    void destroyTorrentEntry(key, entry);
   }
 }
 
@@ -643,7 +655,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
   // the previous swarm immediately instead of allowing several 30-second idle
   // sessions to overlap on the 512 MB Render instance.
   for (const [otherKey, otherEntry] of [...activeTorrents.entries()]) {
-    if (otherKey !== key) destroyTorrentEntry(otherKey, otherEntry);
+    if (otherKey !== key) void destroyTorrentEntry(otherKey, otherEntry);
   }
 
   const entry = {
@@ -665,7 +677,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
     let metadataTimeout = null;
     let torrent;
     try {
-      torrent = client.add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4 });
+      torrent = client.add(torrentSource, { announce: DEFAULT_TRACKERS, maxWebConns: 4, path: torrentCachePath, addUID: true, destroyStoreOnDestroy: true });
       entry.torrent = torrent;
     } catch (err) {
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
@@ -690,7 +702,7 @@ function getReadyTorrent(key, torrentSource, isCurated = curatedIds.has(key)) {
       settled = true;
       console.warn('[Torrent] Metadata discovery timed out');
       if (activeTorrents.get(key) === entry) activeTorrents.delete(key);
-      try { torrent.destroy({ destroyStore: true }); } catch (_) {}
+      try { await new Promise(resolve => torrent.destroy({ destroyStore: true }, () => resolve())); } catch (_) {}
       reject(new Error('Torrent metadata discovery timed out. Try a torrent with more seeders.'));
     }, Math.max(15000, Number(process.env.TORRENT_METADATA_TIMEOUT_MS) || 45000));
     metadataTimeout.unref?.();
@@ -1249,6 +1261,36 @@ app.get('/api/torrent-files', async (req, res) => {
   }
 });
 
+function isLoopbackRequest(req) {
+  const address = String(req.socket.remoteAddress || '');
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+app.get('/api/torrent-cache', (_req, res) => res.json({ path: torrentCachePath, activeSessions: activeTorrents.size }));
+app.post('/api/torrent-cache/location', async (req, res) => {
+  if (!isLoopbackRequest(req)) return res.sendStatus(403);
+  if (activeTorrents.size) return res.status(409).json({ error: 'Stop playback before changing the torrent cache location.' });
+  const parent = String(req.body?.parentDirectory || '').trim();
+  if (!path.isAbsolute(parent)) return res.status(400).json({ error: 'Choose a valid absolute folder path.' });
+  const nextPath = path.join(path.resolve(parent), 'MysteryVaultTorrentCache');
+  try {
+    await fs.promises.mkdir(nextPath, { recursive: true });
+    torrentCachePath = nextPath;
+    res.json({ path: torrentCachePath });
+  } catch (error) { res.status(400).json({ error: error.message || 'Could not use that folder.' }); }
+});
+app.post('/api/torrent-cache/clear', async (req, res) => {
+  if (!isLoopbackRequest(req)) return res.sendStatus(403);
+  try {
+    await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
+    await fs.promises.rm(torrentCachePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+    await fs.promises.mkdir(torrentCachePath, { recursive: true });
+    res.json({ cleared: true, path: torrentCachePath });
+  } catch (error) {
+    console.error('[Torrent Cache] Clear failed:', error);
+    res.status(500).json({ error: error.message || 'Could not clear torrent cache.' });
+  }
+});
+
 // Stream a specific curated media item
 app.get('/api/stream/:id', async (req, res) => {
   const media = CATALOG.find(item => item.id === req.params.id);
@@ -1308,6 +1350,7 @@ memoryLogInterval.unref?.();
 let activeHttpServer = null;
 
 export async function startServer({ host = process.env.HOST || '0.0.0.0', port = Number(process.env.PORT) || DEFAULT_PORT } = {}) {
+  await fs.promises.mkdir(torrentCachePath, { recursive: true });
   if (activeHttpServer?.listening) {
     const address = activeHttpServer.address();
     return { server: activeHttpServer, host, port: address.port, close: closeServer };
@@ -1320,14 +1363,14 @@ export async function startServer({ host = process.env.HOST || '0.0.0.0', port =
   const address = activeHttpServer.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
   console.log(`Server listening on http://${host}:${actualPort}`);
-  console.log(`[Torrent Lifecycle] One bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
+  console.log(`[Torrent Lifecycle] Cache: ${torrentCachePath}; one bounded swarm at a time; max peers ${TORRENT_MAX_PEERS}; no startup warmup.`);
   return { server: activeHttpServer, host, port: actualPort, close: closeServer };
 }
 
 export async function closeServer() {
   clearInterval(dynamicCleanupInterval);
   clearInterval(memoryLogInterval);
-  for (const [key, entry] of [...activeTorrents.entries()]) destroyTorrentEntry(key, entry);
+  await Promise.all([...activeTorrents.entries()].map(([key, entry]) => destroyTorrentEntry(key, entry)));
   if (activeHttpServer?.listening) await new Promise(resolve => activeHttpServer.close(() => resolve()));
   activeHttpServer = null;
   try { await client.destroy(); } catch (_) {}
