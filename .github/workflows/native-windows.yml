@@ -19,6 +19,19 @@ jobs:
         run: dotnet restore src/MysteryVault.Native/MysteryVault.Native.csproj
       - name: Build x64
         run: dotnet build src/MysteryVault.Native/MysteryVault.Native.csproj --configuration Release -p:Platform=x64 --no-restore
+      - name: Print XAML compiler diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $obj = "src/MysteryVault.Native/obj/x64/Release/net8.0-windows10.0.19041.0"
+          foreach ($name in @("input.json", "output.json")) {
+            $file = Join-Path $obj $name
+            if (Test-Path $file) {
+              Write-Host "----- $file -----"
+              Get-Content $file -Raw
+            }
+          }
+
       - name: Publish x64
         run: dotnet publish src/MysteryVault.Native/MysteryVault.Native.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/native-win-x64
       - uses: actions/upload-artifact@v4
