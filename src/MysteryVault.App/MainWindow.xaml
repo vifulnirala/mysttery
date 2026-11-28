@@ -18,7 +18,11 @@
             <NavigationViewItem Content="Watchlist" Tag="watchlist" Icon="Bookmarks" />
         </NavigationView.MenuItems>
         <NavigationView.FooterMenuItems>
-            <NavigationViewItem x:Name="ThemeToggleItem" Content="Toggle Theme" Icon="Brightness" Tapped="ThemeToggleItem_Tapped" SelectsOnInvoked="False" />
+            <NavigationViewItem x:Name="ThemeToggleItem" Content="Toggle Theme" Tapped="ThemeToggleItem_Tapped" SelectsOnInvoked="False">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE706;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.FooterMenuItems>
         <Frame x:Name="ContentFrame" Padding="24" />
     </NavigationView>
