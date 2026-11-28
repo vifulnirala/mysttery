@@ -258,13 +258,15 @@ html[data-desktop="windows"] .win-titlebar {
 }
 
 .page-container {
-  width: min(1240px, 100%);
-  margin: 0 auto;
-  padding: 24px 28px 48px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px 32px 56px;
 }
 
 .settings-container {
-  width: min(920px, 100%);
+  width: min(1080px, 100%);
+  margin: 0;
 }
 
 /* Page Header & Typography */
@@ -386,7 +388,7 @@ html[data-theme="light"] .btn-danger:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 760px;
+  max-width: 960px;
   min-height: 40px;
   padding: 4px 4px 4px 12px;
   border: 1px solid var(--win-stroke-strong);
@@ -1558,8 +1560,8 @@ html[data-theme="light"] .btn-danger:hover {
 
 .continue-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
 }
 
 .continue-grid {
@@ -1776,4 +1778,192 @@ html[data-theme="light"] .btn-danger:hover {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+
+/* Search Bar Indeterminate Progress & Skeleton Shimmer Animations */
+.search-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.search-panel.is-searching::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, var(--win-accent), transparent);
+  animation: fluent-search-progress 1.05s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.search-panel.is-searching .search-icon {
+  color: var(--win-accent);
+  animation: fluent-search-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes fluent-search-progress {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(310%); }
+}
+
+@keyframes fluent-search-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.16); opacity: 0.72; }
+}
+
+.skeleton-card {
+  border: 1px solid var(--win-stroke);
+  border-radius: var(--radius-card);
+  background: var(--win-card);
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.skeleton-poster {
+  aspect-ratio: 2 / 3;
+  background: linear-gradient(110deg, var(--win-card) 25%, var(--win-card-hover) 50%, var(--win-card) 75%);
+  background-size: 200% 100%;
+  animation: fluent-shimmer 1.15s linear infinite;
+}
+
+.skeleton-lines {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 11px;
+  border-radius: 4px;
+  background: var(--win-control);
+}
+
+.skeleton-line.short { width: 58%; }
+
+@keyframes fluent-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Smooth General App Animations (GPU-composited transform + opacity only) */
+.card,
+.continue-card,
+.watchlist-item {
+  transition: transform 0.16s cubic-bezier(0.1, 0.9, 0.2, 1), background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.16s ease;
+}
+
+.card:hover,
+.continue-card.clickable:hover,
+.watchlist-item:hover {
+  transform: translateY(-3px);
+}
+
+.play-hint {
+  transform: scale(0.86);
+  transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.card:hover .play-hint,
+.card:focus-visible .play-hint,
+.continue-card:hover .play-hint,
+.continue-card:focus-visible .play-hint {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.btn,
+.query-chip,
+.filter-chip,
+.shelf-scroll-btn,
+.spotlight-arrow,
+.pivot-btn,
+.watchlist-toggle {
+  transition: transform 0.12s cubic-bezier(0.1, 0.9, 0.2, 1), background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn:active,
+.query-chip:active,
+.filter-chip:active,
+.shelf-scroll-btn:active,
+.spotlight-arrow:active,
+.pivot-btn:active,
+.watchlist-toggle:active {
+  transform: scale(0.96);
+}
+
+.card-reveal {
+  animation: fluent-card-reveal 0.24s cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+
+@keyframes fluent-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal.open {
+  animation: fluent-modal-fade 0.16s ease both;
+}
+
+.modal.open .modal-panel {
+  animation: fluent-dialog-enter 0.2s cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+
+@keyframes fluent-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fluent-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.spotlight-content.is-switching {
+  animation: fluent-spotlight-in 0.28s cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+
+@keyframes fluent-spotlight-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nav-link {
+  transition: background-color 0.12s ease, color 0.12s ease, transform 0.1s ease;
+}
+
+.nav-link:active {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-panel.is-searching::after,
+  .search-panel.is-searching .search-icon,
+  .skeleton-poster,
+  .card-reveal,
+  .modal.open,
+  .modal.open .modal-panel,
+  .spotlight-content.is-switching {
+    animation: none !important;
+  }
 }

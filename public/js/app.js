@@ -178,9 +178,13 @@
       tmdbController?.abort();
       searchController = wantsTorrents ? new AbortController() : null;
       tmdbController = wantsTmdb ? new AbortController() : null;
+      const searchFormEl = document.getElementById('search-form');
+      searchFormEl?.classList.add('is-searching');
       searchSection.classList.remove('hidden');
       loadMoreButton.classList.add('hidden');
-      torrentGrid.innerHTML = '<div class="empty">Searching torrent sources, APIBay and TMDB…</div>';
+      torrentGrid.innerHTML = Array.from({ length: 8 }, () =>
+        '<div class="skeleton-card" aria-hidden="true"><div class="skeleton-poster"></div><div class="skeleton-lines"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>'
+      ).join('');
       searchResults = [];
       tmdbResults = [];
       unifiedResults = [];
@@ -205,6 +209,7 @@
       }
 
       const outcomes = await Promise.allSettled(tasks);
+      searchFormEl?.classList.remove('is-searching');
       if ((searchController?.signal.aborted || !wantsTorrents) &&
           (tmdbController?.signal.aborted || !wantsTmdb)) return;
 
@@ -337,6 +342,11 @@
         return item ? cardMarkup(item, entry.index, entry.type) : '';
       }).join('');
       torrentGrid.insertAdjacentHTML('beforeend', markup);
+      const renderedCards = torrentGrid.querySelectorAll('.card:not(.card-reveal)');
+      renderedCards.forEach((cardEl, idx) => {
+        cardEl.classList.add('card-reveal');
+        if (idx < 12) cardEl.style.animationDelay = `${idx * 24}ms`;
+      });
       window.MysteryVaultImages?.hydrateMissingImages(torrentGrid);
       visibleCount = nextCount;
       loadMoreButton.classList.toggle('hidden', visibleCount >= filteredResults.length);

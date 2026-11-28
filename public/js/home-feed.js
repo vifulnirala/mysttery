@@ -25,7 +25,7 @@
       accent: 'Scooby-Doo Movies',
       desc: 'Discover curated Scooby-Doo mysteries, monsters, and midnight stories handpicked for the vault.',
       cta: 'Explore Now',
-      tmdbId: '16472',
+      tmdbId: '1068',
       mediaType: 'tv',
       title: 'The New Scooby-Doo Movies',
       backdropUrl: '',
@@ -38,7 +38,7 @@
       accent: 'Where Are You!',
       desc: 'Follow Mystery Inc. through classic haunted castles, ghostly amusement parks, and unmasked villains.',
       cta: 'Explore Now',
-      tmdbId: '1884',
+      tmdbId: '926',
       mediaType: 'tv',
       title: 'Scooby-Doo, Where Are You!',
       backdropUrl: '',
@@ -103,6 +103,12 @@
     if (!spotlightBanner || !spotlightSlides.length) return;
     activeSlideIndex = (index + spotlightSlides.length) % spotlightSlides.length;
     const slide = spotlightSlides[activeSlideIndex];
+    const spotlightContent = spotlightBanner.querySelector('.spotlight-content');
+    if (spotlightContent) {
+      spotlightContent.classList.remove('is-switching');
+      void spotlightContent.offsetWidth;
+      spotlightContent.classList.add('is-switching');
+    }
     if (spotlightBadgeText) spotlightBadgeText.textContent = slide.badge || 'FEATURED';
     if (spotlightLead) spotlightLead.textContent = slide.lead || '';
     if (spotlightAccent) spotlightAccent.textContent = slide.accent || slide.title || '';
@@ -303,6 +309,11 @@
   const trendingGrid = document.getElementById('trending-grid');
   const feeds = [
     { id: 9648, section: document.getElementById('genre-mystery-section'), grid: document.getElementById('genre-mystery-grid'), name: 'mystery' },
+    { id: 28, section: document.getElementById('genre-action-section'), grid: document.getElementById('genre-action-grid'), name: 'action' },
+    { id: 878, section: document.getElementById('genre-scifi-section'), grid: document.getElementById('genre-scifi-grid'), name: 'sci-fi' },
+    { id: 53, section: document.getElementById('genre-thriller-section'), grid: document.getElementById('genre-thriller-grid'), name: 'thriller' },
+    { id: 14, section: document.getElementById('genre-fantasy-section'), grid: document.getElementById('genre-fantasy-grid'), name: 'fantasy' },
+    { id: 12, section: document.getElementById('genre-adventure-section'), grid: document.getElementById('genre-adventure-grid'), name: 'adventure' },
     { id: 10749, section: document.getElementById('genre-romance-section'), grid: document.getElementById('genre-romance-grid'), name: 'romance' },
     { id: 27, section: document.getElementById('genre-horror-section'), grid: document.getElementById('genre-horror-grid'), name: 'horror' },
     { id: 16, section: document.getElementById('genre-animation-section'), grid: document.getElementById('genre-animation-grid'), name: 'animation' },
@@ -369,8 +380,11 @@
     feeds.forEach(loadGenreFeed);
   }
 
-  // Attach crisp left/right scroll buttons to every horizontal shelf (.feed-row).
-  document.querySelectorAll('.section').forEach(section => {
+  // Attach looping left/right scroll buttons and low-CPU automatic horizontal scrolling to every shelf (.feed-row).
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const autoScrollShelves = [];
+
+  document.querySelectorAll('.section').forEach((section, shelfIndex) => {
     const row = section.querySelector('.feed-row');
     const head = section.querySelector('.section-head');
     if (!row || !head || head.querySelector('.shelf-scroll-controls')) return;
@@ -390,15 +404,88 @@
     next.setAttribute('aria-label', 'Scroll right');
     next.textContent = '›';
 
-    const scrollByStep = dir => {
-      const step = Math.max(360, Math.round(row.clientWidth * 0.78));
-      row.scrollBy({ left: dir * step, behavior: 'smooth' });
+    const state = {
+      section,
+      row,
+      isVisible: false,
+      pausedUntil: 0,
+      hovered: false,
+      autoEnabled: section.classList.contains('home-feed-section'),
+      tickOffset: shelfIndex % 3
     };
 
-    prev.addEventListener('click', () => scrollByStep(-1));
-    next.addEventListener('click', () => scrollByStep(1));
+    const advanceRow = (dir, cardStep = 0) => {
+      const maxScroll = row.scrollWidth - row.clientWidth;
+      if (maxScroll <= 12) return;
+      const step = cardStep || Math.max(360, Math.round(row.clientWidth * 0.72));
+      if (dir > 0) {
+        if (row.scrollLeft >= maxScroll - 10) {
+          row.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          row.scrollBy({ left: step, behavior: 'smooth' });
+        }
+      } else {
+        if (row.scrollLeft <= 10) {
+          row.scrollTo({ left: maxScroll, behavior: 'smooth' });
+        } else {
+          row.scrollBy({ left: -step, behavior: 'smooth' });
+        }
+      }
+    };
+
+    prev.addEventListener('click', () => {
+      state.pausedUntil = Date.now() + 8000;
+      advanceRow(-1);
+    });
+    next.addEventListener('click', () => {
+      state.pausedUntil = Date.now() + 8000;
+      advanceRow(1);
+    });
+
+    row.addEventListener('mouseenter', () => { state.hovered = true; });
+    row.addEventListener('mouseleave', () => { state.hovered = false; });
+    row.addEventListener('focusin', () => { state.hovered = true; });
+    row.addEventListener('focusout', () => { state.hovered = false; });
+    row.addEventListener('wheel', () => { state.pausedUntil = Date.now() + 8000; }, { passive: true });
+    row.addEventListener('pointerdown', () => { state.pausedUntil = Date.now() + 8000; }, { passive: true });
 
     controls.append(prev, next);
     head.append(controls);
+
+    if (state.autoEnabled && !prefersReducedMotion) {
+      state.advance = () => advanceRow(1, 380);
+      autoScrollShelves.push(state);
+    }
   });
+
+  // Single lightweight interval shared across all visible genre shelves (zero CPU when off-screen or hidden).
+  if (autoScrollShelves.length && 'IntersectionObserver' in window) {
+    const contentPane = document.querySelector('.content-pane');
+    const shelfByEl = new Map();
+    const visObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const shelf = shelfByEl.get(entry.target);
+        if (shelf) shelf.isVisible = entry.isIntersecting;
+      });
+    }, { root: contentPane || null, threshold: 0.15 });
+
+    autoScrollShelves.forEach(shelf => {
+      shelfByEl.set(shelf.section, shelf);
+      visObserver.observe(shelf.section);
+    });
+
+    let tick = 0;
+    setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (document.querySelector('.modal.open')) return;
+      const now = Date.now();
+      const phase = tick % 3;
+      tick += 1;
+      autoScrollShelves.forEach(shelf => {
+        if (!shelf.isVisible || shelf.hovered || now < shelf.pausedUntil) return;
+        if (shelf.tickOffset !== phase) return;
+        shelf.advance();
+      });
+    }, 1400);
+  }
 })();
