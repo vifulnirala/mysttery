@@ -71,12 +71,42 @@
       <div class="load-more-wrap"><button class="btn btn-secondary hidden" id="load-more" type="button">Load more results ↓</button></div>
     </section>
 
-    <section class="section" aria-labelledby="catalog-title">
+    <section class="section" id="curated-section" aria-labelledby="catalog-title">
       <div class="section-head">
-        <div><div class="section-kicker">Hand-picked</div><h2 id="catalog-title">Curated library</h2><p class="section-note">Quick picks to test the streaming setup.</p></div>
+        <div><div class="section-kicker">✦ Midnight shelf</div><h2 id="catalog-title">Things worth getting lost in</h2><p class="section-note">Hand-picked mysteries, monsters, midnight stories, and vault favorites.</p></div>
       </div>
-      <div class="grid" id="catalog-grid"></div>
+      <div class="grid feed-row" id="catalog-grid"></div>
     </section>
+
+    <section class="section home-feed-section" id="trending-section">
+      <div class="section-head">
+        <div><div class="section-kicker">↗ Popular right now</div><h2>Trending this week</h2><p class="section-note">Popular movies and series from TMDB.</p></div>
+      </div>
+      <div class="grid feed-row" id="trending-grid"><div class="empty">Loading trending picks…</div></div>
+    </section>
+
+    <section class="section home-feed-section" id="genre-mystery-section">
+      <div class="section-head"><div><div class="section-kicker">🔎 Mystery</div><h2>Mystery</h2></div></div>
+      <div class="grid feed-row" id="genre-mystery-grid"><div class="empty">Loading mystery picks…</div></div>
+    </section>
+    <section class="section home-feed-section" id="genre-romance-section">
+      <div class="section-head"><div><div class="section-kicker">♡ Romance</div><h2>Romance</h2></div></div>
+      <div class="grid feed-row" id="genre-romance-grid"><div class="empty">Loading romance picks…</div></div>
+    </section>
+    <section class="section home-feed-section" id="genre-horror-section">
+      <div class="section-head"><div><div class="section-kicker">👻 Horror</div><h2>Horror</h2></div></div>
+      <div class="grid feed-row" id="genre-horror-grid"><div class="empty">Loading horror picks…</div></div>
+    </section>
+    <section class="section home-feed-section" id="genre-animation-section">
+      <div class="section-head"><div><div class="section-kicker">🐾 Animation</div><h2>Animation</h2></div></div>
+      <div class="grid feed-row" id="genre-animation-grid"><div class="empty">Loading animation picks…</div></div>
+    </section>
+    <section class="section home-feed-section" id="genre-comedy-section">
+      <div class="section-head"><div><div class="section-kicker">✨ Comedy</div><h2>Comedy</h2></div></div>
+      <div class="grid feed-row" id="genre-comedy-grid"><div class="empty">Loading comedy picks…</div></div>
+    </section>
+
+    <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
 
     <p class="footer-note">Playback speed depends on available peers, their upload speeds, your connection, and whether the video format is browser-compatible. Results are search sources, not guarantees of availability. Movie metadata and posters provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
   </main>
@@ -131,5 +161,6 @@
   </div>
 
     <script src="/js/app.js" defer></script>
+    <script src="/js/home-feed.js" defer></script>
 </body>
 </html>
