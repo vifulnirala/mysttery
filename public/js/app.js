@@ -35,7 +35,6 @@
     const pageSizeSelect = document.getElementById('page-size');
     const resultSourceFilter = document.getElementById('result-source-filter');
     const qualityFilter = document.getElementById('quality-filter');
-    const apiBayFilter = document.getElementById('apibay-filter');
     const qualityFilterWrap = document.getElementById('quality-filter-wrap');
     let searchResults = [];
     let tmdbResults = [];
@@ -201,7 +200,6 @@
 
     function applyResultFilters() {
       const source = resultSourceFilter.value;
-      const apiBaySource = apiBayFilter.value;
       const quality = qualityFilter.value;
       filteredResults = unifiedResults.filter(entry => {
         const item = entry.type === 'tmdb' ? tmdbResults[entry.index] : searchResults[entry.index];
@@ -210,8 +208,8 @@
           if (source === 'yts' && item.provider !== 'YTS') return false;
           if (source === 'archive' && item.provider !== 'Internet Archive') return false;
           if (source === 'tmdb' && entry.type !== 'tmdb') return false;
+          if (source === 'apibay' && (entry.type !== 'search' || item.provider !== 'APIBay')) return false;
         }
-        if (apiBaySource === 'apibay' && (entry.type !== 'search' || item.provider !== 'APIBay')) return false;
         if (entry.type === 'search' && quality !== 'all' && qualityKey(item) !== quality) return false;
         return true;
       });
@@ -431,10 +429,8 @@
       button.addEventListener('click', () => {
         const value = button.dataset.sourceFilter;
         if (value === 'apibay') {
-          apiBayFilter.value = 'apibay';
-          resultSourceFilter.value = 'all';
+          resultSourceFilter.value = 'apibay';
         } else {
-          apiBayFilter.value = 'all';
           resultSourceFilter.value = value;
         }
         document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item === button));
@@ -448,13 +444,7 @@
     loadMoreButton.addEventListener('click', () => renderMoreResults(false));
     pageSizeSelect.addEventListener('change', () => renderMoreResults(true));
     resultSourceFilter.addEventListener('change', () => {
-      apiBayFilter.value = 'all';
       document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item.dataset.sourceFilter === resultSourceFilter.value));
-      applyResultFilters();
-    });
-    apiBayFilter.addEventListener('change', () => {
-      if (apiBayFilter.value === 'apibay') resultSourceFilter.value = 'all';
-      document.querySelectorAll('[data-source-filter]').forEach(item => item.classList.toggle('active', item.dataset.sourceFilter === 'apibay' && apiBayFilter.value === 'apibay' || item.dataset.sourceFilter === resultSourceFilter.value && apiBayFilter.value !== 'apibay'));
       applyResultFilters();
     });
     qualityFilter.addEventListener('change', applyResultFilters);
@@ -630,6 +620,16 @@
       document.querySelector('meta[name="theme-color"]').content = next === 'dark' ? '#0b1020' : '#f4f6fc';
     });
 
+
+
+    window.MysteryVault = window.MysteryVault || {};
+    window.MysteryVault.openItem = item => {
+      if (!item?.tmdbId || !item?.mediaType) return;
+      const card = document.createElement('article');
+      card.className = 'card';
+      if (item.mediaType === 'movie') void playExternalPlayer({ mediaType: 'movie', id: item.tmdbId, idType: 'tmdb' }, item.title || 'Movie');
+      else void expandTmdbShow(card, item);
+    };
 
     async function initializeApp() {
       if (window.mysteryVault?.getWatchlist) {
