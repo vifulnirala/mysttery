@@ -54,7 +54,7 @@ public sealed partial class SearchViewModel : ObservableObject
         }
 
         IsSearching = true;
-        StatusMessage = $"Searching for "{q}"...";
+        StatusMessage = $"Searching for '{q}'...";
         try
         {
             var tmdbTask = _tmdb.SearchTitlesAsync(q, ct);

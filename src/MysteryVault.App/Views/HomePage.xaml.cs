@@ -36,12 +36,9 @@ public sealed partial class HomePage : Page
             NavigateSearch(chip);
     }
 
-    private static void NavigateSearch(string query)
+    private void NavigateSearch(string query)
     {
         if (string.IsNullOrWhiteSpace(query)) return;
-        if (App.Current is not null && Window.Current is null)
-        {
-            // Navigation handled via Frame if hosted in MainWindow
-        }
+        Frame?.Navigate(typeof(SearchResultsPage), query);
     }
 }
