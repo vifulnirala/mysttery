@@ -169,7 +169,7 @@ if (chooseTorrentCache) chooseTorrentCache.addEventListener('click', async () =>
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not change cache location.');
     torrentCachePath.textContent = result.path;
-    torrentCacheStatus.textContent = 'Location updated. New torrent sessions will use this folder.';
+    torrentCacheStatus.textContent = result.previousCacheCleaned === false ? 'Location updated, but the old cache could not be deleted. Clear it manually from the previous location.' : 'Location updated. Old cache removed; new torrent sessions will use this folder.';
   } catch (error) {
     torrentCacheStatus.textContent = error.message || 'Could not change cache location.';
   } finally { chooseTorrentCache.disabled = false; }
