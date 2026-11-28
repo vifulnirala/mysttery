@@ -10,7 +10,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        ExtendsContentIntoTitleBar = true;
+        ExtendsContentIntoTitleBar = false;
         DispatcherQueue.TryEnqueue(() =>
         {
             NavView.SelectedItem = NavView.MenuItems[0];

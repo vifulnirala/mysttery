@@ -5,8 +5,37 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:MysteryVault.Core.Models"
     Loaded="Page_Loaded">
+    <Page.Resources>
+        <DataTemplate x:Key="PosterCardTemplate" x:DataType="models:MediaItem">
+            <Border Width="168"
+                    Height="292"
+                    Margin="0,0,8,8"
+                    CornerRadius="8"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <Grid RowDefinitions="216,*">
+                    <Border Grid.Row="0" CornerRadius="7,7,0,0" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                        <Image Source="{x:Bind PosterUrl}" Stretch="UniformToFill" />
+                    </Border>
+                    <StackPanel Grid.Row="1" Padding="10,8" Spacing="2">
+                        <TextBlock Text="{x:Bind Title}"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   TextTrimming="CharacterEllipsis"
+                                   TextWrapping="Wrap"
+                                   MaxLines="2" />
+                        <TextBlock Text="{x:Bind ReleaseYear}"
+                                   Opacity="0.65"
+                                   FontSize="12" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
     <ScrollViewer>
-        <StackPanel Spacing="24" Padding="0,0,0,32">
+        <StackPanel Spacing="28" Padding="0,0,0,40">
             <StackPanel Spacing="12">
                 <TextBlock Text="Mystery Vault" Style="{StaticResource TitleLargeTextBlockStyle}" />
                 <AutoSuggestBox x:Name="HeroSearchBox"
@@ -21,36 +50,151 @@
                     <Button Content="Interstellar" Click="QuickChip_Click" />
                     <Button Content="Inception" Click="QuickChip_Click" />
                 </StackPanel>
+                <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" HorizontalAlignment="Left" />
                 <InfoBar x:Name="StatusInfoBar" IsOpen="False" IsClosable="True" />
             </StackPanel>
 
-            <StackPanel Spacing="8">
+            <StackPanel Spacing="10">
                 <TextBlock Text="Midnight Shelf (Legal Catalog)" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <GridView ItemsSource="{x:Bind ViewModel.MidnightShelf}" SelectionMode="None">
+                <GridView ItemsSource="{x:Bind ViewModel.MidnightShelf}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click">
                     <GridView.ItemTemplate>
                         <DataTemplate x:DataType="models:MediaItem">
-                            <StackPanel Width="220" Padding="12" Spacing="4">
-                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" />
-                                <TextBlock Text="{x:Bind ReleaseYear}" Opacity="0.7" FontSize="12" />
-                                <TextBlock Text="{x:Bind Overview}" Opacity="0.7" FontSize="12" TextTrimming="CharacterEllipsis" MaxLines="2" />
-                            </StackPanel>
+                            <Border Width="236"
+                                    Height="118"
+                                    Margin="0,0,8,8"
+                                    Padding="12"
+                                    CornerRadius="8"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{x:Bind Title}"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="Wrap"
+                                               MaxLines="2" />
+                                    <TextBlock Text="{x:Bind ReleaseYear}" Opacity="0.65" FontSize="12" />
+                                    <TextBlock Text="{x:Bind Overview}"
+                                               Opacity="0.7"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxLines="1" />
+                                </StackPanel>
+                            </Border>
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
             </StackPanel>
 
-            <StackPanel Spacing="8">
+            <StackPanel Spacing="10">
                 <TextBlock Text="Trending This Week" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <GridView ItemsSource="{x:Bind ViewModel.Trending}" SelectionMode="None">
-                    <GridView.ItemTemplate>
-                        <DataTemplate x:DataType="models:MediaItem">
-                            <StackPanel Width="200" Padding="8" Spacing="4">
-                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" />
-                                <TextBlock Text="{x:Bind ReleaseYear}" Opacity="0.7" FontSize="12" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </GridView.ItemTemplate>
-                </GridView>
+                <ListView ItemsSource="{x:Bind ViewModel.Trending}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+                <TextBlock Text="Mystery" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView ItemsSource="{x:Bind ViewModel.MysteryGenre}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+                <TextBlock Text="Animation" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView ItemsSource="{x:Bind ViewModel.AnimationGenre}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+                <TextBlock Text="Horror" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView ItemsSource="{x:Bind ViewModel.HorrorGenre}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+                <TextBlock Text="Comedy" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView ItemsSource="{x:Bind ViewModel.ComedyGenre}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+                <TextBlock Text="Romance" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView ItemsSource="{x:Bind ViewModel.RomanceGenre}"
+                          ItemTemplate="{StaticResource PosterCardTemplate}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="MediaItem_Click"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.VerticalScrollMode="Disabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsStackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                </ListView>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
