@@ -1290,7 +1290,13 @@ app.post('/api/torrent-cache/location', async (req, res) => {
     const temporaryConfig = TORRENT_CACHE_CONFIG_PATH + '.tmp';
     await fs.promises.writeFile(temporaryConfig, JSON.stringify({ path: nextPath }, null, 2), { mode: 0o600 });
     await fs.promises.rename(temporaryConfig, TORRENT_CACHE_CONFIG_PATH);
+    const previousPath = torrentCachePath;
     torrentCachePath = nextPath;
+    if (previousPath !== nextPath) {
+      // Both locations are dedicated Mystery Vault cache roots; remove old
+      // leftovers so moving from C: actually reclaims the previous disk space.
+      await fs.promises.rm(previousPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 250 });
+    }
     res.json({ path: torrentCachePath });
   } catch (error) { res.status(400).json({ error: error.message || 'Could not use that folder.' }); }
 });
