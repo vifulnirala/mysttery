@@ -19,7 +19,9 @@ public sealed partial class MainWindow : Window
             case "Watchlist": ContentFrame.Navigate(typeof(WatchlistPage)); break;
             case "Settings": ContentFrame.Navigate(typeof(SettingsPage)); break;
             case "Theme":
-                RequestedTheme = RequestedTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+                var nextTheme = AppNavigation.RequestedTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+                AppNavigation.RequestedTheme = nextTheme;
+                ContentFrame.RequestedTheme = nextTheme;
                 break;
         }
     }
