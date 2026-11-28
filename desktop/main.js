@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, Menu, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, Menu, ipcMain, dialog } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -112,11 +112,17 @@ ipcMain.handle('mystery-vault:watchlist:set', (_event, items) => {
   return normalized;
 });
 
+ipcMain.handle('mystery-vault:torrent-cache:choose-directory', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose torrent cache drive/folder', properties: ['openDirectory', 'createDirectory'] });
+  return result.canceled || !result.filePaths[0] ? { canceled: true } : { canceled: false, path: result.filePaths[0] };
+});
+
 async function loadServer() {
   const envPath = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime.env')
     : path.join(process.cwd(), 'runtime.env');
   if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: true });
+  process.env.MYSTERY_VAULT_TORRENT_PATH ||= path.join(app.getPath('userData'), 'torrent-cache');
   const serverModule = await import('../server.js');
   startServer = serverModule.startServer;
   closeServer = serverModule.closeServer;
