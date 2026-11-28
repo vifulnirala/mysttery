@@ -11,25 +11,34 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
-        NavView.SelectedItem = NavView.MenuItems[0];
-        ContentFrame.Navigate(typeof(HomePage));
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            NavView.SelectedItem = NavView.MenuItems[0];
+        });
     }
 
     private void NavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (args.IsSettingsSelected)
+        try
         {
-            ContentFrame.Navigate(typeof(SettingsPage));
-            return;
+            if (args.IsSettingsSelected)
+            {
+                ContentFrame.Navigate(typeof(SettingsPage));
+                return;
+            }
+            if (args.SelectedItemContainer is not NavigationViewItem item) return;
+            var tag = item.Tag?.ToString();
+            if (tag == "library")
+                ContentFrame.Navigate(typeof(HomePage));
+            else if (tag == "search")
+                ContentFrame.Navigate(typeof(SearchResultsPage));
+            else if (tag == "watchlist")
+                ContentFrame.Navigate(typeof(WatchlistPage));
         }
-        if (args.SelectedItemContainer is not NavigationViewItem item) return;
-        var tag = item.Tag?.ToString();
-        if (tag == "library")
-            ContentFrame.Navigate(typeof(HomePage));
-        else if (tag == "search")
-            ContentFrame.Navigate(typeof(SearchResultsPage));
-        else if (tag == "watchlist")
-            ContentFrame.Navigate(typeof(WatchlistPage));
+        catch (Exception ex)
+        {
+            App.LogCrash("NavView_SelectionChanged", ex);
+        }
     }
 
     private void ThemeToggleItem_Tapped(object sender, TappedRoutedEventArgs e)

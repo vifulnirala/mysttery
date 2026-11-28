@@ -16,6 +16,13 @@ public partial class App : Application
 
     public App()
     {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            LogCrash("AppDomain.UnhandledException", e.ExceptionObject as Exception);
+        UnhandledException += (_, e) =>
+        {
+            LogCrash("Application.UnhandledException", e.Exception);
+        };
+
         InitializeComponent();
         Services = ConfigureServices();
     }
@@ -72,7 +79,32 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
-        _window.Activate();
+        try
+        {
+            _window = new MainWindow();
+            _window.Activate();
+        }
+        catch (Exception ex)
+        {
+            LogCrash("OnLaunched", ex);
+            throw;
+        }
+    }
+
+    internal static void LogCrash(string source, Exception? ex)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MysteryVault");
+            Directory.CreateDirectory(dir);
+            var logPath = Path.Combine(dir, "crash.log");
+            File.AppendAllText(logPath, $"[{DateTimeOffset.Now:O}] {source}: {ex}\n\n");
+        }
+        catch
+        {
+            // Ignore logging errors
+        }
     }
 }
