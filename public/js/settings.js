@@ -133,3 +133,59 @@ async function loadDnsSettings() {
   }
 }
 void loadDnsSettings();
+
+
+// Torrent cache controls for the local Windows desktop app.
+const torrentCachePath = document.getElementById('torrent-cache-path');
+const torrentCacheStatus = document.getElementById('torrent-cache-status');
+const chooseTorrentCache = document.getElementById('torrent-cache-location');
+const clearTorrentCache = document.getElementById('torrent-cache-clear');
+async function refreshTorrentCache() {
+  if (!torrentCachePath) return;
+  try {
+    const response = await fetch('/api/torrent-cache');
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not read cache location.');
+    torrentCachePath.textContent = data.path;
+    if (data.activeSessions) torrentCacheStatus.textContent = data.activeSessions + ' active torrent session(s).';
+  } catch (error) {
+    torrentCachePath.textContent = 'Unavailable';
+    torrentCacheStatus.textContent = error.message || 'Could not read cache location.';
+  }
+}
+if (chooseTorrentCache) chooseTorrentCache.addEventListener('click', async () => {
+  if (!window.mysteryVault?.chooseTorrentCacheDirectory) {
+    torrentCacheStatus.textContent = 'Folder selection is available in the Windows desktop app.';
+    return;
+  }
+  chooseTorrentCache.disabled = true;
+  try {
+    const selected = await window.mysteryVault.chooseTorrentCacheDirectory();
+    if (selected.canceled) return;
+    const response = await fetch('/api/torrent-cache/location', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentDirectory: selected.path })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not change cache location.');
+    torrentCachePath.textContent = result.path;
+    torrentCacheStatus.textContent = 'Location updated. New torrent sessions will use this folder.';
+  } catch (error) {
+    torrentCacheStatus.textContent = error.message || 'Could not change cache location.';
+  } finally { chooseTorrentCache.disabled = false; }
+});
+if (clearTorrentCache) clearTorrentCache.addEventListener('click', async () => {
+  if (!confirm('Stop all active torrent sessions and delete Mystery Vault temporary torrent data?')) return;
+  clearTorrentCache.disabled = true;
+  torrentCacheStatus.textContent = 'Stopping sessions and clearing cache…';
+  try {
+    const response = await fetch('/api/torrent-cache/clear', { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not clear cache.');
+    torrentCachePath.textContent = result.path;
+    torrentCacheStatus.textContent = 'Torrent cache cleared.';
+  } catch (error) {
+    torrentCacheStatus.textContent = error.message || 'Could not clear cache.';
+  } finally { clearTorrentCache.disabled = false; }
+});
+void refreshTorrentCache();
