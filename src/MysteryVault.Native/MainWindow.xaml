@@ -1,21 +1,5 @@
 <Window
     x:Class="MysteryVault.Native.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="Mystery Vault">
-    <Grid x:Name="RootLayout">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-        <Border Grid.Row="0" Padding="16,10">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="Library" Click="LibraryButton_Click"/>
-                <Button Content="Watchlist" Click="WatchlistButton_Click"/>
-                <Button Content="Settings" Click="SettingsButton_Click"/>
-                <Button Content="Toggle theme" Click="ThemeButton_Click"/>
-            </StackPanel>
-        </Border>
-        <Frame x:Name="ContentFrame" Grid.Row="1"/>
-    </Grid>
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 </Window>
