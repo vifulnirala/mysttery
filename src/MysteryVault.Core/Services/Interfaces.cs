@@ -5,8 +5,9 @@ namespace MysteryVault.Core.Services;
 
 public interface ITmdbClientService
 {
+    Task<IReadOnlyList<MediaItem>> SearchTitlesAsync(string query, CancellationToken ct = default);
     Task<IReadOnlyList<MediaItem>> GetTrendingAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<MediaItem>> DiscoverByGenreAsync(int genreId, MediaType type = MediaType.Movie, CancellationToken ct = default);
+    Task<IReadOnlyList<MediaItem>> DiscoverByGenreAsync(int genreId, CancellationToken ct = default);
     Task<IReadOnlyList<TvSeason>> GetTvSeasonsAsync(string tmdbId, CancellationToken ct = default);
     Task<IReadOnlyList<TvEpisode>> GetTvEpisodesAsync(string tmdbId, int seasonNumber, CancellationToken ct = default);
 }
