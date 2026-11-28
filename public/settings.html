@@ -40,6 +40,19 @@
       </div>
     </section>
 
+    <section class="section torrent-cache-section" aria-labelledby="torrent-cache-title">
+      <div class="section-head"><div><div class="section-kicker">Local storage</div><h2 id="torrent-cache-title">Torrent cache</h2><p class="section-note">Downloaded pieces used during torrent playback are temporary. Choose which drive stores them and clear abandoned data when needed.</p></div></div>
+      <div class="dns-settings-panel">
+        <p class="section-note">Current location: <code id="torrent-cache-path">Loading…</code></p>
+        <div class="dns-settings-actions">
+          <button class="btn btn-secondary" id="torrent-cache-location" type="button">Choose storage folder</button>
+          <button class="btn btn-primary" id="torrent-cache-clear" type="button">Clear torrent cache</button>
+        </div>
+        <p id="torrent-cache-status" class="embed-status" role="status" aria-live="polite"></p>
+        <p class="dns-settings-note">Mystery Vault manages a dedicated <code>MysteryVaultTorrentCache</code> folder inside the selected location. Clearing stops active torrent sessions first.</p>
+      </div>
+    </section>
+
     <section class="section dns-settings-section" aria-labelledby="dns-settings-title">
       <div class="section-head"><div><div class="section-kicker">Privacy & filtering</div><h2 id="dns-settings-title">DNS settings</h2><p class="section-note">Use AdGuard DNS to block many ad, tracker and known malicious domains inside Mystery Vault.</p></div></div>
       <div class="dns-settings-panel">
