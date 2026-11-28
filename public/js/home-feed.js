@@ -368,4 +368,37 @@
   } else {
     feeds.forEach(loadGenreFeed);
   }
+
+  // Attach crisp left/right scroll buttons to every horizontal shelf (.feed-row).
+  document.querySelectorAll('.section').forEach(section => {
+    const row = section.querySelector('.feed-row');
+    const head = section.querySelector('.section-head');
+    if (!row || !head || head.querySelector('.shelf-scroll-controls')) return;
+
+    const controls = document.createElement('div');
+    controls.className = 'shelf-scroll-controls';
+
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'shelf-scroll-btn';
+    prev.setAttribute('aria-label', 'Scroll left');
+    prev.textContent = '‹';
+
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'shelf-scroll-btn';
+    next.setAttribute('aria-label', 'Scroll right');
+    next.textContent = '›';
+
+    const scrollByStep = dir => {
+      const step = Math.max(360, Math.round(row.clientWidth * 0.78));
+      row.scrollBy({ left: dir * step, behavior: 'smooth' });
+    };
+
+    prev.addEventListener('click', () => scrollByStep(-1));
+    next.addEventListener('click', () => scrollByStep(1));
+
+    controls.append(prev, next);
+    head.append(controls);
+  });
 })();

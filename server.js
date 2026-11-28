@@ -1231,7 +1231,7 @@ app.get('/api/tv/:id/seasons/:seasonNumber/episodes', async (req, res) => {
 // Home discovery feeds used by the desktop home page. These mirror the mobile port's TMDB shelves.
 app.get('/api/discover', async (req, res) => {
   const genreId = Number.parseInt(String(req.query.genreId || ''), 10);
-  if (!Number.isInteger(genreId) || genreId < 1 || genreId > 9999) return res.status(400).json({ error: 'Choose a valid genre.' });
+  if (!Number.isInteger(genreId) || genreId < 1 || genreId > 999999) return res.status(400).json({ error: 'Choose a valid genre.' });
   if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB discovery is not configured.' });
   const cacheKey = `discover:${genreId}`;
   const cached = getCachedValue(cacheKey);
@@ -1268,7 +1268,12 @@ app.get('/api/discover', async (req, res) => {
           popularity: Number(item.popularity || 0)
         }));
     };
-    const [movies, shows] = await Promise.all([discoverOne('movie'), discoverOne('tv')]);
+    const [movieOutcome, showOutcome] = await Promise.allSettled([discoverOne('movie'), discoverOne('tv')]);
+    const movies = movieOutcome.status === 'fulfilled' ? movieOutcome.value : [];
+    const shows = showOutcome.status === 'fulfilled' ? showOutcome.value : [];
+    if (!movies.length && !shows.length && movieOutcome.status === 'rejected' && showOutcome.status === 'rejected') {
+      throw movieOutcome.reason || showOutcome.reason;
+    }
     const payload = setCachedValue(cacheKey, { results: [...movies, ...shows].sort((a, b) => b.popularity - a.popularity).slice(0, 20).map(({ popularity, ...item }) => item) }, 15 * 60 * 1000);
     res.set('Cache-Control', 'public, max-age=300');
     res.json(payload);

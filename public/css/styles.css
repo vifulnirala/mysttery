@@ -566,8 +566,66 @@ html[data-theme="light"] .btn-danger:hover {
 }
 
 .feed-row {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
   gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 10px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: var(--win-stroke-strong) transparent;
+}
+
+.feed-row::-webkit-scrollbar { height: 6px; }
+.feed-row::-webkit-scrollbar-track { background: transparent; }
+.feed-row::-webkit-scrollbar-thumb {
+  background: var(--win-stroke-strong);
+  border-radius: 3px;
+}
+
+.feed-row > .card {
+  flex: 0 0 176px;
+  width: 176px;
+  scroll-snap-align: start;
+}
+
+.feed-row > .empty {
+  flex: 1 1 100%;
+  min-width: 100%;
+}
+
+.shelf-scroll-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.shelf-scroll-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--win-stroke-strong);
+  background: var(--win-control);
+  color: var(--win-text);
+  font-size: 16px;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+.shelf-scroll-btn:hover {
+  background: var(--win-control-hover);
+  border-color: var(--win-accent);
+}
+
+.shelf-scroll-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .card {
@@ -1237,12 +1295,10 @@ html[data-theme="light"] .btn-danger:hover {
 
 /* Responsive Breakpoints */
 @media (max-width: 1180px) {
-  .feed-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 @media (max-width: 960px) {
   :root { --sidebar-width: 184px; }
-  .feed-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
@@ -1273,11 +1329,9 @@ html[data-theme="light"] .btn-danger:hover {
   }
   .content-pane { border-left: 0; border-top-left-radius: 0; }
   .page-container { padding: 18px 16px 36px; }
-  .feed-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 520px) {
-  .feed-row,
   .grid,
   .watchlist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .search-panel { flex-wrap: wrap; padding: 6px; }
@@ -1597,4 +1651,69 @@ html[data-theme="light"] .btn-danger:hover {
 
 @media (max-width: 520px) {
   .continue-row { grid-template-columns: 1fr; }
+}
+
+
+@media (max-width: 640px) {
+  .feed-row > .card {
+    flex: 0 0 148px;
+    width: 148px;
+  }
+}
+
+/* Smooth Windows 11 Tab-Switching Transitions (Cross-Document View Transitions + Fluent Entrance) */
+@view-transition {
+  navigation: auto;
+}
+
+.win-titlebar { view-transition-name: win-titlebar; }
+.nav-rail { view-transition-name: nav-rail; }
+.page-container {
+  view-transition-name: page-content;
+  animation: fluent-page-enter 0.18s cubic-bezier(0.1, 0.9, 0.2, 1) both;
+}
+
+@keyframes fluent-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fluent-page-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+::view-transition-old(page-content) {
+  animation: 0.12s cubic-bezier(0.4, 0, 1, 1) both fluent-page-exit;
+}
+
+::view-transition-new(page-content) {
+  animation: 0.18s cubic-bezier(0.1, 0.9, 0.2, 1) both fluent-page-enter;
+}
+
+::view-transition-old(nav-rail),
+::view-transition-new(nav-rail),
+::view-transition-old(win-titlebar),
+::view-transition-new(win-titlebar) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-container,
+  ::view-transition-old(page-content),
+  ::view-transition-new(page-content) {
+    animation: none !important;
+  }
 }
