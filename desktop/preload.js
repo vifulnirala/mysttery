@@ -11,5 +11,7 @@ contextBridge.exposeInMainWorld('mysteryVault', Object.freeze({
   chooseTorrentCacheDirectory: () => ipcRenderer.invoke('mystery-vault:torrent-cache:choose-directory'),
   setDnsEndpoint: endpoint => ipcRenderer.invoke('mystery-vault:dns:set', endpoint),
   getWatchlist: () => ipcRenderer.invoke('mystery-vault:watchlist:get'),
-  saveWatchlist: items => ipcRenderer.invoke('mystery-vault:watchlist:set', items)
+  saveWatchlist: items => ipcRenderer.invoke('mystery-vault:watchlist:set', items),
+  getContinueWatching: () => ipcRenderer.invoke('mystery-vault:continue-watching:get'),
+  saveContinueWatching: items => ipcRenderer.invoke('mystery-vault:continue-watching:set', items)
 }));

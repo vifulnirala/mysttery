@@ -1294,3 +1294,307 @@ html[data-theme="light"] .btn-danger:hover {
     scroll-behavior: auto !important;
   }
 }
+
+/* Featured Spotlight Banner Carousel (Windows 11 Fluent + Screenshot-inspired) */
+.spotlight-banner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 292px;
+  margin-bottom: 24px;
+  padding: 26px 28px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--win-stroke-strong);
+  background: linear-gradient(135deg, #121c36 0%, #172342 55%, #1d2648 100%);
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.spotlight-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.spotlight-backdrop.loaded {
+  opacity: 0.52;
+}
+
+.spotlight-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(13, 18, 34, 0.94) 0%, rgba(13, 18, 34, 0.78) 48%, rgba(13, 18, 34, 0.34) 100%),
+    linear-gradient(180deg, rgba(13, 18, 34, 0.22) 0%, rgba(13, 18, 34, 0.78) 100%);
+  pointer-events: none;
+}
+
+.spotlight-content {
+  position: relative;
+  z-index: 2;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.spotlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 174, 255, 0.36);
+  background: rgba(36, 48, 92, 0.78);
+  color: #dce8ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.spotlight-title {
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.spotlight-title-lead {
+  color: #ffffff;
+}
+
+.spotlight-title-accent {
+  color: #60cdff;
+}
+
+.spotlight-desc {
+  margin: 0;
+  color: #cbd5e8;
+  font-size: 13.5px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.spotlight-actions {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spotlight-cta {
+  min-height: 38px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(95deg, #60cdff 0%, #637dff 100%);
+  color: #06101f;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.spotlight-cta:hover {
+  filter: brightness(1.08);
+  background: linear-gradient(95deg, #60cdff 0%, #637dff 100%);
+}
+
+.spotlight-nav {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spotlight-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spotlight-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  transition: width 0.15s ease, background-color 0.15s ease;
+}
+
+.spotlight-dot.active {
+  width: 22px;
+  background: #ffffff;
+}
+
+.spotlight-arrows {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spotlight-arrow {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  border-radius: var(--radius-control);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 24, 38, 0.76);
+  color: #ffffff;
+  font-size: 16px;
+}
+
+.spotlight-arrow:hover {
+  background: rgba(45, 56, 86, 0.9);
+  border-color: #60cdff;
+}
+
+/* Continue Watching Shelf & Dedicated Tab */
+.section-head-row {
+  align-items: center;
+}
+
+.section-heading-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.heading-play-icon {
+  color: var(--win-accent);
+  font-size: 13px;
+}
+
+.see-all-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--win-accent);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+}
+
+.see-all-link:hover {
+  background: var(--win-subtle-hover);
+}
+
+.continue-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.continue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.continue-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--win-stroke);
+  border-radius: var(--radius-card);
+  background: var(--win-card);
+  contain: layout style paint;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.continue-card.clickable {
+  cursor: pointer;
+}
+
+.continue-card:hover {
+  background: var(--win-card-hover);
+  border-color: var(--win-stroke-strong);
+  box-shadow: var(--win-shadow-sm);
+}
+
+.continue-thumb-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--win-bg);
+}
+
+.continue-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.continue-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.continue-progress span {
+  display: block;
+  height: 100%;
+  background: var(--win-accent);
+}
+
+.continue-info {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px 12px;
+}
+
+.continue-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.continue-meta {
+  font-size: 12px;
+  color: var(--win-text-muted);
+}
+
+@media (max-width: 1080px) {
+  .continue-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .spotlight-banner { min-height: 250px; padding: 20px; }
+  .spotlight-nav { right: 16px; bottom: 14px; }
+  .continue-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .continue-row { grid-template-columns: 1fr; }
+}

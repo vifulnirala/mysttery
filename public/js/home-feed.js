@@ -5,6 +5,172 @@
     '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#2b2b2b"/><text x="200" y="305" fill="#60cdff" font-size="48" text-anchor="middle">✦</text></svg>'
   );
 
+  // Featured Spotlight Carousel (curated Scooby Vault + top trending TMDB titles)
+  const spotlightBanner = document.getElementById('featured-spotlight');
+  const spotlightBackdrop = document.getElementById('spotlight-backdrop');
+  const spotlightBadgeText = document.getElementById('spotlight-badge-text');
+  const spotlightLead = document.getElementById('spotlight-title-lead');
+  const spotlightAccent = document.getElementById('spotlight-title-accent');
+  const spotlightDesc = document.getElementById('spotlight-desc');
+  const spotlightCta = document.getElementById('spotlight-cta');
+  const spotlightCtaLabel = document.getElementById('spotlight-cta-label');
+  const spotlightDots = document.getElementById('spotlight-dots');
+  const spotlightPrev = document.getElementById('spotlight-prev');
+  const spotlightNext = document.getElementById('spotlight-next');
+
+  const spotlightSlides = [
+    {
+      badge: 'SCOOBY VAULT',
+      lead: 'The New',
+      accent: 'Scooby-Doo Movies',
+      desc: 'Discover curated Scooby-Doo mysteries, monsters, and midnight stories handpicked for the vault.',
+      cta: 'Explore Now',
+      tmdbId: '16472',
+      mediaType: 'tv',
+      title: 'The New Scooby-Doo Movies',
+      backdropUrl: '',
+      action: 'search',
+      query: 'Scooby-Doo'
+    },
+    {
+      badge: 'SCOOBY VAULT',
+      lead: 'Scooby-Doo,',
+      accent: 'Where Are You!',
+      desc: 'Follow Mystery Inc. through classic haunted castles, ghostly amusement parks, and unmasked villains.',
+      cta: 'Explore Now',
+      tmdbId: '1884',
+      mediaType: 'tv',
+      title: 'Scooby-Doo, Where Are You!',
+      backdropUrl: '',
+      action: 'open'
+    },
+    {
+      badge: 'VAULT CLASSIC',
+      lead: 'Scooby-Doo on',
+      accent: 'Zombie Island',
+      desc: 'The gang reunites on Moonscar Island in Louisiana where the monsters are more real than ever.',
+      cta: 'Play Now',
+      tmdbId: '16471',
+      mediaType: 'movie',
+      title: 'Scooby-Doo on Zombie Island',
+      backdropUrl: '',
+      action: 'open'
+    }
+  ];
+
+  let activeSlideIndex = 0;
+  let spotlightTimer = null;
+  let spotlightPaused = false;
+
+  function splitHeadline(title) {
+    const words = String(title || 'Featured Title').trim().split(/\s+/);
+    if (words.length <= 2) return { lead: words[0] || '', accent: words.slice(1).join(' ') || words[0] || '' };
+    const splitAt = Math.ceil(words.length / 2);
+    return { lead: words.slice(0, splitAt).join(' '), accent: words.slice(splitAt).join(' ') };
+  }
+
+  function renderSpotlightDots() {
+    if (!spotlightDots) return;
+    spotlightDots.replaceChildren();
+    const frag = document.createDocumentFragment();
+    spotlightSlides.forEach((slide, idx) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'spotlight-dot' + (idx === activeSlideIndex ? ' active' : '');
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-selected', String(idx === activeSlideIndex));
+      dot.setAttribute('aria-label', `Show featured slide ${idx + 1}: ${slide.title}`);
+      dot.addEventListener('click', () => showSpotlightSlide(idx));
+      frag.append(dot);
+    });
+    spotlightDots.append(frag);
+  }
+
+  function applySpotlightBackdrop(url) {
+    if (!spotlightBackdrop) return;
+    if (window.MysteryVaultImages?.hasRealImage(url)) {
+      spotlightBackdrop.classList.remove('loaded');
+      spotlightBackdrop.onload = () => spotlightBackdrop.classList.add('loaded');
+      spotlightBackdrop.onerror = () => spotlightBackdrop.classList.remove('loaded');
+      spotlightBackdrop.src = url;
+    } else {
+      spotlightBackdrop.classList.remove('loaded');
+      spotlightBackdrop.removeAttribute('src');
+    }
+  }
+
+  function showSpotlightSlide(index) {
+    if (!spotlightBanner || !spotlightSlides.length) return;
+    activeSlideIndex = (index + spotlightSlides.length) % spotlightSlides.length;
+    const slide = spotlightSlides[activeSlideIndex];
+    if (spotlightBadgeText) spotlightBadgeText.textContent = slide.badge || 'FEATURED';
+    if (spotlightLead) spotlightLead.textContent = slide.lead || '';
+    if (spotlightAccent) spotlightAccent.textContent = slide.accent || slide.title || '';
+    if (spotlightDesc) spotlightDesc.textContent = slide.desc || '';
+    if (spotlightCtaLabel) spotlightCtaLabel.textContent = slide.cta || 'Explore Now';
+    renderSpotlightDots();
+
+    if (window.MysteryVaultImages?.hasRealImage(slide.backdropUrl)) {
+      applySpotlightBackdrop(slide.backdropUrl);
+    } else if (slide.tmdbId && window.MysteryVaultImages?.resolveTmdbArtwork) {
+      applySpotlightBackdrop('');
+      const targetIndex = activeSlideIndex;
+      void window.MysteryVaultImages.resolveTmdbArtwork({
+        tmdbId: slide.tmdbId,
+        mediaType: slide.mediaType
+      }).then(art => {
+        const resolved = art?.backdropUrl || art?.posterUrl || '';
+        if (resolved) {
+          slide.backdropUrl = resolved;
+          if (!slide.desc && art?.overview) slide.desc = art.overview;
+          if (activeSlideIndex === targetIndex) applySpotlightBackdrop(resolved);
+        }
+      });
+    } else {
+      applySpotlightBackdrop('');
+    }
+  }
+
+  function startSpotlightAutoplay() {
+    if (spotlightTimer || !spotlightBanner) return;
+    spotlightTimer = setInterval(() => {
+      if (spotlightPaused || document.visibilityState !== 'visible') return;
+      showSpotlightSlide(activeSlideIndex + 1);
+    }, 7500);
+  }
+
+  if (spotlightBanner) {
+    spotlightBanner.addEventListener('mouseenter', () => { spotlightPaused = true; });
+    spotlightBanner.addEventListener('mouseleave', () => { spotlightPaused = false; });
+    spotlightBanner.addEventListener('focusin', () => { spotlightPaused = true; });
+    spotlightBanner.addEventListener('focusout', () => { spotlightPaused = false; });
+    spotlightPrev?.addEventListener('click', () => showSpotlightSlide(activeSlideIndex - 1));
+    spotlightNext?.addEventListener('click', () => showSpotlightSlide(activeSlideIndex + 1));
+    spotlightCta?.addEventListener('click', () => {
+      const slide = spotlightSlides[activeSlideIndex];
+      if (!slide) return;
+      if (slide.action === 'search' && slide.query) {
+        const input = document.getElementById('search');
+        const form = document.getElementById('search-form');
+        if (input && form) {
+          input.value = slide.query;
+          form.requestSubmit();
+        }
+      } else if (slide.tmdbId && slide.mediaType) {
+        window.MysteryVault?.openItem({
+          tmdbId: slide.tmdbId,
+          mediaType: slide.mediaType,
+          title: slide.title,
+          posterUrl: slide.posterUrl || '',
+          backdropUrl: slide.backdropUrl || '',
+          year: slide.year || ''
+        });
+      }
+    });
+    showSpotlightSlide(0);
+    startSpotlightAutoplay();
+  }
+
   function renderShelf(grid, items, emptyText) {
     if (!grid) return;
     grid.replaceChildren();
@@ -31,10 +197,25 @@
       img.loading = 'lazy';
       img.decoding = 'async';
       img.alt = '';
-      img.src = item.posterUrl || FALLBACK_POSTER;
+      const hasPoster = window.MysteryVaultImages?.hasRealImage(item.posterUrl);
+      img.src = hasPoster ? item.posterUrl : FALLBACK_POSTER;
+      if (item.tmdbId) {
+        img.dataset.tmdbId = item.tmdbId;
+        img.dataset.mediaType = item.mediaType || '';
+        if (!hasPoster) img.dataset.needsTmdbImage = '1';
+      }
       img.onerror = () => {
         img.onerror = null;
-        img.src = FALLBACK_POSTER;
+        if (item.tmdbId && img.dataset.tmdbHydrated !== '1') {
+          window.MysteryVaultImages?.hydrateImageElement(img, {
+            tmdbId: item.tmdbId,
+            mediaType: item.mediaType,
+            kind: 'poster',
+            fallback: FALLBACK_POSTER
+          });
+        } else {
+          img.src = FALLBACK_POSTER;
+        }
       };
 
       const overlay = document.createElement('div');
@@ -104,6 +285,7 @@
     });
 
     grid.append(fragment);
+    window.MysteryVaultImages?.hydrateMissingImages(grid);
   }
 
   async function loadJson(url, fallback) {
@@ -127,10 +309,30 @@
     { id: 35, section: document.getElementById('genre-comedy-section'), grid: document.getElementById('genre-comedy-grid'), name: 'comedy' }
   ];
 
-  // Load trending immediately; lazy-load genre shelves only when scrolled near the viewport.
+  // Load trending immediately and add top trending backdrop picks to the spotlight carousel.
   if (trendingGrid) {
     loadJson('/api/trending', []).then(items => {
       renderShelf(trendingGrid, items, 'Trending titles are unavailable right now.');
+      const spotlightExtras = items.filter(item => item.backdropUrl || item.posterUrl).slice(0, 3);
+      spotlightExtras.forEach(item => {
+        if (spotlightSlides.some(s => s.tmdbId === item.tmdbId)) return;
+        const { lead, accent } = splitHeadline(item.title);
+        spotlightSlides.push({
+          badge: item.mediaType === 'tv' ? 'TRENDING SERIES' : 'TRENDING MOVIE',
+          lead,
+          accent,
+          desc: item.overview || 'Trending this week on Mystery Vault.',
+          cta: item.mediaType === 'tv' ? 'View Episodes' : 'Play Now',
+          tmdbId: item.tmdbId,
+          mediaType: item.mediaType,
+          title: item.title,
+          year: item.year || '',
+          posterUrl: item.posterUrl || '',
+          backdropUrl: item.backdropUrl || item.posterUrl || '',
+          action: 'open'
+        });
+      });
+      renderSpotlightDots();
     });
   }
 

@@ -10,7 +10,7 @@
   "scripts": {
     "postinstall": "node scripts/fix-webtorrent-infohash.cjs",
     "start": "node server.js",
-    "check": "node --check server.js && node --check public/js/shell.js && node --check public/js/app.js && node --check public/js/home-feed.js && node --check public/js/watchlist.js && node --check public/js/settings.js && node --check desktop/main.js && node --check desktop/preload.js",
+    "check": "node --check server.js && node --check public/js/shell.js && node --check public/js/app.js && node --check public/js/home-feed.js && node --check public/js/watchlist.js && node --check public/js/continue-watching.js && node --check public/js/settings.js && node --check desktop/main.js && node --check desktop/preload.js",
     "desktop": "electron .",
     "dist:win": "electron-builder --win nsis"
   },

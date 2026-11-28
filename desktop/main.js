@@ -160,6 +160,63 @@ ipcMain.handle('mystery-vault:watchlist:set', (_event, items) => {
   return normalized;
 });
 
+const CONTINUE_WATCHING_PATH = () => path.join(app.getPath('userData'), 'continue-watching.json');
+
+function readContinueWatching() {
+  try {
+    const items = JSON.parse(fs.readFileSync(CONTINUE_WATCHING_PATH(), 'utf8'));
+    return Array.isArray(items) ? items : [];
+  } catch (error) {
+    return error.code === 'ENOENT' ? null : [];
+  }
+}
+
+function normalizeContinueWatching(items) {
+  if (!Array.isArray(items)) throw new Error('Continue watching list must be an array.');
+  const seen = new Set();
+  return items.slice(0, 100).map(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const id = String(item.id || '').slice(0, 240);
+    if (!id || seen.has(id)) return null;
+    seen.add(id);
+    const poster = String(item.poster || '');
+    const backdrop = String(item.backdropUrl || '');
+    const validImg = v => (/^https?:\/\//i.test(v) || /^data:image\/svg\+xml/i.test(v)) ? v.slice(0, 4000) : '';
+    return {
+      id,
+      title: String(item.title || 'Untitled').slice(0, 300),
+      year: String(item.year || '').slice(0, 20),
+      poster: validImg(poster),
+      backdropUrl: validImg(backdrop),
+      mode: item.mode === 'torrent' ? 'torrent' : 'external',
+      mediaType: String(item.mediaType || '').slice(0, 20),
+      tmdbId: String(item.tmdbId || '').slice(0, 40),
+      imdbId: String(item.imdbId || '').slice(0, 40),
+      source: String(item.source || '').slice(0, 12000),
+      fileIndex: Number.isInteger(Number(item.fileIndex)) ? Number(item.fileIndex) : null,
+      fileName: String(item.fileName || '').slice(0, 300),
+      season: Number.isInteger(Number(item.season)) ? Number(item.season) : null,
+      episode: Number.isInteger(Number(item.episode)) ? Number(item.episode) : null,
+      serverId: String(item.serverId || '').slice(0, 60),
+      provider: String(item.provider || '').slice(0, 100),
+      currentTime: Number.isFinite(Number(item.currentTime)) ? Math.max(0, Number(item.currentTime)) : 0,
+      duration: Number.isFinite(Number(item.duration)) ? Math.max(0, Number(item.duration)) : 0,
+      updatedAt: Number.isFinite(Number(item.updatedAt)) ? Number(item.updatedAt) : Date.now()
+    };
+  }).filter(Boolean);
+}
+
+ipcMain.handle('mystery-vault:continue-watching:get', () => readContinueWatching());
+ipcMain.handle('mystery-vault:continue-watching:set', (_event, items) => {
+  const normalized = normalizeContinueWatching(items);
+  const filePath = CONTINUE_WATCHING_PATH();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const temporaryPath = filePath + '.tmp';
+  fs.writeFileSync(temporaryPath, JSON.stringify(normalized, null, 2), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(temporaryPath, filePath);
+  return normalized;
+});
+
 ipcMain.handle('mystery-vault:torrent-cache:choose-directory', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose torrent cache drive/folder',

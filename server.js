@@ -189,6 +189,8 @@ const CATALOG = [
     id: 'sintel-sample',
     title: 'Test Stream (Open-Source Sintel)',
     type: 'test',
+    mediaType: 'movie',
+    tmdbId: '45745',
     year: 2010,
     poster: 'https://images.metahub.space/poster/medium/tt1727587/img',
     magnet: 'magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fsintel.torrent'
@@ -197,16 +199,20 @@ const CATALOG = [
     id: 'scooby-zombie-island',
     title: 'Scooby-Doo on Zombie Island (1998)',
     type: 'movie',
+    mediaType: 'movie',
+    tmdbId: '16471',
     year: 1998,
     poster: 'https://archive.org/services/img/scooby-doo-on-zombie-island-1998_202309',
     magnet: 'https://archive.org/download/scooby-doo-on-zombie-island-1998_202309/scooby-doo-on-zombie-island-1998_202309_archive.torrent'
   },
   {
     id: 'scooby doo where are you',
-    title: 'scooby doo where are you',
-    type: 'movie',
-    year: 1998,
-    poster: 'https://archive.org/services/img/scooby-doo-on-zombie-island-1998_202309',
+    title: 'Scooby-Doo, Where Are You!',
+    type: 'tv',
+    mediaType: 'tv',
+    tmdbId: '1884',
+    year: 1969,
+    poster: '',
     magnet: 'magnet:?xt=urn:btih:965855465B8DEB6D982630F4C40DFBE5C3FB38D4&dn=Scooby-Doo+Where+Are+You+1969+S01-S03+1080p+Blu-Ray+H265+10bit+AAC-Zero00&tr=http%3A%2F%2Fp4p.arenabg.com%3A1337%2Fannounce&tr=udp%3A%2F%2F47.ip-51-68-199.eu%3A6969%2Fannounce&tr=udp%3A%2F%2F9.rarbg.me%3A2780%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2710%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2730%2Fannounce&tr=udp%3A%2F%2F9.rarbg.to%3A2920%2Fannounce&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Fopentracker.i2p.rocks%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.cyberia.is%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Ftracker.pirateparty.gr%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.tiny-vps.com%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce'
   }
 ];
@@ -440,7 +446,8 @@ async function searchYts(query, requestedLimit = 50) {
           sizeMB: sizeMB || 800,
           poster: movie.medium_cover_image ||
             movie.large_cover_image ||
-            'https://via.placeholder.com/300x450?text=YTS',
+            null,
+          imdb: movie.imdb_code || null,
           source: `magnet:?${magnetSource}`,
           provider: 'YTS',
           movieId: movie.id,
@@ -514,7 +521,7 @@ async function searchApiBay(query, requestedLimit = 50) {
         seeders: Number(torrent.seeders || 0),
         leechers: Number(torrent.leechers || 0),
         sizeMB: sizeMB || 800,
-        poster: 'https://via.placeholder.com/300x450?text=API+Bay',
+        poster: null,
         source: `magnet:?${magnetSource}`,
         provider: 'APIBay',
         infoHash: hash,
@@ -1131,7 +1138,8 @@ app.get('/api/title-search', async (req, res) => {
         title: String(mediaType === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
         year: String((mediaType === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
         overview: String(item.overview || ''),
-        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w185${item.poster_path}` : null,
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+        backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
         popularity: Number(item.popularity || 0)
       }));
     };
@@ -1256,6 +1264,7 @@ app.get('/api/discover', async (req, res) => {
           year: String((mediaType === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
           overview: String(item.overview || ''),
           posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+          backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
           popularity: Number(item.popularity || 0)
         }));
     };
@@ -1295,7 +1304,8 @@ app.get('/api/trending', async (_req, res) => {
         title: String(item.media_type === 'movie' ? (item.title || item.original_title || 'Untitled') : (item.name || item.original_name || 'Untitled')),
         year: String((item.media_type === 'movie' ? item.release_date : item.first_air_date) || '').slice(0, 4),
         overview: String(item.overview || ''),
-        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null
+        posterUrl: item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null,
+        backdropUrl: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null
       }));
     const payload = setCachedValue(cacheKey, { results }, 15 * 60 * 1000);
     res.set('Cache-Control', 'public, max-age=300');
@@ -1304,6 +1314,93 @@ app.get('/api/trending', async (_req, res) => {
     console.error('TMDB trending error:', error.message);
     res.status(502).json({ error: 'Could not load trending titles.' });
   }
+});
+
+
+// Resolve poster and backdrop artwork from a TMDB ID (or IMDb ID via /find) with a 6-hour cache.
+async function fetchTmdbArtworkById(tmdbId, preferredType = '') {
+  const cleanId = String(tmdbId || '').trim();
+  if (!/^\d{1,12}$/.test(cleanId) || !TMDB_API_READ_ACCESS_TOKEN) return null;
+  const types = preferredType === 'tv' ? ['tv', 'movie'] : preferredType === 'movie' ? ['movie', 'tv'] : ['movie', 'tv'];
+  const cacheKey = `tmdb-art:${types[0]}:${cleanId}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached !== null) return cached;
+
+  for (const mediaType of types) {
+    try {
+      const response = await fetchWithLogarithmicBackoff(
+        `https://api.themoviedb.org/3/${mediaType}/${encodeURIComponent(cleanId)}?language=en-US`,
+        {
+          headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+          timeoutMs: 8000
+        },
+        `TMDB ${mediaType} artwork`
+      );
+      if (!response.ok) continue;
+      const data = await response.json();
+      const result = {
+        tmdbId: cleanId,
+        mediaType,
+        posterUrl: data.poster_path ? `https://image.tmdb.org/t/p/w342${data.poster_path}` : null,
+        backdropUrl: data.backdrop_path ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}` : null,
+        overview: String(data.overview || '')
+      };
+      if (result.posterUrl || result.backdropUrl) {
+        return setCachedValue(cacheKey, result, 6 * 60 * 60 * 1000);
+      }
+    } catch (_) {}
+  }
+  return setCachedValue(cacheKey, { tmdbId: cleanId, mediaType: types[0], posterUrl: null, backdropUrl: null, overview: '' }, 15 * 60 * 1000);
+}
+
+async function fetchTmdbArtworkByImdb(imdbId) {
+  const cleanImdb = String(imdbId || '').trim();
+  if (!/^tt\d{5,12}$/i.test(cleanImdb) || !TMDB_API_READ_ACCESS_TOKEN) return null;
+  const cacheKey = `tmdb-imdb-art:${cleanImdb.toLowerCase()}`;
+  const cached = getCachedValue(cacheKey);
+  if (cached !== null) return cached;
+
+  try {
+    const response = await fetchWithLogarithmicBackoff(
+      `https://api.themoviedb.org/3/find/${encodeURIComponent(cleanImdb)}?external_source=imdb_id&language=en-US`,
+      {
+        headers: { Authorization: `Bearer ${TMDB_API_READ_ACCESS_TOKEN}`, accept: 'application/json' },
+        timeoutMs: 8000
+      },
+      'TMDB IMDb artwork find'
+    );
+    if (response.ok) {
+      const data = await response.json();
+      const movie = Array.isArray(data.movie_results) ? data.movie_results[0] : null;
+      const tv = Array.isArray(data.tv_results) ? data.tv_results[0] : null;
+      const match = movie || tv;
+      if (match) {
+        return setCachedValue(cacheKey, {
+          tmdbId: String(match.id),
+          mediaType: movie ? 'movie' : 'tv',
+          posterUrl: match.poster_path ? `https://image.tmdb.org/t/p/w342${match.poster_path}` : null,
+          backdropUrl: match.backdrop_path ? `https://image.tmdb.org/t/p/w1280${match.backdrop_path}` : null,
+          overview: String(match.overview || '')
+        }, 6 * 60 * 60 * 1000);
+      }
+    }
+  } catch (_) {}
+  return setCachedValue(cacheKey, { tmdbId: null, mediaType: null, posterUrl: null, backdropUrl: null, overview: '' }, 15 * 60 * 1000);
+}
+
+app.get('/api/tmdb-image', async (req, res) => {
+  if (!TMDB_API_READ_ACCESS_TOKEN) return res.status(503).json({ error: 'TMDB is not configured.' });
+  const tmdbId = String(req.query.tmdbId || '').trim();
+  const imdbId = String(req.query.imdbId || '').trim();
+  const mediaType = req.query.mediaType === 'tv' ? 'tv' : req.query.mediaType === 'movie' ? 'movie' : '';
+
+  let result = null;
+  if (tmdbId) result = await fetchTmdbArtworkById(tmdbId, mediaType);
+  else if (imdbId) result = await fetchTmdbArtworkByImdb(imdbId);
+  else return res.status(400).json({ error: 'Provide tmdbId or imdbId.' });
+
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json(result || { tmdbId: tmdbId || null, mediaType: mediaType || null, posterUrl: null, backdropUrl: null });
 });
 
 app.get('/api/library', (req, res) => {
