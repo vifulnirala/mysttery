@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using MysteryVault.Native.Views;
 
 namespace MysteryVault.Native;
@@ -9,30 +8,34 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        var theme = App.Settings.Theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
-            ? ElementTheme.Light
-            : ElementTheme.Dark;
-        AppNavigation.RequestedTheme = theme;
-        ContentFrame.RequestedTheme = theme;
-        AppNavigation.SelectedItem = AppNavigation.MenuItems[0];
+        ApplyTheme();
         ContentFrame.Navigate(typeof(HomePage));
     }
 
-    private async void AppNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    private void ApplyTheme()
     {
-        if (args.SelectedItemContainer?.Tag is not string target) return;
-        switch (target)
-        {
-            case "Home": ContentFrame.Navigate(typeof(HomePage)); break;
-            case "Watchlist": ContentFrame.Navigate(typeof(WatchlistPage)); break;
-            case "Settings": ContentFrame.Navigate(typeof(SettingsPage)); break;
-            case "Theme":
-                var nextTheme = AppNavigation.RequestedTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
-                AppNavigation.RequestedTheme = nextTheme;
-                ContentFrame.RequestedTheme = nextTheme;
-                App.Settings.Theme = nextTheme == ElementTheme.Light ? "Light" : "Dark";
-                await App.SaveSettingsAsync();
-                break;
-        }
+        var theme = App.Settings.Theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
+            ? ElementTheme.Light
+            : ElementTheme.Dark;
+        RootLayout.RequestedTheme = theme;
+        ContentFrame.RequestedTheme = theme;
+    }
+
+    private void LibraryButton_Click(object sender, RoutedEventArgs e) =>
+        ContentFrame.Navigate(typeof(HomePage));
+
+    private void WatchlistButton_Click(object sender, RoutedEventArgs e) =>
+        ContentFrame.Navigate(typeof(WatchlistPage));
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
+        ContentFrame.Navigate(typeof(SettingsPage));
+
+    private async void ThemeButton_Click(object sender, RoutedEventArgs e)
+    {
+        App.Settings.Theme = App.Settings.Theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
+            ? "Dark"
+            : "Light";
+        ApplyTheme();
+        await App.SaveSettingsAsync();
     }
 }
