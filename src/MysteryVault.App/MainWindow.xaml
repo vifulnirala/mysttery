@@ -4,26 +4,26 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Mystery Vault">
-    <Window.SystemBackdrop>
-        <MicaBackdrop />
-    </Window.SystemBackdrop>
-    <NavigationView x:Name="NavView"
-                    PaneDisplayMode="Top"
-                    IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="True"
-                    SelectionChanged="NavView_SelectionChanged">
-        <NavigationView.MenuItems>
-            <NavigationViewItem Content="Library" Tag="library" Icon="Library" />
-            <NavigationViewItem Content="Search" Tag="search" Icon="Find" />
-            <NavigationViewItem Content="Watchlist" Tag="watchlist" Icon="Bookmarks" />
-        </NavigationView.MenuItems>
-        <NavigationView.FooterMenuItems>
-            <NavigationViewItem x:Name="ThemeToggleItem" Content="Toggle Theme" Tapped="ThemeToggleItem_Tapped" SelectsOnInvoked="False">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE706;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.FooterMenuItems>
-        <Frame x:Name="ContentFrame" Padding="24" />
-    </NavigationView>
+    <Grid Background="{StaticResource MvBgBrush}">
+        <NavigationView x:Name="NavView"
+                        PaneDisplayMode="Top"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="True"
+                        Background="Transparent"
+                        SelectionChanged="NavView_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Library" Tag="library" Icon="Library" />
+                <NavigationViewItem Content="Search" Tag="search" Icon="Find" />
+                <NavigationViewItem Content="Watchlist" Tag="watchlist" Icon="Bookmarks" />
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem x:Name="ThemeToggleItem" Content="Toggle Theme" Margin="0,0,16,0" Tapped="ThemeToggleItem_Tapped" SelectsOnInvoked="False">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE706;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+            <Frame x:Name="ContentFrame" Padding="28,16,28,28" />
+        </NavigationView>
+    </Grid>
 </Window>

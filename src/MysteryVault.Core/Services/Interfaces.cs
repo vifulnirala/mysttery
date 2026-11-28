@@ -10,6 +10,7 @@ public interface ITmdbClientService
     Task<IReadOnlyList<MediaItem>> DiscoverByGenreAsync(int genreId, CancellationToken ct = default);
     Task<IReadOnlyList<TvSeason>> GetTvSeasonsAsync(string tmdbId, CancellationToken ct = default);
     Task<IReadOnlyList<TvEpisode>> GetTvEpisodesAsync(string tmdbId, int seasonNumber, CancellationToken ct = default);
+    Task<string> GetExternalImdbIdAsync(string tmdbId, MediaType type, CancellationToken ct = default);
 }
 
 public interface ILocalCatalogService

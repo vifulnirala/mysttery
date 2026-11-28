@@ -11,12 +11,16 @@ namespace MysteryVault.App.Views;
 public sealed partial class SearchResultsPage : Page
 {
     private readonly IWatchlistService _watchlist;
+    private readonly ITmdbClientService _tmdb;
+    private readonly IEmbedProviderService _embeds;
     public SearchViewModel ViewModel { get; }
 
     public SearchResultsPage()
     {
         ViewModel = App.Current.Services.GetRequiredService<SearchViewModel>();
         _watchlist = App.Current.Services.GetRequiredService<IWatchlistService>();
+        _tmdb = App.Current.Services.GetRequiredService<ITmdbClientService>();
+        _embeds = App.Current.Services.GetRequiredService<IEmbedProviderService>();
         InitializeComponent();
     }
 
@@ -36,10 +40,7 @@ public sealed partial class SearchResultsPage : Page
         await RunSearchAsync();
     }
 
-    private async void SearchButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunSearchAsync();
-    }
+    private async void SearchButton_Click(object sender, RoutedEventArgs e) => await RunSearchAsync();
 
     private async Task RunSearchAsync()
     {
@@ -56,6 +57,7 @@ public sealed partial class SearchResultsPage : Page
     {
         if (e.ClickedItem is not MediaItem item) return;
 
+        var isTmdb = string.Equals(item.Source, "TMDB", StringComparison.OrdinalIgnoreCase);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -64,9 +66,9 @@ public sealed partial class SearchResultsPage : Page
             {
                 Text = string.IsNullOrWhiteSpace(item.Overview) ? $"Source: {item.Source}" : item.Overview,
                 TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 420
+                MaxWidth = 440
             },
-            PrimaryButtonText = "Search Torrents",
+            PrimaryButtonText = isTmdb ? "Watch Now" : "Search Torrents",
             SecondaryButtonText = "Add to Watchlist",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Primary
@@ -75,6 +77,22 @@ public sealed partial class SearchResultsPage : Page
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
         {
+            if (isTmdb)
+            {
+                var providers = await _embeds.GetAllAsync();
+                var provider = providers.FirstOrDefault();
+                if (provider is not null)
+                {
+                    var playbackId = await _tmdb.GetExternalImdbIdAsync(item.Id, item.Type);
+                    var template = item.Type == MediaType.Tv ? provider.TvUrlTemplate : provider.MovieUrlTemplate;
+                    var url = template
+                        .Replace("{id}", Uri.EscapeDataString(playbackId))
+                        .Replace("{season}", "1")
+                        .Replace("{episode}", "1");
+                    Frame?.Navigate(typeof(PlayerPage), url);
+                    return;
+                }
+            }
             ViewModel.Query = item.Title;
             await RunSearchAsync();
         }

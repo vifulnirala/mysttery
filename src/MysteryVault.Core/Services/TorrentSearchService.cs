@@ -5,6 +5,15 @@ namespace MysteryVault.Core.Services;
 
 public sealed class TorrentSearchService : ITorrentSearchService
 {
+    private static readonly string[] DefaultTrackers =
+    [
+        "udp://open.demonii.com:1337/announce",
+        "udp://tracker.opentrackr.org:1337/announce",
+        "udp://tracker.openbittorrent.com:80/announce",
+        "udp://p4p.arenabg.com:1337/announce",
+        "udp://tracker.torrent.eu.org:451/announce"
+    ];
+
     private readonly HttpClient _http;
 
     public TorrentSearchService(HttpClient http)
@@ -39,7 +48,9 @@ public sealed class TorrentSearchService : ITorrentSearchService
             return Array.Empty<TorrentResult>();
         }
 
+        var trackerSuffix = string.Join("", DefaultTrackers.Select(tr => $"&tr={Uri.EscapeDataString(tr)}"));
         var results = new List<TorrentResult>();
+
         foreach (var movie in movies.EnumerateArray())
         {
             var title = movie.TryGetProperty("title_long", out var tl) ? tl.GetString() ?? "Untitled" : "Untitled";
@@ -62,7 +73,7 @@ public sealed class TorrentSearchService : ITorrentSearchService
                 var size = t.TryGetProperty("size", out var sEl) ? sEl.GetString() ?? "" : "";
                 var seeds = t.TryGetProperty("seeds", out var sdEl) ? sdEl.GetInt32() : 0;
                 var peers = t.TryGetProperty("peers", out var prEl) ? prEl.GetInt32() : 0;
-                var magnet = $"magnet:?xt=urn:btih:{hash}&dn={Uri.EscapeDataString(title)}";
+                var magnet = $"magnet:?xt=urn:btih:{hash}&dn={Uri.EscapeDataString(title)}{trackerSuffix}";
 
                 results.Add(new TorrentResult(title, hash, magnet, q, size, seeds, peers, "YTS"));
             }

@@ -8,6 +8,13 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="MvBgBrush" Color="#090D18" />
+            <SolidColorBrush x:Key="MvSurfaceBrush" Color="#131A2D" />
+            <SolidColorBrush x:Key="MvSurface2Brush" Color="#1B2540" />
+            <SolidColorBrush x:Key="MvBorderBrush" Color="#29A9BEFF" />
+            <SolidColorBrush x:Key="MvAccentBrush" Color="#A78BFA" />
+            <SolidColorBrush x:Key="MvAccent2Brush" Color="#67E8F9" />
+            <SolidColorBrush x:Key="MvMutedBrush" Color="#9AA8C7" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -117,6 +117,22 @@ public sealed class TmdbClientService : ITmdbClientService
         return list;
     }
 
+    public async Task<string> GetExternalImdbIdAsync(string tmdbId, MediaType type, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.TmdbReadAccessToken) || !long.TryParse(tmdbId, out _))
+            return tmdbId;
+
+        var endpoint = type == MediaType.Tv ? "tv" : "movie";
+        using var doc = await GetJsonAsync($"https://api.themoviedb.org/3/{endpoint}/{Uri.EscapeDataString(tmdbId)}/external_ids", ct);
+        if (doc is not null &&
+            doc.RootElement.TryGetProperty("imdb_id", out var imdb) &&
+            imdb.GetString() is { Length: > 0 } imdbId)
+        {
+            return imdbId;
+        }
+        return tmdbId;
+    }
+
     private async Task<List<(MediaItem Item, double Popularity)>> SearchOneAsync(string mediaType, string query, CancellationToken ct)
     {
         var url = $"https://api.themoviedb.org/3/search/{mediaType}?query={Uri.EscapeDataString(query)}&include_adult=false&language=en-US&page=1";
@@ -185,13 +201,20 @@ public sealed class TmdbClientService : ITmdbClientService
 
     private async Task<JsonDocument?> GetJsonAsync(string url, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.TmdbReadAccessToken);
-        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.TmdbReadAccessToken);
+            req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-        using var resp = await _http.SendAsync(req, ct);
-        if (!resp.IsSuccessStatusCode) return null;
-        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-        return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            using var resp = await _http.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+            return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

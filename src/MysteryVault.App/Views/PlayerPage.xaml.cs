@@ -37,13 +37,13 @@ public sealed partial class PlayerPage : Page
     {
         EmbedWebView.Visibility = Visibility.Collapsed;
         VideoPlayer.Visibility = Visibility.Visible;
-        PlayerStatusText.Text = "Buffering torrent stream...";
+        PlayerStatusText.Text = "Connecting to peers & buffering torrent...";
         try
         {
-            var stream = await _streaming.StartStreamAsync(magnetUri);
-            VideoPlayer.Source = MediaSource.CreateFromStream(stream.AsRandomAccessStream(), "video/mp4");
+            var localStreamUri = await _streaming.StartHttpStreamAsync(magnetUri);
+            VideoPlayer.Source = MediaSource.CreateFromUri(localStreamUri);
             VideoPlayer.MediaPlayer.Play();
-            PlayerStatusText.Text = "Streaming via MonoTorrent";
+            PlayerStatusText.Text = $"Streaming via MonoTorrent ({localStreamUri})";
         }
         catch (Exception ex)
         {
@@ -59,7 +59,7 @@ public sealed partial class PlayerPage : Page
         ApplySandboxSettings();
         EmbedWebView.CoreWebView2.NewWindowRequested += (_, args) => args.Handled = true;
         EmbedWebView.Source = embedUri;
-        PlayerStatusText.Text = $"Embed: {embedUri.Host}";
+        PlayerStatusText.Text = $"Embed Player: {embedUri.Host}";
     }
 
     private void ApplySandboxSettings()

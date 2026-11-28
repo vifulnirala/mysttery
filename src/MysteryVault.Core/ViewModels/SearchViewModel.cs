@@ -16,6 +16,9 @@ public sealed partial class SearchViewModel : ObservableObject
     private string _query = string.Empty;
 
     [ObservableProperty]
+    private string _selectedSource = "All clues";
+
+    [ObservableProperty]
     private string _selectedQuality = "All";
 
     [ObservableProperty]
@@ -27,6 +30,7 @@ public sealed partial class SearchViewModel : ObservableObject
     [ObservableProperty]
     private string? _statusMessage;
 
+    public IReadOnlyList<string> SourceOptions { get; } = ["All clues", "TMDB", "YTS", "Catalog"];
     public IReadOnlyList<string> QualityOptions { get; } = ["All", "2160p", "1080p", "720p"];
     public IReadOnlyList<int> PageSizeOptions { get; } = [12, 24, 48];
 
@@ -57,10 +61,14 @@ public sealed partial class SearchViewModel : ObservableObject
         StatusMessage = $"Searching for '{q}'...";
         try
         {
-            var tmdbTask = _tmdb.SearchTitlesAsync(q, ct);
-            var catalogTask = _catalog.SearchCatalogAsync(q, ct);
+            var runTmdb = SelectedSource is "All clues" or "TMDB";
+            var runCatalog = SelectedSource is "All clues" or "Catalog";
+            var runYts = SelectedSource is "All clues" or "YTS";
+
+            var tmdbTask = runTmdb ? _tmdb.SearchTitlesAsync(q, ct) : Task.FromResult<IReadOnlyList<MediaItem>>(Array.Empty<MediaItem>());
+            var catalogTask = runCatalog ? _catalog.SearchCatalogAsync(q, ct) : Task.FromResult<IReadOnlyList<MediaItem>>(Array.Empty<MediaItem>());
             var qualityFilter = SelectedQuality == "All" ? null : SelectedQuality;
-            var torrentTask = _torrents.SearchAsync(q, qualityFilter, PageSize, ct);
+            var torrentTask = runYts ? _torrents.SearchAsync(q, qualityFilter, PageSize, ct) : Task.FromResult<IReadOnlyList<TorrentResult>>(Array.Empty<TorrentResult>());
 
             await Task.WhenAll(tmdbTask, catalogTask, torrentTask);
 
@@ -72,7 +80,7 @@ public sealed partial class SearchViewModel : ObservableObject
             foreach (var t in torrentTask.Result)
                 TorrentResults.Add(t);
 
-            StatusMessage = $"Found {TitleResults.Count} titles and {TorrentResults.Count} torrent matches.";
+            StatusMessage = $"Found {TitleResults.Count} titles and {TorrentResults.Count} torrent matches ({SelectedSource}).";
         }
         catch (Exception ex)
         {

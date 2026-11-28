@@ -9,21 +9,28 @@
             <TextBlock Text="Search" Style="{StaticResource TitleLargeTextBlockStyle}" />
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <AutoSuggestBox x:Name="SearchBox"
-                                Width="380"
+                                Width="340"
+                                VerticalAlignment="Bottom"
                                 PlaceholderText="Search titles or torrents..."
                                 QueryIcon="Find"
                                 Text="{x:Bind ViewModel.Query, Mode=TwoWay}"
                                 QuerySubmitted="SearchBox_QuerySubmitted" />
+                <ComboBox Header="Source"
+                          ItemsSource="{x:Bind ViewModel.SourceOptions}"
+                          SelectedItem="{x:Bind ViewModel.SelectedSource, Mode=TwoWay}" />
                 <ComboBox Header="Quality"
                           ItemsSource="{x:Bind ViewModel.QualityOptions}"
                           SelectedItem="{x:Bind ViewModel.SelectedQuality, Mode=TwoWay}" />
+                <ComboBox Header="Results"
+                          ItemsSource="{x:Bind ViewModel.PageSizeOptions}"
+                          SelectedItem="{x:Bind ViewModel.PageSize, Mode=TwoWay}" />
                 <Button Content="Search" Style="{StaticResource AccentButtonStyle}" Click="SearchButton_Click" VerticalAlignment="Bottom" />
             </StackPanel>
 
             <ProgressRing IsActive="{x:Bind ViewModel.IsSearching, Mode=OneWay}" HorizontalAlignment="Left" />
             <InfoBar x:Name="StatusInfoBar" IsOpen="False" IsClosable="True" />
 
-            <TextBlock Text="Titles (Click to search streams or save)" Style="{StaticResource SubtitleTextBlockStyle}" />
+            <TextBlock Text="Titles (Click to Watch via Embed or Search Torrents)" Style="{StaticResource SubtitleTextBlockStyle}" />
             <GridView ItemsSource="{x:Bind ViewModel.TitleResults}"
                       IsItemClickEnabled="True"
                       SelectionMode="None"
@@ -32,18 +39,18 @@
                     <DataTemplate x:DataType="models:MediaItem">
                         <Border Width="172"
                                 Height="296"
-                                Margin="0,0,8,8"
-                                CornerRadius="8"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                Margin="0,0,10,8"
+                                CornerRadius="16"
+                                Background="{StaticResource MvSurfaceBrush}"
+                                BorderBrush="{StaticResource MvBorderBrush}"
                                 BorderThickness="1">
                             <Grid RowDefinitions="216,*">
-                                <Border Grid.Row="0" CornerRadius="7,7,0,0" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                <Border Grid.Row="0" CornerRadius="15,15,0,0" Background="{StaticResource MvSurface2Brush}">
                                     <Image Source="{x:Bind PosterUrl}" Stretch="UniformToFill" />
                                 </Border>
                                 <StackPanel Grid.Row="1" Padding="10,8" Spacing="2">
                                     <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxLines="2" />
-                                    <TextBlock Text="{x:Bind Source}" Opacity="0.65" FontSize="12" />
+                                    <TextBlock Text="{x:Bind Source}" Foreground="{StaticResource MvMutedBrush}" FontSize="12" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -58,12 +65,19 @@
                       ItemClick="TorrentItem_Click">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:TorrentResult">
-                        <Grid ColumnDefinitions="*,84,96,72" Padding="8,10" ColumnSpacing="12">
-                            <TextBlock Grid.Column="0" Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="1" Text="{x:Bind Quality}" Opacity="0.85" />
-                            <TextBlock Grid.Column="2" Text="{x:Bind SizeDisplay}" Opacity="0.85" />
-                            <TextBlock Grid.Column="3" Text="{x:Bind Seeds}" Opacity="0.85" />
-                        </Grid>
+                        <Border CornerRadius="10"
+                                Margin="0,0,0,6"
+                                Padding="12,10"
+                                Background="{StaticResource MvSurfaceBrush}"
+                                BorderBrush="{StaticResource MvBorderBrush}"
+                                BorderThickness="1">
+                            <Grid ColumnDefinitions="*,84,96,72" ColumnSpacing="12">
+                                <TextBlock Grid.Column="0" Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="1" Text="{x:Bind Quality}" Foreground="{StaticResource MvAccent2Brush}" />
+                                <TextBlock Grid.Column="2" Text="{x:Bind SizeDisplay}" Foreground="{StaticResource MvMutedBrush}" />
+                                <TextBlock Grid.Column="3" Text="{x:Bind Seeds}" Foreground="{StaticResource MvAccentBrush}" />
+                            </Grid>
+                        </Border>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
