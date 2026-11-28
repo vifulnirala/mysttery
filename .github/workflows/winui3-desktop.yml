@@ -1,0 +1,30 @@
+name: WinUI 3 Desktop Build
+
+on:
+  push:
+    branches:
+      - gemini_windows
+  workflow_dispatch:
+
+jobs:
+  build-winui3:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore & Test Core
+        run: dotnet test tests/MysteryVault.Tests/MysteryVault.Tests.csproj -c Release
+
+      - name: Publish WinUI 3 App (x64)
+        run: dotnet publish src/MysteryVault.App/MysteryVault.App.csproj -c Release -r win-x64 -p:Platform=x64 -o publish/win-x64
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mystery-vault-winui3-x64
+          path: publish/win-x64/**
