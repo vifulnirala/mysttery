@@ -7,7 +7,7 @@ namespace MysteryVault.Native.Views;
 
 public sealed partial class HomePage : Page
 {
-    private readonly ProviderSearchService _search = new(App.Settings.TmdbReadAccessToken);
+    private readonly ProviderSearchService _search = new();
     private readonly DiscoveryService _discovery = new();
     private CancellationTokenSource? _searchCancellation;
     private IReadOnlyList<MediaSearchResult> _lastResults = Array.Empty<MediaSearchResult>();
