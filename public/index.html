@@ -19,40 +19,52 @@
     </nav>
 
     <section class="hero">
-      <div class="eyebrow"><span aria-hidden="true">✧</span> Your next watch starts here</div>
-      <h1><span class="gradient-text">Find it. Stream it.</span></h1>
-      <p class="hero-copy">Search the catalog and available torrent sources in one place. Pick a result to inspect its files before playback begins.</p>
+      <div class="hero-badge"><span aria-hidden="true">✦</span> MYSTERY VAULT</div>
+      <div class="hero-copy-wrap">
+        <div>
+          <div class="eyebrow">Discover • Investigate • Stream</div>
+          <h1><span class="gradient-text">Find your next mystery.</span></h1>
+          <p class="hero-copy">Search movies, TV series, curated picks, and available torrent sources from one focused vault.</p>
+        </div>
+        <div class="hero-orb" aria-hidden="true"><span>✦</span></div>
+      </div>
       <form class="search-panel" id="search-form" role="search">
+        <span class="search-icon" aria-hidden="true">⌕</span>
         <input type="search" id="search" autocomplete="off" placeholder="Search movies, TV shows, or torrents…" aria-label="Search movies, TV shows, or torrents">
-        <button class="btn btn-primary" type="submit">⌕ &nbsp; Search</button>
+        <button class="btn btn-primary" type="submit">Investigate <span aria-hidden="true">✦</span></button>
       </form>
+      <div class="quick-searches" aria-label="Quick searches">
+        <button type="button" class="query-chip" data-query="Scooby-Doo">Scooby-Doo</button>
+        <button type="button" class="query-chip" data-query="Avatar">Avatar</button>
+        <button type="button" class="query-chip" data-query="Interstellar">Interstellar</button>
+        <button type="button" class="query-chip" data-query="Inception">Inception</button>
+      </div>
       <div id="status-banner" class="status" role="status" aria-live="polite"></div>
     </section>
 
     <section id="search-results-section" class="section hidden" aria-labelledby="results-title">
       <div class="section-head">
-        <div><div class="section-kicker">Search results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note">YTS results are shown first.</p></div>
+        <div><div class="section-kicker">Case results</div><h2 id="results-title">Matches for your search</h2><p class="section-note" id="results-note">Search all available sources and refine the results below.</p></div>
         <div class="result-controls">
-          <label class="filter-field"><span>Source</span>
-            <select id="result-source-filter" class="select-control" aria-label="Filter results by source">
-              <option value="all">All sources</option><option value="yts">YTS</option><option value="archive">Internet Archive</option><option value="tmdb">TMDB movies &amp; series</option>
-            </select>
-          </label>
-          <label class="filter-field" id="apibay-filter-wrap"><span>APIBay</span>
-            <select id="apibay-filter" class="select-control" aria-label="Filter results by APIBay">
-              <option value="all">All results</option><option value="apibay">APIBay only</option>
-            </select>
-          </label>
-          <label class="filter-field" id="quality-filter-wrap"><span>Picture quality</span>
-            <select id="quality-filter" class="select-control" aria-label="Filter YTS results by picture quality">
-              <option value="all">All qualities</option>
-            </select>
-          </label>
-          <label class="filter-field"><span>Show per page</span>
-            <select id="page-size" class="select-control" aria-label="Number of search results to show at a time">
-              <option value="10">10 results</option><option value="20">20 results</option><option value="30">30 results</option><option value="50">50 results</option>
-            </select>
-          </label>
+          <div class="filter-chips" role="group" aria-label="Result source">
+            <button type="button" class="filter-chip active" data-source-filter="all">All clues</button>
+            <button type="button" class="filter-chip" data-source-filter="yts">YTS</button>
+            <button type="button" class="filter-chip" data-source-filter="archive">Archive</button>
+            <button type="button" class="filter-chip" data-source-filter="tmdb">TMDB</button>
+            <button type="button" class="filter-chip" data-source-filter="apibay">APIBay</button>
+          </div>
+          <div class="result-selectors">
+            <label class="filter-field" id="quality-filter-wrap"><span>Quality</span>
+              <select id="quality-filter" class="select-control" aria-label="Filter YTS results by picture quality">
+                <option value="all">All qualities</option>
+              </select>
+            </label>
+            <label class="filter-field"><span>Results</span>
+              <select id="page-size" class="select-control" aria-label="Number of search results to show at a time">
+                <option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="50">50</option>
+              </select>
+            </label>
+          </div>
         </div>
       </div>
       <div class="grid" id="torrent-grid" aria-live="polite"></div>
