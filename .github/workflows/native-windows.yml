@@ -12,17 +12,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-      - name: Verify pinned .NET SDK
+      - name: Locate Visual Studio MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Verify Windows build toolchain
+        shell: pwsh
         run: |
-          dotnet --version
-          dotnet --info
-      - name: Restore
-        run: dotnet restore src/MysteryVault.Native/MysteryVault.Native.csproj
-      - name: Build x64
-        run: dotnet build src/MysteryVault.Native/MysteryVault.Native.csproj --configuration Release -p:Platform=x64 --no-restore
+          where.exe msbuild
+          msbuild -version
+      - name: Restore and build x64
+        run: msbuild src/MysteryVault.Native/MysteryVault.Native.csproj /restore /t:Build /p:Configuration=Release /p:Platform=x64 /p:WindowsPackageType=None /verbosity:minimal
       - name: Print XAML compiler diagnostics on failure
         if: failure()
         shell: pwsh
@@ -35,9 +33,8 @@ jobs:
               Get-Content $file -Raw
             }
           }
-
       - name: Publish x64
-        run: dotnet publish src/MysteryVault.Native/MysteryVault.Native.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/native-win-x64
+        run: msbuild src/MysteryVault.Native/MysteryVault.Native.csproj /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsPackageType=None /p:PublishDir=artifacts/native-win-x64/ /verbosity:minimal
       - uses: actions/upload-artifact@v4
         with:
           name: mystery-vault-native-win-x64
